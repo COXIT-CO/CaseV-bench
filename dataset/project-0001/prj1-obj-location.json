@@ -114,6 +114,90 @@
       "category": "cabinet",
       "page": 1,
       "bbox": { "x": 487, "y": 1965, "width": 44.0, "height": 39.0 }
+    },
+    {
+      "id": "cab-020",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 327, "y": 929, "width": 152.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-021",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 379, "y": 929, "width": 54.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-022",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 433, "y": 929, "width": 64.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-023",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 487, "y": 929, "width": 54.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-024",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 541, "y": 929, "width": 54.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-025",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 595, "y": 929, "width": 54.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-026",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 649, "y": 929, "width": 54.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-027",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 703, "y": 929, "width": 52.0, "height": 48.0 }
+    },
+    {
+      "id": "cab-028",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 485, "y": 1973, "width": 62.0, "height": 47.0 }
+    },
+    {
+      "id": "cab-029",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 2020, "y": 395, "width": 58.0, "height": 47.0 }
+    },
+    {
+      "id": "cab-030",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 2078, "y": 395, "width": 59.0, "height": 47.0 }
+    },
+    {
+      "id": "cab-031",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 2137, "y": 395, "width": 58.0, "height": 47.0 }
+    },
+    {
+      "id": "cab-032",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 2195, "y": 395, "width": 59.0, "height": 47.0 }
+    },
+    {
+      "id": "cab-033",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": { "x": 2048, "y": 1930, "width": 108.0, "height": 145.0 }
     }
   ]
 }
