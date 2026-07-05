@@ -1,0 +1,27 @@
+[project]
+name = "casev-bench"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "None"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic (>=2.13.4,<3.0.0)",
+    "pymupdf (>=1.28.0,<2.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "pillow (>=12.3.0,<13.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "isort (>=8.0.1,<9.0.0)",
+    "black (>=26.5.1,<27.0.0)"
+]
