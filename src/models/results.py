@@ -25,5 +25,4 @@ class LocationDetection(BaseModel):
 
 
 class LocationResult(BaseModel):
-    page: int
     detections: list[LocationDetection]
