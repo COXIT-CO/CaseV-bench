@@ -1,0 +1,272 @@
+{
+    "run_1": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 15,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 12
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 12,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 9
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 26,
+                "countertops": 10,
+                "elevations": 13,
+                "elevation_callout": 13
+            }
+        ]
+    },
+    "run_2": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 14,
+                "countertops": 7,
+                "elevations": 9,
+                "elevation_callout": 8
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 12,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 5
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 20,
+                "countertops": 9,
+                "elevations": 13,
+                "elevation_callout": 13
+            }
+        ]
+    },
+    "run_3": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 18,
+                "countertops": 7,
+                "elevations": 9,
+                "elevation_callout": 12
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 16,
+                "countertops": 9,
+                "elevations": 9,
+                "elevation_callout": 14
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 21,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 19
+            }
+        ]
+    },
+    "run_4": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 18,
+                "countertops": 9,
+                "elevations": 9,
+                "elevation_callout": 12
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 12,
+                "countertops": 10,
+                "elevations": 9,
+                "elevation_callout": 15
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 26,
+                "countertops": 8,
+                "elevations": 11,
+                "elevation_callout": 19
+            }
+        ]
+    },
+    "run_5": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 15,
+                "countertops": 7,
+                "elevations": 9,
+                "elevation_callout": 13
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 12,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 15
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 28,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 8
+            }
+        ]
+    },
+    "run_6": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 15,
+                "countertops": 7,
+                "elevations": 9,
+                "elevation_callout": 12
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 14,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 13
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 26,
+                "countertops": 8,
+                "elevations": 11,
+                "elevation_callout": 17
+            }
+        ]
+    },
+    "run_7": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 15,
+                "countertops": 9,
+                "elevations": 9,
+                "elevation_callout": 8
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 18,
+                "countertops": 9,
+                "elevations": 9,
+                "elevation_callout": 15
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 26,
+                "countertops": 8,
+                "elevations": 9,
+                "elevation_callout": 8
+            }
+        ]
+    },
+    "run_8": {
+        "prompt_version": "v0001.md",
+        "project": "prj0002",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 14,
+                "countertops": 2,
+                "elevations": 1,
+                "elevation_callout": 0
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 13,
+                "countertops": 1,
+                "elevations": 1,
+                "elevation_callout": 7
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 13,
+                "countertops": 1,
+                "elevations": 1,
+                "elevation_callout": 6
+            }
+        ]
+    },
+    "run_9": {
+        "prompt_version": "v0001.md",
+        "project": "prj0002",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 14,
+                "countertops": 2,
+                "elevations": 1,
+                "elevation_callout": 0
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 13,
+                "countertops": 1,
+                "elevations": 1,
+                "elevation_callout": 7
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 13,
+                "countertops": 1,
+                "elevations": 1,
+                "elevation_callout": 6
+            }
+        ]
+    },
+    "run_10": {
+        "prompt_version": "v0001.md",
+        "project": "prj0002",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "cabinets": 14,
+                "countertops": 2,
+                "elevations": 1,
+                "elevation_callout": 0
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "cabinets": 13,
+                "countertops": 1,
+                "elevations": 1,
+                "elevation_callout": 7
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "cabinets": 13,
+                "countertops": 1,
+                "elevations": 1,
+                "elevation_callout": 6
+            }
+        ]
+    }
+}

@@ -1,0 +1,757 @@
+{
+    "run_1": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "detection_count": 8,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.105,
+                            "y_min": 0.104,
+                            "x_max": 0.148,
+                            "y_max": 0.162
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.194,
+                            "y_min": 0.104,
+                            "x_max": 0.237,
+                            "y_max": 0.162
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.385,
+                            "y_min": 0.104,
+                            "x_max": 0.428,
+                            "y_max": 0.162
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.485,
+                            "y_min": 0.104,
+                            "x_max": 0.528,
+                            "y_max": 0.162
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.105,
+                            "y_min": 0.325,
+                            "x_max": 0.148,
+                            "y_max": 0.383
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.194,
+                            "y_min": 0.325,
+                            "x_max": 0.237,
+                            "y_max": 0.383
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.092,
+                            "y_min": 0.546,
+                            "x_max": 0.135,
+                            "y_max": 0.604
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.203,
+                            "y_min": 0.546,
+                            "x_max": 0.246,
+                            "y_max": 0.604
+                        }
+                    }
+                ]
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "detection_count": 10,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.1,
+                            "y_min": 0.08,
+                            "x_max": 0.19,
+                            "y_max": 0.18
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.45,
+                            "y_min": 0.06,
+                            "x_max": 0.57,
+                            "y_max": 0.18
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.73,
+                            "y_min": 0.12,
+                            "x_max": 0.85,
+                            "y_max": 0.2
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.13,
+                            "y_min": 0.33,
+                            "x_max": 0.28,
+                            "y_max": 0.49
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.44,
+                            "y_min": 0.4,
+                            "x_max": 0.57,
+                            "y_max": 0.49
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.76,
+                            "y_min": 0.39,
+                            "x_max": 0.92,
+                            "y_max": 0.5
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.11,
+                            "y_min": 0.59,
+                            "x_max": 0.22,
+                            "y_max": 0.72
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.68,
+                            "y_min": 0.6,
+                            "x_max": 0.96,
+                            "y_max": 0.75
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.08,
+                            "y_min": 0.84,
+                            "x_max": 0.27,
+                            "y_max": 0.93
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.49,
+                            "y_min": 0.82,
+                            "x_max": 0.62,
+                            "y_max": 0.92
+                        }
+                    }
+                ]
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "parse_error": "Expecting ',' delimiter: line 15 column 90 (char 1421)",
+                "raw_content": "\n[\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.17, \"y_min\": 0.14, \"x_max\": 0.28, \"y_max\": 0.21}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.3, \"y_min\": 0.14, \"x_max\": 0.45, \"y_max\": 0.21}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.08, \"y_min\": 0.38, \"x_max\": 0.2, \"y_max\": 0.44}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.25, \"y_min\": 0.33, \"x_max\": 0.45, \"y_max\": 0.45}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.54, \"y_min\": 0.39, \"x_max\": 0.65, \"y_max\": 0.45}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.73, \"y_min\": 0.58, \"x_max\": 0.77, \"y_max\": 0.61}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.73, \"y_min\": 0.6, \"x_max\": 0.77, \"y_max\": 0.64}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.79, \"y_min\": 0.58, \"x_max\": 0.82, \"y_max\": 0.61}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.79, \"y_min\": 0.6, \"x_max\": 0.82, \"y_max\": 0.64}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.54, \"y_min\": 0.8, \"x_max\": 0.7, \"y_max\": 0.86}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.85, \"y_min\": 0.8, \"x_max\": 0.87, \"y_max\": 0.84}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.85, \"y_min\": 0.8, \"x_max\": 0.87, \"y_max\": 0.84}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.89, \"y_min\": 0.8, \"x_max\": 0.91, \"y_max\": 0.84}},\n  {\"label\": \"cabinets\", \"bounding_min\": 0.06, \"y_min\": 0.6, \"x_max\": 0.17, \"y_max\": 0.66}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.28, \"y_min\": 0.61, \"x_max\": 0.45, \"y_max\": 0.68}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.07, \"y_min\": 0.8, \"x_max\": 0.2, \"y_max\": 0.87}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.28, \"y_min\": 0.8, \"x_max\": 0.46, \"y_max\": 0.87}}\n]\n```"
+            }
+        ]
+    },
+    "run_2": {
+        "prompt_version": "v0001.md",
+        "project": "prj0001",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "detection_count": 8,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.109,
+                            "y_min": 0.106,
+                            "x_max": 0.129,
+                            "y_max": 0.158
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.214,
+                            "y_min": 0.106,
+                            "x_max": 0.234,
+                            "y_max": 0.158
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.385,
+                            "y_min": 0.106,
+                            "x_max": 0.405,
+                            "y_max": 0.158
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.513,
+                            "y_min": 0.106,
+                            "x_max": 0.533,
+                            "y_max": 0.158
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.104,
+                            "y_min": 0.329,
+                            "x_max": 0.124,
+                            "y_max": 0.381
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.204,
+                            "y_min": 0.329,
+                            "x_max": 0.224,
+                            "y_max": 0.381
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.091,
+                            "y_min": 0.552,
+                            "x_max": 0.111,
+                            "y_max": 0.604
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.214,
+                            "y_min": 0.552,
+                            "x_max": 0.234,
+                            "y_max": 0.604
+                        }
+                    }
+                ]
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "detection_count": 8,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.04,
+                            "y_min": 0.03,
+                            "x_max": 0.22,
+                            "y_max": 0.17
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.27,
+                            "y_min": 0.03,
+                            "x_max": 0.46,
+                            "y_max": 0.17
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.68,
+                            "y_min": 0.04,
+                            "x_max": 0.92,
+                            "y_max": 0.22
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.04,
+                            "y_min": 0.19,
+                            "x_max": 0.23,
+                            "y_max": 0.37
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.28,
+                            "y_min": 0.39,
+                            "x_max": 0.56,
+                            "y_max": 0.6
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.61,
+                            "y_min": 0.36,
+                            "x_max": 0.92,
+                            "y_max": 0.62
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.21,
+                            "y_min": 0.62,
+                            "x_max": 0.54,
+                            "y_max": 0.88
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.05,
+                            "y_min": 0.61,
+                            "x_max": 0.24,
+                            "y_max": 0.79
+                        }
+                    }
+                ]
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "detection_count": 11,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.17,
+                            "y_min": 0.13,
+                            "x_max": 0.22,
+                            "y_max": 0.18
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.3,
+                            "y_min": 0.13,
+                            "x_max": 0.35,
+                            "y_max": 0.18
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.17,
+                            "y_min": 0.36,
+                            "x_max": 0.22,
+                            "y_max": 0.4
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.3,
+                            "y_min": 0.36,
+                            "x_max": 0.35,
+                            "y_max": 0.4
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.54,
+                            "y_min": 0.61,
+                            "x_max": 0.74,
+                            "y_max": 0.72
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.59,
+                            "y_min": 0.36,
+                            "x_max": 0.71,
+                            "y_max": 0.4
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.58,
+                            "y_min": 0.13,
+                            "x_max": 0.72,
+                            "y_max": 0.19
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.3,
+                            "y_min": 0.61,
+                            "x_max": 0.35,
+                            "y_max": 0.65
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.16,
+                            "y_min": 0.61,
+                            "x_max": 0.22,
+                            "y_max": 0.65
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.3,
+                            "y_min": 0.84,
+                            "x_max": 0.35,
+                            "y_max": 0.88
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.16,
+                            "y_min": 0.84,
+                            "x_max": 0.22,
+                            "y_max": 0.88
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "run_3": {
+        "prompt_version": "v0001.md",
+        "project": "prj0002",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "parse_error": "1 validation error for LocationDetection\nbounding_box.x_max\n  Input should be less than or equal to 1 [type=less_than_equal, input_value=1.065, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.13/v/less_than_equal",
+                "raw_content": "\n[\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.285, \"y_min\": 0.565, \"x_max\": 0.475, \"y_max\": 0.655}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.475, \"y_min\": 0.565, \"x_max\": 0.865, \"y_max\": 0.655}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.865, \"y_min\": 0.565, \"x_max\": 1.065, \"y_max\": 0.655}}\n]\n```"
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "detection_count": 4,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.18,
+                            "y_min": 0.66,
+                            "x_max": 0.36,
+                            "y_max": 0.89
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.36,
+                            "y_min": 0.66,
+                            "x_max": 0.75,
+                            "y_max": 0.89
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.75,
+                            "y_min": 0.66,
+                            "x_max": 0.89,
+                            "y_max": 0.89
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.77,
+                            "y_min": 0.3,
+                            "x_max": 0.89,
+                            "y_max": 0.66
+                        }
+                    }
+                ]
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "detection_count": 2,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.17,
+                            "y_min": 0.73,
+                            "x_max": 0.4,
+                            "y_max": 0.81
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.43,
+                            "y_min": 0.73,
+                            "x_max": 0.77,
+                            "y_max": 0.81
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "run_4": {
+        "prompt_version": "v0001.md",
+        "project": "prj0002",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "parse_error": "1 validation error for LocationDetection\nbounding_box.x_max\n  Input should be less than or equal to 1 [type=less_than_equal, input_value=1.065, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.13/v/less_than_equal",
+                "raw_content": "\n[\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.285, \"y_min\": 0.565, \"x_max\": 0.475, \"y_max\": 0.66}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.48, \"y_min\": 0.565, \"x_max\": 0.88, \"y_max\": 0.66}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.888, \"y_min\": 0.565, \"x_max\": 1.065, \"y_max\": 0.66}}\n]\n```"
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "detection_count": 13,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.15,
+                            "y_min": 0.62,
+                            "x_max": 0.203846,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.203846,
+                            "y_min": 0.62,
+                            "x_max": 0.257692,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.257692,
+                            "y_min": 0.62,
+                            "x_max": 0.311538,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.311538,
+                            "y_min": 0.62,
+                            "x_max": 0.365385,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.365385,
+                            "y_min": 0.62,
+                            "x_max": 0.419231,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.419231,
+                            "y_min": 0.62,
+                            "x_max": 0.473077,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.473077,
+                            "y_min": 0.62,
+                            "x_max": 0.526923,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.526923,
+                            "y_min": 0.62,
+                            "x_max": 0.580769,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.580769,
+                            "y_min": 0.62,
+                            "x_max": 0.634615,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.634615,
+                            "y_min": 0.62,
+                            "x_max": 0.688462,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.688462,
+                            "y_min": 0.62,
+                            "x_max": 0.742308,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.742308,
+                            "y_min": 0.62,
+                            "x_max": 0.796154,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.796154,
+                            "y_min": 0.62,
+                            "x_max": 0.85,
+                            "y_max": 0.78
+                        }
+                    }
+                ]
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "detection_count": 2,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.17,
+                            "y_min": 0.69,
+                            "x_max": 0.4,
+                            "y_max": 0.77
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.44,
+                            "y_min": 0.69,
+                            "x_max": 0.76,
+                            "y_max": 0.77
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "run_5": {
+        "prompt_version": "v0001.md",
+        "project": "prj0002",
+        "model_results": [
+            {
+                "model": "anthropic/claude-sonnet-4.5",
+                "parse_error": "1 validation error for LocationDetection\nbounding_box.x_max\n  Input should be less than or equal to 1 [type=less_than_equal, input_value=1.065, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.13/v/less_than_equal",
+                "raw_content": "\n[\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.285, \"y_min\": 0.565, \"x_max\": 0.475, \"y_max\": 0.655}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.475, \"y_min\": 0.565, \"x_max\": 0.82, \"y_max\": 0.655}},\n  {\"label\": \"cabinets\", \"bounding_box\": {\"x_min\": 0.82, \"y_min\": 0.565, \"x_max\": 1.065, \"y_max\": 0.655}}\n]\n```"
+            },
+            {
+                "model": "openai/gpt-5-mini",
+                "detection_count": 4,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.18,
+                            "y_min": 0.35,
+                            "x_max": 0.82,
+                            "y_max": 0.58
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.18,
+                            "y_min": 0.58,
+                            "x_max": 0.36,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.36,
+                            "y_min": 0.58,
+                            "x_max": 0.82,
+                            "y_max": 0.78
+                        }
+                    },
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.82,
+                            "y_min": 0.52,
+                            "x_max": 0.95,
+                            "y_max": 0.78
+                        }
+                    }
+                ]
+            },
+            {
+                "model": "google/gemini-2.5-flash",
+                "detection_count": 1,
+                "detections": [
+                    {
+                        "label": "cabinets",
+                        "bounding_box": {
+                            "x_min": 0.17,
+                            "y_min": 0.54,
+                            "x_max": 0.81,
+                            "y_max": 0.76
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}
