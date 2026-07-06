@@ -2,119 +2,113 @@ import json
 from pathlib import Path
 
 from adapters.openrouter import send_image_prompt
+from cli import parse_args
+from models.results import CountResult, LocationDetection, LocationResult
+from models.run_log import ModelFailure, ModelSuccess
 from services.pdf_processing import PDFProcessingService
-from utils import downsample, draw_overlay, next_run_key, parse_count_result, parse_detections
-
-PROJECT = "prj0002"
-PDF_PATH = Path(f"data/input/{PROJECT}.pdf")
-MAX_LONG_EDGE = 1568
-
-MODELS = [
-    "anthropic/claude-sonnet-4.5",
-    "openai/gpt-5-mini",
-    "google/gemini-2.5-flash",
-]
-
-COUNTING_PROMPT_PATH = Path("src/prompts/object_counting/v0001.md")
-LOCATION_PROMPT_PATH = Path("src/prompts/object_location/v0001.md")
-OVERLAY_DIR = Path(f"data/output/{PROJECT}/object_location")
-COUNTING_LOGS_PATH = Path("src/prompts/object_counting/logs.json")
-LOCATION_LOGS_PATH = Path("src/prompts/object_location/logs.json")
-
-
-def get_downsampled_page_1() -> Path:
-    service = PDFProcessingService()
-    image_paths = service.process(PDF_PATH)
-
-    page_1 = image_paths[0]
-    downsampled_page_1 = page_1.with_stem(f"{page_1.stem}_downsampled")
-    downsample(page_1, downsampled_page_1, MAX_LONG_EDGE)
-    return downsampled_page_1
+from services.run_log import RunLogService
+from utils import downsample, draw_overlay, parse_json
 
 
 def run_object_counting(
-    image_path: Path | None = None, prompt_path: Path = COUNTING_PROMPT_PATH
-) -> None:
+    models: list[str], prompt_path: Path, image_path: Path, page: int = 0
+) -> list[ModelSuccess[CountResult] | ModelFailure]:
     prompt = prompt_path.read_text()
-    prompt_version = prompt_path.name
-
-    logs = json.loads(COUNTING_LOGS_PATH.read_text()) if COUNTING_LOGS_PATH.exists() else {}
     model_results = []
 
-    for model in MODELS:
+    for model in models:
         print(f"\n===== {model} =====")
         result = send_image_prompt(image_path, model, prompt, prefill_json=True)
         content = result["choices"][0]["message"]["content"]
         print(content)
 
         try:
-            count_result = parse_count_result(content)
+            count_result = CountResult(**parse_json(content))
         except (json.JSONDecodeError, ValueError) as error:
             print(f"failed to parse response as JSON: {error}")
             model_results.append(
-                {"model": model, "parse_error": str(error), "raw_content": content}
+                ModelFailure(model=model, parse_error=str(error), raw_content=content, page=page)
             )
             continue
 
-        model_results.append({"model": model, **count_result.model_dump()})
+        model_results.append(ModelSuccess[CountResult](model=model, result=count_result, page=page))
 
-    run_key = next_run_key(logs)
-    logs[run_key] = {
-        "prompt_version": prompt_version,
-        "project": PROJECT,
-        "model_results": model_results,
-    }
-    COUNTING_LOGS_PATH.write_text(json.dumps(logs, indent=4))
+    return model_results
 
 
 def run_location_detection(
-    image_path: Path, prompt_path: Path = LOCATION_PROMPT_PATH
+    models: list[str], prompt_path: Path, image_path: Path, overlay_dir: Path, page: int = 0,
 ) -> None:
     prompt = prompt_path.read_text()
     prompt_version = prompt_path.name
+    model_results: list[ModelSuccess[LocationResult] | ModelFailure] = []
 
-    logs = json.loads(LOCATION_LOGS_PATH.read_text()) if LOCATION_LOGS_PATH.exists() else {}
-    model_results = []
-
-    for model in MODELS:
+    for model in models:
         print(f"\n===== {model} =====")
         result = send_image_prompt(image_path, model, prompt, prefill_json=True)
         content = result["choices"][0]["message"]["content"]
         print(content)
 
         try:
-            detections = parse_detections(content)
+            detections = [
+                LocationDetection(**detection)
+                for detection in parse_json(content)
+            ]
         except (json.JSONDecodeError, ValueError) as error:
             print(f"failed to parse response as JSON: {error}")
             model_results.append(
-                {"model": model, "parse_error": str(error), "raw_content": content}
+                ModelFailure(model=model, parse_error=str(error), raw_content=content, page=page)
             )
             continue
 
         model_results.append(
-            {
-                "model": model,
-                "detection_count": len(detections),
-                "detections": [detection.model_dump() for detection in detections],
-            }
+            ModelSuccess[LocationResult](
+                model=model, result=LocationResult(detections=detections), page=page
+            )
         )
 
         model_slug = model.replace("/", "_")
-        overlay_path = OVERLAY_DIR / f"{prompt_version.removesuffix('.md')}_{model_slug}.png"
+        overlay_path = overlay_dir / f"{prompt_version.removesuffix('.md')}_{model_slug}_page_{page}.png"
         draw_overlay(image_path, detections, overlay_path)
         print(f"overlay saved to {overlay_path}")
 
-    run_key = next_run_key(logs)
-    logs[run_key] = {
-        "prompt_version": prompt_version,
-        "project": PROJECT,
-        "model_results": model_results,
-    }
-    LOCATION_LOGS_PATH.write_text(json.dumps(logs, indent=4))
+    return model_results
 
 
 if __name__ == "__main__":
-    # image_path = get_downsampled_page_1()
-    image_path = Path("data/output/prj0002/page_0001_downsampled.png")
-    run_object_counting(image_path)
-    run_location_detection(image_path)
+    args = parse_args()
+    service = PDFProcessingService(output_dir=args.output_dir)
+    image_paths = service.extract_images(args.pdf_path)
+
+    if args.task == "object_counting":
+        results = []
+        for ind, image in enumerate(image_paths, start=1):
+            downsampled_image = image.with_stem(f"{image.stem}_downsampled")
+            downsample(image, downsampled_image)
+            results.extend(
+                run_object_counting(
+                    models=args.models,
+                    prompt_path=args.counting_prompt_path,
+                    image_path=downsampled_image,
+                    page=ind,
+                )
+            )
+
+        run_log_service = RunLogService("object_counting", logs_root=args.logs_dir)
+        run_log_service.append_run(args.counting_prompt_path.name, args.project, results)
+    else:
+        results = []
+        for ind, image in enumerate(image_paths, start=1):
+            downsampled_image = image.with_stem(f"{image.stem}_downsampled")
+            downsample(image, downsampled_image,)
+            results.extend(
+                run_location_detection(
+                    models=args.models,
+                    prompt_path=args.location_prompt_path,
+                    image_path=downsampled_image,
+                    overlay_dir=args.overlay_dir,
+                    page=ind,
+                )
+            )
+        run_log_service = RunLogService("object_location", logs_root=args.logs_dir)
+        run_log_service.append_run(args.location_prompt_path.name, args.project, results)

@@ -11,8 +11,8 @@ class PDFProcessingService:
         self.dpi = dpi
         self.output_dir = output_dir
 
-    def process(self, pdf_path: Path) -> list[Path]:
-        pdf_dir = self.output_dir / pdf_path.stem
+    def extract_images(self, pdf_path: Path, output_dir: Path = None) -> list[Path]:
+        pdf_dir = output_dir if output_dir else self.output_dir / pdf_path.stem
         pdf_dir.mkdir(parents=True, exist_ok=True)
 
         image_paths = []
