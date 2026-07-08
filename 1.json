@@ -1,0 +1,23 @@
+{
+    "page_number": "Page 1",
+    "cabinets": [
+        {
+            "identifying_properties": {
+                "subclass_description": "cabinet",
+                "x0": 1932,
+                "y0": 914,
+                "x1": 1986,
+                "y1": 959
+            },
+            "dimensions_in_inches": {
+                "width": 0,
+                "height": 0,
+                "depth": 0
+            },
+            "ecall_data": {
+                "times_referenced": 0,
+                "rooms": []
+            }
+        }
+    ]
+}
