@@ -1,6 +1,7 @@
 import base64
 import os
 from pathlib import Path
+from typing import Protocol
 
 import httpx
 from dotenv import load_dotenv
@@ -8,6 +9,14 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
+class OpenRouterAdapter(Protocol):
+    """The single external-I/O seam. Stub this in tests (spec: Testing Decisions)."""
+
+    def send_image_prompt(
+        self, image_path: Path, model: str, prompt: str, prefill_json: bool = False
+    ) -> dict: ...
 
 
 def send_image_prompt(
@@ -45,3 +54,17 @@ def send_image_prompt(
     )
     response.raise_for_status()
     return response.json()
+
+
+class HttpxOpenRouterAdapter:
+    """Production adapter: the real HTTP call to OpenRouter."""
+
+    def send_image_prompt(
+        self, image_path: Path, model: str, prompt: str, prefill_json: bool = False
+    ) -> dict:
+        return send_image_prompt(image_path, model, prompt, prefill_json=prefill_json)
+
+
+def get_openrouter_adapter() -> OpenRouterAdapter:
+    """FastAPI dependency provider. Override via ``app.dependency_overrides`` to stub."""
+    return HttpxOpenRouterAdapter()

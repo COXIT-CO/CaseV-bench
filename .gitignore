@@ -4,3 +4,6 @@ __pycache__/
 
 data/output/
 src/logs/
+*.sqlite
+*.sqlite-journal
+.DS_Store
