@@ -17,7 +17,9 @@ class RunLogService:
         runs[run_id] = {
             "prompt_version": prompt_version,
             "project": project,
-            "model_results": [result.model_dump(mode="json") for result in model_results],
+            "model_results": [
+                result.model_dump(mode="json") for result in model_results
+            ],
         }
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_path.write_text(json.dumps(runs, indent=4))

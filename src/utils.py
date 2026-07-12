@@ -45,16 +45,15 @@ def draw_overlay(
         width, height = overlay.size
         for detection in detections:
             box = detection.bounding_box
+            x0, y0 = box.x_min * width, box.y_min * height
             draw.rectangle(
-                (
-                    box.x_min * width,
-                    box.y_min * height,
-                    box.x_max * width,
-                    box.y_max * height,
-                ),
+                (x0, y0, box.x_max * width, box.y_max * height),
                 outline="red",
                 width=3,
             )
+            # Label the box so the taxonomy class is legible on the overlay, not just
+            # the location — a developer needs to tell a cabinet box from a countertop.
+            draw.text((x0 + 2, max(0, y0 - 12)), detection.label, fill="red")
         dest.parent.mkdir(parents=True, exist_ok=True)
         overlay.save(dest)
     return dest

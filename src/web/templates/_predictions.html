@@ -1,9 +1,9 @@
-{# One Result's per-page Predictions: parsed counts / failure, plus the raw model
-   output. Shared by the run status fragment and the Result drill-down so the two can't
-   drift. Expects ``result`` in scope. #}
+{# One Result's per-page Predictions: parsed output / failure, plus (for location) the
+   prediction-overlay image and the raw model output. Shared by the run status fragment
+   and the Result drill-down so the two can't drift. Expects ``result`` in scope. #}
 <table border="1" cellpadding="4">
   <thead>
-    <tr><th>Page</th><th>Status</th><th>Parsed counts / error</th></tr>
+    <tr><th>Page</th><th>Status</th><th>Parsed output / error</th><th>Overlay</th></tr>
   </thead>
   <tbody>
     {% for pred in result.predictions %}
@@ -15,6 +15,17 @@
         <code>{{ pred.parsed_json }}</code>
         {% else %}
         <em>{{ pred.parse_error }}</em>
+        {% endif %}
+      </td>
+      <td>
+        {% if pred.overlay_path %}
+        <a href="/results/{{ result.id }}/pages/{{ pred.page_number }}/overlay">
+          <img src="/results/{{ result.id }}/pages/{{ pred.page_number }}/overlay"
+            alt="prediction overlay for page {{ pred.page_number }}"
+            style="max-width: 200px; height: auto;">
+        </a>
+        {% else %}
+        —
         {% endif %}
       </td>
     </tr>

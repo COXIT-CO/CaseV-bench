@@ -1,9 +1,9 @@
-"""Run execution — the shared service that launches a counting Run and persists
-its Results + Predictions (spec: Runs & execution; tickets 05, 06).
+"""Run execution — the shared service that launches a Run and persists its Results +
+Predictions (spec: Runs & execution; tickets 05, 06, 09).
 
-Two pieces live here around one shared per-page routine (``predict_counting``, the
-single primary test seam — it takes an ``OpenRouterAdapter`` so tests stub the only
-external I/O boundary):
+Two pieces live here around the per-page predict routines (``predict_counting`` /
+``predict_location``, the single primary test seam — they take an ``OpenRouterAdapter``
+so tests stub the only external I/O boundary):
 
 - ``RunService`` inserts a ``queued`` Run with one Result per model and the knob
   snapshot (``create_run``). This is what a request calls synchronously and returns.
@@ -13,13 +13,16 @@ external I/O boundary):
   cap while pages run **sequentially per model**. The HTMX frontend polls a status
   endpoint and swaps in results when finished.
 
-Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it —
-counting counts parsed from the model's JSON, or a failure record. JSON is obtained
-via the existing prefill + strip-fence approach and retried once before a failure is
-recorded; a model failure never aborts the Run (spec: Runs 20, 21).
+Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — for
+counting the per-page counts parsed from the model's JSON; for location the labeled
+boxes plus a prediction-overlay PNG drawn on the page image (ticket 09) — or a failure
+record. JSON is obtained via the existing prefill + strip-fence approach and retried
+once before a failure is recorded; a model failure never aborts the Run (spec: Runs
+20, 21).
 """
 
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -31,10 +34,10 @@ from sqlmodel import Session
 from adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
 from models.drawing import Drawing
 from models.prompt import Prompt, Task
-from models.results import CountResult
+from models.results import CountResult, LocationDetection, LocationResult
 from models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from services.pdf_processing import DEFAULT_DPI
-from utils import DEFAULT_DOWNSAMPLE_PX, parse_json
+from utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, parse_json
 
 # A Run pins a fixed temperature for reproducibility (spec: knobs recorded but fixed).
 DEFAULT_TEMPERATURE = 0.0
@@ -42,6 +45,13 @@ DEFAULT_TEMPERATURE = 0.0
 # How many models may call OpenRouter at once. Bounded so a 3-model run finishes ~3×
 # faster than fully sequential without hammering rate limits (ADR 0006).
 DEFAULT_MAX_CONCURRENCY = 3
+
+# Where location prediction-overlay PNGs are cached, keyed by Result then page number
+# (ticket 09). A dedicated root (not the page-image dir) since many Results share a Page.
+DEFAULT_OVERLAY_ROOT = Path("data/overlays")
+
+# Tasks the run path can execute today (counting: ticket 05/06; location: ticket 09).
+SUPPORTED_TASKS = (Task.counting, Task.location)
 
 
 @dataclass(frozen=True)
@@ -76,17 +86,19 @@ class RunService:
         session: Session,
         adapter: OpenRouterAdapter,
         knobs: RunKnobs = RunKnobs(),
+        overlay_root: Path = DEFAULT_OVERLAY_ROOT,
     ):
         self.session = session
         self.adapter = adapter
         self.knobs = knobs
+        self.overlay_root = overlay_root
 
     def create_run(
         self, task: Task, prompt_id: int, drawing_id: int, models: list[str]
     ) -> Run:
         """Insert a ``queued`` Run with one Result per model and the knob snapshot."""
-        if task != Task.counting:
-            raise ValueError(f"only counting Runs are supported (got {task.value})")
+        if task not in SUPPORTED_TASKS:
+            raise ValueError(f"unsupported Run task {task.value}")
         prompt = self.session.get(Prompt, prompt_id)
         if prompt is None or prompt.task != task:
             raise ValueError(f"no {task.value} prompt with id {prompt_id}")
@@ -119,7 +131,9 @@ class RunService:
         the background execution path can't drift from what ``create_run`` recorded.
         The runner needs the engine (not the request-bound session) to open a fresh
         session per worker thread (ADR 0006)."""
-        return BackgroundRunner(engine, self.adapter, self.knobs)
+        return BackgroundRunner(
+            engine, self.adapter, self.knobs, overlay_root=self.overlay_root
+        )
 
     def launch(
         self, task: Task, prompt_id: int, drawing_id: int, models: list[str]
@@ -153,11 +167,13 @@ class BackgroundRunner:
         adapter: OpenRouterAdapter,
         knobs: RunKnobs = RunKnobs(),
         max_workers: int = DEFAULT_MAX_CONCURRENCY,
+        overlay_root: Path = DEFAULT_OVERLAY_ROOT,
     ):
         self.engine = engine
         self.adapter = adapter
         self.knobs = knobs
         self.max_workers = max_workers
+        self.overlay_root = overlay_root
         self._write_lock = threading.Lock()
 
     def submit(self, run_id: int) -> threading.Thread:
@@ -177,6 +193,7 @@ class BackgroundRunner:
             run.status = RunStatus.running
             session.commit()
 
+            task = run.task
             prompt_text = session.get(Prompt, run.prompt_id).text
             drawing = session.get(Drawing, run.drawing_id)
             pages = [
@@ -189,7 +206,13 @@ class BackgroundRunner:
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             futures = [
                 pool.submit(
-                    self._execute_result, run_id, result_id, model, pages, prompt_text
+                    self._execute_result,
+                    run_id,
+                    result_id,
+                    model,
+                    pages,
+                    prompt_text,
+                    task,
                 )
                 for result_id, model in results
             ]
@@ -210,15 +233,27 @@ class BackgroundRunner:
         model: str,
         pages: list[_PageRef],
         prompt_text: str,
+        task: Task,
     ) -> None:
         """One model's Result: walk its pages **sequentially**, persisting a Prediction
         and advancing progress after each. A model failure is already captured inside
-        ``predict_counting`` as a failure Prediction, so this only raises on a real
+        the predict routine as a failure Prediction, so this only raises on a real
         persistence error — which marks the whole Run ``failed``."""
         for page in pages:
-            prediction = predict_counting(
-                self.adapter, result_id, model, page, prompt_text, self.knobs
-            )
+            if task == Task.location:
+                prediction = predict_location(
+                    self.adapter,
+                    result_id,
+                    model,
+                    page,
+                    prompt_text,
+                    self.knobs,
+                    self.overlay_root,
+                )
+            else:
+                prediction = predict_counting(
+                    self.adapter, result_id, model, page, prompt_text, self.knobs
+                )
             with self._write_lock:
                 with Session(self.engine) as session:
                     session.add(prediction)
@@ -227,19 +262,22 @@ class BackgroundRunner:
                     session.commit()
 
 
-def predict_counting(
+def _predict_json(
     adapter: OpenRouterAdapter,
-    result_id: int,
     model: str,
     page: _PageRef,
     prompt_text: str,
     knobs: RunKnobs,
-) -> Prediction:
-    """One page's counting Prediction: prefill + strip-fence parse, retried once
-    before recording a failure (spec: Runs 20). A failing OpenRouter call is recorded
-    like a parse failure rather than propagated, so one model's error doesn't abort
-    the Run (spec: Runs 21). Returns an unsaved ``Prediction`` — persistence is the
-    caller's, kept out of this routine so it stays a pure, session-free seam."""
+    parse: Callable[[str], object],
+) -> tuple[str | None, object | None, str | None]:
+    """Send the page image + prompt and ``parse`` the response, retried once before
+    giving up (spec: Runs 20). A failing OpenRouter call is caught like a parse failure
+    rather than propagated, so one model's error doesn't abort the Run (spec: Runs 21).
+
+    Returns ``(raw_content, parsed, error)``: on success ``error`` is None and ``parsed``
+    is ``parse``'s output; on failure ``parsed`` is None and ``error`` holds the message
+    (with ``raw_content`` from the last attempt for inspection). The single external I/O
+    boundary, kept session-free so the predict routines stay a pure test seam."""
     raw_content: str | None = None
     error: str | None = None
 
@@ -255,19 +293,16 @@ def predict_counting(
                 temperature=knobs.temperature,
             )
             raw_content = response["choices"][0]["message"]["content"]
-            counts = CountResult(**parse_json(raw_content))
+            return raw_content, parse(raw_content), None
         except Exception as exc:
             error = str(exc)
-            continue
-        return Prediction(
-            result_id=result_id,
-            page_id=page.id,
-            page_number=page.page_number,
-            status=PredictionStatus.ok,
-            raw_content=raw_content,
-            parsed_json=counts.model_dump_json(),
-        )
 
+    return raw_content, None, error
+
+
+def _failure(
+    page: _PageRef, result_id: int, raw_content: str | None, error: str | None
+) -> Prediction:
     return Prediction(
         result_id=result_id,
         page_id=page.id,
@@ -275,4 +310,78 @@ def predict_counting(
         status=PredictionStatus.error,
         raw_content=raw_content,
         parse_error=error,
+    )
+
+
+def _success(
+    page: _PageRef,
+    result_id: int,
+    raw_content: str | None,
+    parsed_json: str,
+    overlay_path: str | None = None,
+) -> Prediction:
+    return Prediction(
+        result_id=result_id,
+        page_id=page.id,
+        page_number=page.page_number,
+        status=PredictionStatus.ok,
+        raw_content=raw_content,
+        parsed_json=parsed_json,
+        overlay_path=overlay_path,
+    )
+
+
+def predict_counting(
+    adapter: OpenRouterAdapter,
+    result_id: int,
+    model: str,
+    page: _PageRef,
+    prompt_text: str,
+    knobs: RunKnobs,
+) -> Prediction:
+    """One page's counting Prediction: prefill + strip-fence parse into the per-page
+    counts, retried once before recording a failure (spec: Runs 20, 21). Returns an
+    unsaved ``Prediction`` — persistence is the caller's, kept out of this routine so it
+    stays a pure, session-free seam."""
+    raw_content, counts, error = _predict_json(
+        adapter, model, page, prompt_text, knobs, lambda c: CountResult(**parse_json(c))
+    )
+    if error is not None:
+        return _failure(page, result_id, raw_content, error)
+    return _success(page, result_id, raw_content, counts.model_dump_json())
+
+
+def predict_location(
+    adapter: OpenRouterAdapter,
+    result_id: int,
+    model: str,
+    page: _PageRef,
+    prompt_text: str,
+    knobs: RunKnobs,
+    overlay_root: Path,
+) -> Prediction:
+    """One page's location Prediction: parse the model's JSON list of labeled boxes,
+    retried once before recording a failure (spec: Runs 20, 21). On success the detected
+    boxes are stored as a ``LocationResult`` and a prediction-overlay PNG is rendered on
+    the page image via the shared ``draw_overlay`` (ticket 09), its path stored on the
+    Prediction. Returns an unsaved ``Prediction`` — DB persistence is the caller's."""
+    raw_content, detections, error = _predict_json(
+        adapter,
+        model,
+        page,
+        prompt_text,
+        knobs,
+        lambda c: [LocationDetection(**box) for box in parse_json(c)],
+    )
+    if error is not None:
+        return _failure(page, result_id, raw_content, error)
+
+    overlay_path = overlay_root / str(result_id) / f"page_{page.page_number:04d}.png"
+    draw_overlay(Path(page.image_path), detections, overlay_path)
+    return _success(
+        page,
+        result_id,
+        raw_content,
+        LocationResult(detections=detections).model_dump_json(),
+        str(overlay_path),
     )

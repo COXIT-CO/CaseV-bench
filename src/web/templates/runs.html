@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Runs — {{ title }}{% endblock %}
 {% block content %}
-<h2>Launch a counting Run</h2>
+<h2>Launch a Run</h2>
 
 {% if prompts and drawings %}
 <form action="/runs" method="post">
@@ -11,7 +11,7 @@
       <select name="prompt_id" required>
         {% for p in prompts %}
         <option value="{{ p.id }}">
-          {{ p.family }} — v{{ "%04d"|format(p.version) }}
+          {{ p.task.value }}: {{ p.family }} — v{{ "%04d"|format(p.version) }}
         </option>
         {% endfor %}
       </select>
@@ -32,8 +32,7 @@
 </form>
 {% else %}
 <p>
-  A counting Run needs at least one counting
-  <a href="/prompts">prompt</a> and one uploaded
+  A Run needs at least one <a href="/prompts">prompt</a> and one uploaded
   <a href="/drawings">drawing</a>.
 </p>
 {% endif %}

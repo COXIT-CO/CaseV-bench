@@ -9,7 +9,9 @@ DEFAULT_MODELS = [
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run object counting/location detection over a PDF's pages.")
+    parser = argparse.ArgumentParser(
+        description="Run object counting/location detection over a PDF's pages."
+    )
     parser.add_argument("--project", default="prj0001")
     parser.add_argument("--pdf-path", type=Path, default=None)
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
@@ -19,7 +21,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=Path("data/output"))
     parser.add_argument("--logs-dir", type=Path, default=Path("src/logs"))
     parser.add_argument(
-        "--task", choices=["object_counting", "object_location"], default="object_counting"
+        "--task",
+        choices=["object_counting", "object_location"],
+        default="object_counting",
     )
     return parser
 
@@ -32,7 +36,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.overlay_dir is None:
         args.overlay_dir = Path(f"data/output/{args.project}/object_location")
 
-    args.counting_prompt_path = Path(f"src/prompts/object_counting/{args.counting_prompt_version}.md")
-    args.location_prompt_path = Path(f"src/prompts/object_location/{args.location_prompt_version}.md")
+    args.counting_prompt_path = Path(
+        f"src/prompts/object_counting/{args.counting_prompt_version}.md"
+    )
+    args.location_prompt_path = Path(
+        f"src/prompts/object_location/{args.location_prompt_version}.md"
+    )
 
     return args

@@ -6,10 +6,10 @@ snapshots the fixed knobs used (DPI, downsample long-edge, max_tokens, prefill,
 temperature) so a result stays reproducible even though those knobs aren't tunable
 (spec: Configuration is ``(prompt version, model)`` only). Each Model's outcome is a
 ``Result`` (the comparison unit scores later attach to); each Result holds one
-``Prediction`` per Page — the raw model content plus parsed counts, or a failure
-record with the parse error. ``status`` / ``progress`` exist now but only advance
-synchronously in this ticket; ticket 06 moves execution to a background task.
-Kept DB-agnostic per ADR 0007/0008.
+``Prediction`` per Page — the raw model content plus the parsed output (counting
+counts, or location boxes with a rendered overlay PNG), or a failure record with the
+parse error. Execution runs on a background task (ADR 0006). Kept DB-agnostic per
+ADR 0007/0008.
 """
 
 from datetime import datetime, timezone
@@ -100,9 +100,13 @@ class Prediction(SQLModel, table=True):
     # The model's raw response content — retained on both success and failure so a
     # developer can inspect exactly what came back (spec: Runs 19, 21).
     raw_content: str | None = None
-    # Parsed JSON as text on success (counting: the per-page counts); None on failure.
+    # Parsed JSON as text on success — counting: the per-page counts; location: the
+    # detected boxes (spec: Runs 19). None on failure.
     parsed_json: str | None = None
     # The parse error recorded after the one retry failed; None on success.
     parse_error: str | None = None
+    # Path to the prediction-overlay PNG (location Runs only): the detected boxes drawn
+    # on the page image (ticket 09). None for counting or failed predictions.
+    overlay_path: str | None = None
 
     result: Result | None = Relationship(back_populates="predictions")
