@@ -4,6 +4,7 @@
 <p><a href="/drawings">← Drawings</a></p>
 <h2>{{ drawing.name }}</h2>
 <p>{{ pages | length }} page(s)</p>
+<p><a href="/drawings/{{ drawing.id }}/counting-ground-truth">Counting ground truth</a></p>
 
 {% for page in pages %}
 <figure>
