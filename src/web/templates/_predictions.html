@@ -1,0 +1,30 @@
+{# One Result's per-page Predictions: parsed counts / failure, plus the raw model
+   output. Shared by the run status fragment and the Result drill-down so the two can't
+   drift. Expects ``result`` in scope. #}
+<table border="1" cellpadding="4">
+  <thead>
+    <tr><th>Page</th><th>Status</th><th>Parsed counts / error</th></tr>
+  </thead>
+  <tbody>
+    {% for pred in result.predictions %}
+    <tr>
+      <td>{{ pred.page_number }}</td>
+      <td>{{ pred.status.value }}</td>
+      <td>
+        {% if pred.status.value == "ok" %}
+        <code>{{ pred.parsed_json }}</code>
+        {% else %}
+        <em>{{ pred.parse_error }}</em>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<details>
+  <summary>Raw model output per page</summary>
+  {% for pred in result.predictions %}
+  <p>Page {{ pred.page_number }}:</p>
+  <pre>{{ pred.raw_content }}</pre>
+  {% endfor %}
+</details>

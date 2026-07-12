@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard — {{ title }}{% endblock %}
+{% block content %}
+<h2>Leaderboard — counting</h2>
+<p>Which prompt version × model won, ranked best-first. Click a row to drill in.</p>
+
+{# Filter by Drawing and choose the ranking metric; GET so the URL stays shareable. #}
+<form action="/leaderboard" method="get">
+  <label>
+    Drawing:
+    <select name="drawing_id" onchange="this.form.submit()">
+      <option value="">All drawings</option>
+      {% for d in drawings %}
+      <option value="{{ d.id }}" {% if d.id == drawing_id %}selected{% endif %}>
+        {{ d.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Rank by:
+    <select name="sort" onchange="this.form.submit()">
+      {% for m in metrics %}
+      <option value="{{ m }}" {% if m == sort %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit">Apply</button></noscript>
+</form>
+
+{% if rows %}
+<table border="1" cellpadding="4">
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Prompt</th>
+      <th>Model</th>
+      <th>Total abs. error</th>
+      <th>Exact matches</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ loop.index if row.scored else "—" }}</td>
+      <td>{{ row.prompt_family }} v{{ "%04d"|format(row.prompt_version) }}</td>
+      <td>
+        <a href="/results/{{ row.result_id }}"><code>{{ row.model }}</code></a>
+      </td>
+      {% if row.scored %}
+      <td>{{ row.total_absolute_error }}</td>
+      <td>{{ row.exact_match_count }} / {{ label_count }}</td>
+      {% else %}
+      <td colspan="2"><em>unscored — no ground truth</em></td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No counting Results yet. <a href="/runs">Launch a Run</a> to populate the board.</p>
+{% endif %}
+{% endblock %}

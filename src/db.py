@@ -44,6 +44,7 @@ def init_db(engine: Engine) -> None:
     import models.model_catalog  # noqa: F401
     import models.prompt  # noqa: F401
     import models.run  # noqa: F401
+    import models.score  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 

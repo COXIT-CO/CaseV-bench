@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Result #{{ result.id }} — {{ title }}{% endblock %}
+{% block content %}
+<p><a href="/leaderboard">← Leaderboard</a></p>
+<h2>Result #{{ result.id }} — <code>{{ result.model }}</code></h2>
+<p>
+  Prompt: {{ prompt.family }} v{{ "%04d"|format(prompt.version) }}
+  · Drawing: <a href="/drawings/{{ drawing.id }}">{{ drawing.name }}</a>
+  · Run: <a href="/runs/{{ run.id }}">#{{ run.id }}</a>
+</p>
+
+<h3>Score</h3>
+{% if score %}
+<p>
+  Total absolute error: <strong>{{ score.total_absolute_error }}</strong>
+  · Exact matches: <strong>{{ score.exact_match_count }} / {{ label_count }}</strong>
+</p>
+<table border="1" cellpadding="4">
+  <thead>
+    <tr>
+      <th>Label</th><th>Predicted (summed)</th><th>Ground truth</th>
+      <th>Abs. error</th><th>Exact?</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ls in per_label %}
+    <tr>
+      <td>{{ ls.label }}</td>
+      <td>{{ ls.predicted }}</td>
+      <td>{{ ls.gt }}</td>
+      <td>{{ ls.absolute_error }}</td>
+      <td>{{ "✓" if ls.exact_match else "✗" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p><em>Unscored — no counting ground truth entered for this Drawing yet.</em>
+  <a href="/drawings/{{ drawing.id }}/counting-ground-truth">Enter it →</a></p>
+{% endif %}
+
+<h3>Per-page predictions</h3>
+{% include "_predictions.html" %}
+{% endblock %}
