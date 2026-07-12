@@ -4,13 +4,13 @@
 and override the OpenRouter adapter. The schema is created on startup (ADR 0008).
 """
 
+import json
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Request, UploadFile
-from fastapi.responses import (FileResponse, HTMLResponse, RedirectResponse,
-                               Response)
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
 from sqlmodel import Session, select
@@ -20,12 +20,13 @@ from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
 from models.prompt import Prompt, Task
 from models.results import OBJECT_LABELS
-from models.run import Run
+from models.run import Result, Run
 from services.counting_ground_truth import CountingGroundTruthService
 from services.drawing import DrawingService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
 from services.run import RunService
+from services.scoring import LeaderboardMetric, ScoringService
 
 APP_TITLE = "Prompt & Config Lab"
 
@@ -358,6 +359,66 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             return HTMLResponse("Run not found", status_code=404)
         return templates.TemplateResponse(
             request, "run_status.html", {"title": APP_TITLE, "run": run}
+        )
+
+    @app.get("/leaderboard", response_class=HTMLResponse)
+    def leaderboard(
+        request: Request,
+        drawing_id: int | None = None,
+        sort: str = LeaderboardMetric.total_absolute_error.value,
+        session: Session = Depends(get_session),
+    ) -> HTMLResponse:
+        # Counting-only for now (ticket 08): filter by Drawing, rank by the chosen metric.
+        drawings = session.exec(
+            select(Drawing).order_by(Drawing.created_at.desc())
+        ).all()
+        try:
+            metric = LeaderboardMetric(sort)
+        except ValueError:
+            metric = LeaderboardMetric.total_absolute_error
+        rows = ScoringService(session).leaderboard(drawing_id, metric=metric)
+        return templates.TemplateResponse(
+            request,
+            "leaderboard.html",
+            {
+                "title": APP_TITLE,
+                "drawings": drawings,
+                "drawing_id": drawing_id,
+                "rows": rows,
+                "sort": metric.value,
+                "metrics": [m.value for m in LeaderboardMetric],
+                "label_count": len(OBJECT_LABELS),
+            },
+        )
+
+    @app.get("/results/{result_id}", response_class=HTMLResponse)
+    def view_result(
+        result_id: int,
+        request: Request,
+        session: Session = Depends(get_session),
+    ) -> HTMLResponse:
+        # Drill-down: the Result's Score summary plus its per-page Predictions + raw JSON.
+        result = session.get(Result, result_id)
+        if result is None:
+            return HTMLResponse("Result not found", status_code=404)
+        run = session.get(Run, result.run_id)
+        prompt = session.get(Prompt, run.prompt_id)
+        drawing = session.get(Drawing, run.drawing_id)
+        score = ScoringService(session).score_result(result_id)
+        per_label = json.loads(score.per_label_json) if score else None
+        return templates.TemplateResponse(
+            request,
+            "result_detail.html",
+            {
+                "title": APP_TITLE,
+                "result": result,
+                "run": run,
+                "prompt": prompt,
+                "drawing": drawing,
+                "score": score,
+                "per_label": per_label,
+                "label_count": len(OBJECT_LABELS),
+            },
         )
 
     return app

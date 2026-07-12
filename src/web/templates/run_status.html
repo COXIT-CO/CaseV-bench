@@ -16,34 +16,8 @@
   {% if run.status.value in ["done", "failed"] %}
   <h3>Results</h3>
   {% for result in run.results %}
-  <h4><code>{{ result.model }}</code></h4>
-  <table border="1" cellpadding="4">
-    <thead>
-      <tr><th>Page</th><th>Status</th><th>Parsed counts / error</th></tr>
-    </thead>
-    <tbody>
-      {% for pred in result.predictions %}
-      <tr>
-        <td>{{ pred.page_number }}</td>
-        <td>{{ pred.status.value }}</td>
-        <td>
-          {% if pred.status.value == "ok" %}
-          <code>{{ pred.parsed_json }}</code>
-          {% else %}
-          <em>{{ pred.parse_error }}</em>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <details>
-    <summary>Raw model output per page</summary>
-    {% for pred in result.predictions %}
-    <p>Page {{ pred.page_number }}:</p>
-    <pre>{{ pred.raw_content }}</pre>
-    {% endfor %}
-  </details>
+  <h4><a href="/results/{{ result.id }}"><code>{{ result.model }}</code></a></h4>
+  {% include "_predictions.html" %}
   {% endfor %}
   {% endif %}
 </div>
