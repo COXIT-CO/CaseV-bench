@@ -7,6 +7,7 @@ Two reusable seams:
 
 from pathlib import Path
 
+import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -59,6 +60,21 @@ def session(engine):
 @pytest.fixture
 def stub_adapter():
     return StubOpenRouterAdapter()
+
+
+@pytest.fixture
+def sample_pdf(tmp_path) -> Path:
+    """A small 2-page PDF with distinct page sizes, drawn on the fly.
+
+    Distinct sizes let tests assert that each Page's own pixel dimensions are
+    persisted rather than a shared constant.
+    """
+    pdf_path = tmp_path / "sample.pdf"
+    with pymupdf.open() as doc:
+        doc.new_page(width=612, height=792)  # US Letter portrait
+        doc.new_page(width=792, height=612)  # US Letter landscape
+        doc.save(pdf_path)
+    return pdf_path
 
 
 @pytest.fixture

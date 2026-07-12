@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Drawings — {{ title }}{% endblock %}
+{% block content %}
+<h2>Drawings</h2>
+
+<form action="/drawings" method="post" enctype="multipart/form-data">
+  <label>
+    Upload a PDF:
+    <input type="file" name="file" accept="application/pdf" required />
+  </label>
+  <button type="submit">Upload</button>
+</form>
+
+{% if rows %}
+<table>
+  <thead>
+    <tr><th>Drawing</th><th>Pages</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="/drawings/{{ row.drawing.id }}">{{ row.drawing.name }}</a></td>
+      <td>{{ row.page_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No drawings yet. Upload a PDF to get started.</p>
+{% endif %}
+{% endblock %}

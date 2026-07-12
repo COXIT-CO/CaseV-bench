@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ drawing.name }} — {{ title }}{% endblock %}
+{% block content %}
+<p><a href="/drawings">← Drawings</a></p>
+<h2>{{ drawing.name }}</h2>
+<p>{{ pages | length }} page(s)</p>
+
+{% for page in pages %}
+<figure>
+  <img src="{{ page.image_url }}" alt="Page {{ page.page_number }}" style="max-width: 100%;" />
+  <figcaption>Page {{ page.page_number }} — {{ page.width_px }}×{{ page.height_px }} px</figcaption>
+</figure>
+{% endfor %}
+{% endblock %}
