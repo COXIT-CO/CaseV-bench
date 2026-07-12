@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (FileResponse, HTMLResponse, RedirectResponse,
+                               Response)
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
 from sqlmodel import Session, select
@@ -305,17 +306,21 @@ def create_app(engine: Engine | None = None) -> FastAPI:
 
     @app.post("/runs")
     def launch_run(
+        request: Request,
         prompt_id: int = Form(...),
         drawing_id: int = Form(...),
         models: list[str] = Form(default=[]),
         free_text: str = Form(default=""),
         service: RunService = Depends(get_run_service),
     ) -> HTMLResponse:
+        # Insert the queued Run and return at once; the fan-out runs on an in-process
+        # background task the detail page then polls (ADR 0006).
         slugs = ModelCatalogService.resolve_selection(models, free_text)
         try:
-            run = service.launch(Task.counting, prompt_id, drawing_id, slugs)
+            run = service.create_run(Task.counting, prompt_id, drawing_id, slugs)
         except ValueError as exc:
             return HTMLResponse(str(exc), status_code=400)
+        service.background_runner(request.app.state.engine).submit(run.id)
         return RedirectResponse(url=f"/runs/{run.id}", status_code=303)
 
     @app.get("/runs/{run_id}", response_class=HTMLResponse)
@@ -338,6 +343,21 @@ def create_app(engine: Engine | None = None) -> FastAPI:
                 "prompt": prompt,
                 "drawing": drawing,
             },
+        )
+
+    @app.get("/runs/{run_id}/status", response_class=HTMLResponse)
+    def run_status(
+        run_id: int,
+        request: Request,
+        session: Session = Depends(get_session),
+    ) -> HTMLResponse:
+        # The HTMX polling target: renders live progress while running and swaps in the
+        # Results once the Run reaches a terminal state, stopping the poll (ADR 0006).
+        run = session.get(Run, run_id)
+        if run is None:
+            return HTMLResponse("Run not found", status_code=404)
+        return templates.TemplateResponse(
+            request, "run_status.html", {"title": APP_TITLE, "run": run}
         )
 
     return app

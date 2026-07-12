@@ -1,0 +1,49 @@
+{# Live status fragment polled by the run detail page (ADR 0006). While the Run is
+   queued/running it re-requests itself every second; on a terminal state it drops the
+   poll trigger and renders the Results in place. #}
+<div id="run-status"
+  {% if run.status.value in ["queued", "running"] %}
+  hx-get="/runs/{{ run.id }}/status"
+  hx-trigger="every 1s"
+  hx-swap="outerHTML"
+  {% endif %}>
+  <p>
+    Status: <strong>{{ run.status.value }}</strong>
+    — progress {{ run.progress }}/{{ run.total_units }}
+  </p>
+  <progress value="{{ run.progress }}" max="{{ run.total_units or 1 }}"></progress>
+
+  {% if run.status.value in ["done", "failed"] %}
+  <h3>Results</h3>
+  {% for result in run.results %}
+  <h4><code>{{ result.model }}</code></h4>
+  <table border="1" cellpadding="4">
+    <thead>
+      <tr><th>Page</th><th>Status</th><th>Parsed counts / error</th></tr>
+    </thead>
+    <tbody>
+      {% for pred in result.predictions %}
+      <tr>
+        <td>{{ pred.page_number }}</td>
+        <td>{{ pred.status.value }}</td>
+        <td>
+          {% if pred.status.value == "ok" %}
+          <code>{{ pred.parsed_json }}</code>
+          {% else %}
+          <em>{{ pred.parse_error }}</em>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <details>
+    <summary>Raw model output per page</summary>
+    {% for pred in result.predictions %}
+    <p>Page {{ pred.page_number }}:</p>
+    <pre>{{ pred.raw_content }}</pre>
+    {% endfor %}
+  </details>
+  {% endfor %}
+  {% endif %}
+</div>

@@ -5,8 +5,6 @@
 <h2>Run #{{ run.id }} — {{ run.task.value }}</h2>
 
 <p>
-  Status: <strong>{{ run.status.value }}</strong>
-  — progress {{ run.progress }}/{{ run.total_units }}<br />
   Prompt: {{ prompt.family }} v{{ "%04d"|format(prompt.version) }}
   · Drawing: <a href="/drawings/{{ drawing.id }}">{{ drawing.name }}</a>
 </p>
@@ -20,35 +18,6 @@
   <li>temperature: {{ run.temperature }}</li>
 </ul>
 
-<h3>Results</h3>
-{% for result in run.results %}
-<h4><code>{{ result.model }}</code></h4>
-<table border="1" cellpadding="4">
-  <thead>
-    <tr><th>Page</th><th>Status</th><th>Parsed counts / error</th></tr>
-  </thead>
-  <tbody>
-    {% for pred in result.predictions %}
-    <tr>
-      <td>{{ pred.page_number }}</td>
-      <td>{{ pred.status.value }}</td>
-      <td>
-        {% if pred.status.value == "ok" %}
-        <code>{{ pred.parsed_json }}</code>
-        {% else %}
-        <em>{{ pred.parse_error }}</em>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-<details>
-  <summary>Raw model output per page</summary>
-  {% for pred in result.predictions %}
-  <p>Page {{ pred.page_number }}:</p>
-  <pre>{{ pred.raw_content }}</pre>
-  {% endfor %}
-</details>
-{% endfor %}
+{# Live progress + results, polled until the Run finishes (ADR 0006). #}
+{% include "run_status.html" %}
 {% endblock %}

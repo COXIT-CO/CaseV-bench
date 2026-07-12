@@ -27,6 +27,9 @@ def make_engine(database_url: str | None = None) -> Engine:
     if url.get_backend_name() == "sqlite":
         # Allow the connection to be shared across threads (background runs, ADR 0006).
         connect_args["check_same_thread"] = False
+        # SQLite is a single writer; concurrent background runs briefly contend, so
+        # wait on the lock instead of erroring out immediately (ADR 0006).
+        connect_args["timeout"] = 30
         _ensure_sqlite_parent_dir(url.database)
     return create_engine(url, connect_args=connect_args)
 
