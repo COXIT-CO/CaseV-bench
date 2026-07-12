@@ -8,7 +8,7 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request, UploadFile
+from fastapi import Depends, FastAPI, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
@@ -18,6 +18,7 @@ from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
 from models.prompt import Task
 from services.drawing import DrawingService
+from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
 
 APP_TITLE = "Prompt & Config Lab"
@@ -41,6 +42,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         init_db(app.state.engine)
         with Session(app.state.engine) as session:
+            ModelCatalogService(session).seed_defaults()
             seed_default_prompts(session)
         yield
 
@@ -116,6 +118,36 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         if page is None or not Path(page.image_path).exists():
             return HTMLResponse("Page image not found", status_code=404)
         return FileResponse(page.image_path, media_type="image/png")
+
+    @app.get("/models", response_class=HTMLResponse)
+    def select_models(
+        request: Request, session: Session = Depends(get_session)
+    ) -> HTMLResponse:
+        catalog = ModelCatalogService(session).list_catalog()
+        return templates.TemplateResponse(
+            request,
+            "models.html",
+            {"title": APP_TITLE, "catalog": catalog, "selected": None},
+        )
+
+    @app.post("/models", response_class=HTMLResponse)
+    def resolve_models(
+        request: Request,
+        models: list[str] = Form(default=[]),
+        free_text: str = Form(default=""),
+        session: Session = Depends(get_session),
+    ) -> HTMLResponse:
+        service = ModelCatalogService(session)
+        selected = service.resolve_selection(models, free_text)
+        return templates.TemplateResponse(
+            request,
+            "models.html",
+            {
+                "title": APP_TITLE,
+                "catalog": service.list_catalog(),
+                "selected": selected,
+            },
+        )
 
     @app.get("/prompts", response_class=HTMLResponse)
     def list_prompts(
