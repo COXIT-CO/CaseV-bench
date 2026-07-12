@@ -36,6 +36,7 @@ def init_db(engine: Engine) -> None:
     # Import table models so they register on SQLModel.metadata before create_all.
     import models.drawing  # noqa: F401
     import models.meta  # noqa: F401
+    import models.model_catalog  # noqa: F401
     import models.prompt  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
