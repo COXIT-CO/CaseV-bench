@@ -14,12 +14,15 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
+from adapters.openrouter import OpenRouterAdapter, get_openrouter_adapter
 from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
-from models.prompt import Task
+from models.prompt import Prompt, Task
+from models.run import Run
 from services.drawing import DrawingService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
+from services.run import RunService
 
 APP_TITLE = "Prompt & Config Lab"
 
@@ -35,6 +38,14 @@ def get_drawing_service(session: Session = Depends(get_session)) -> DrawingServi
 def get_prompt_service(session: Session = Depends(get_session)) -> PromptService:
     """FastAPI dependency yielding a PromptService bound to the request session."""
     return PromptService(session)
+
+
+def get_run_service(
+    session: Session = Depends(get_session),
+    adapter: OpenRouterAdapter = Depends(get_openrouter_adapter),
+) -> RunService:
+    """FastAPI dependency yielding a RunService; the adapter is overridable in tests."""
+    return RunService(session, adapter)
 
 
 def create_app(engine: Engine | None = None) -> FastAPI:
@@ -221,6 +232,70 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         except ValueError as exc:
             return HTMLResponse(str(exc), status_code=404)
         return RedirectResponse(url=f"/prompts/{task.value}/{family}", status_code=303)
+
+    @app.get("/runs", response_class=HTMLResponse)
+    def list_runs(
+        request: Request, session: Session = Depends(get_session)
+    ) -> HTMLResponse:
+        # Counting-only launch (ticket 05): offer counting prompt versions and drawings.
+        prompts = session.exec(
+            select(Prompt)
+            .where(Prompt.task == Task.counting)
+            .order_by(Prompt.family, Prompt.version.desc())
+        ).all()
+        drawings = session.exec(
+            select(Drawing).order_by(Drawing.created_at.desc())
+        ).all()
+        catalog = ModelCatalogService(session).list_catalog()
+        runs = session.exec(select(Run).order_by(Run.created_at.desc())).all()
+        return templates.TemplateResponse(
+            request,
+            "runs.html",
+            {
+                "title": APP_TITLE,
+                "prompts": prompts,
+                "drawings": drawings,
+                "catalog": catalog,
+                "runs": runs,
+            },
+        )
+
+    @app.post("/runs")
+    def launch_run(
+        prompt_id: int = Form(...),
+        drawing_id: int = Form(...),
+        models: list[str] = Form(default=[]),
+        free_text: str = Form(default=""),
+        service: RunService = Depends(get_run_service),
+    ) -> HTMLResponse:
+        slugs = ModelCatalogService.resolve_selection(models, free_text)
+        try:
+            run = service.launch(Task.counting, prompt_id, drawing_id, slugs)
+        except ValueError as exc:
+            return HTMLResponse(str(exc), status_code=400)
+        return RedirectResponse(url=f"/runs/{run.id}", status_code=303)
+
+    @app.get("/runs/{run_id}", response_class=HTMLResponse)
+    def view_run(
+        run_id: int,
+        request: Request,
+        session: Session = Depends(get_session),
+    ) -> HTMLResponse:
+        run = session.get(Run, run_id)
+        if run is None:
+            return HTMLResponse("Run not found", status_code=404)
+        prompt = session.get(Prompt, run.prompt_id)
+        drawing = session.get(Drawing, run.drawing_id)
+        return templates.TemplateResponse(
+            request,
+            "run_detail.html",
+            {
+                "title": APP_TITLE,
+                "run": run,
+                "prompt": prompt,
+                "drawing": drawing,
+            },
+        )
 
     return app
 

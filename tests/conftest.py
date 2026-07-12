@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from adapters.openrouter import get_openrouter_adapter
+from adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
 from db import init_db, make_engine
 from web.app import create_app
 
@@ -30,7 +30,13 @@ class StubOpenRouterAdapter:
         self.calls: list[dict] = []
 
     def send_image_prompt(
-        self, image_path: Path, model: str, prompt: str, prefill_json: bool = False
+        self,
+        image_path: Path,
+        model: str,
+        prompt: str,
+        prefill_json: bool = False,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float | None = None,
     ) -> dict:
         self.calls.append(
             {
@@ -38,6 +44,8 @@ class StubOpenRouterAdapter:
                 "model": model,
                 "prompt": prompt,
                 "prefill_json": prefill_json,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
             }
         )
         content = self.responses.get(model, self.default)
