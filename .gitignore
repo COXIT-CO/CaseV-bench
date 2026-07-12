@@ -3,6 +3,7 @@ __pycache__/
 *.env
 
 data/output/
+data/overlays/
 src/logs/
 *.sqlite
 *.sqlite-journal

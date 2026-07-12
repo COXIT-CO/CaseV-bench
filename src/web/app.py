@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (FileResponse, HTMLResponse, RedirectResponse,
+                               Response)
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
 from sqlmodel import Session, select
@@ -20,7 +21,7 @@ from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
 from models.prompt import Prompt, Task
 from models.results import OBJECT_LABELS
-from models.run import Result, Run
+from models.run import Prediction, Result, Run
 from services.counting_ground_truth import CountingGroundTruthService
 from services.drawing import DrawingService
 from services.model_catalog import ModelCatalogService
@@ -282,11 +283,10 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     def list_runs(
         request: Request, session: Session = Depends(get_session)
     ) -> HTMLResponse:
-        # Counting-only launch (ticket 05): offer counting prompt versions and drawings.
+        # Offer every prompt version; the chosen prompt's Task drives the Run (counting:
+        # ticket 05/06, location: ticket 09), so no separate task picker is needed.
         prompts = session.exec(
-            select(Prompt)
-            .where(Prompt.task == Task.counting)
-            .order_by(Prompt.family, Prompt.version.desc())
+            select(Prompt).order_by(Prompt.task, Prompt.family, Prompt.version.desc())
         ).all()
         drawings = session.exec(
             select(Drawing).order_by(Drawing.created_at.desc())
@@ -312,13 +312,18 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         drawing_id: int = Form(...),
         models: list[str] = Form(default=[]),
         free_text: str = Form(default=""),
+        session: Session = Depends(get_session),
         service: RunService = Depends(get_run_service),
     ) -> HTMLResponse:
         # Insert the queued Run and return at once; the fan-out runs on an in-process
-        # background task the detail page then polls (ADR 0006).
+        # background task the detail page then polls (ADR 0006). The Run's Task is the
+        # chosen prompt's own Task (counting or location).
+        prompt = session.get(Prompt, prompt_id)
+        if prompt is None:
+            return HTMLResponse(f"no prompt with id {prompt_id}", status_code=400)
         slugs = ModelCatalogService.resolve_selection(models, free_text)
         try:
-            run = service.create_run(Task.counting, prompt_id, drawing_id, slugs)
+            run = service.create_run(prompt.task, prompt_id, drawing_id, slugs)
         except ValueError as exc:
             return HTMLResponse(str(exc), status_code=400)
         service.background_runner(request.app.state.engine).submit(run.id)
@@ -360,6 +365,29 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         return templates.TemplateResponse(
             request, "run_status.html", {"title": APP_TITLE, "run": run}
         )
+
+    @app.get("/results/{result_id}/pages/{page_number}/overlay")
+    def result_overlay(
+        result_id: int,
+        page_number: int,
+        session: Session = Depends(get_session),
+    ) -> Response:
+        # The location prediction-overlay PNG for one (Result, Page): the model's boxes
+        # drawn on the page image during the Run, served from the cached file here
+        # (ticket 09).
+        prediction = session.exec(
+            select(Prediction).where(
+                Prediction.result_id == result_id,
+                Prediction.page_number == page_number,
+            )
+        ).first()
+        if (
+            prediction is None
+            or not prediction.overlay_path
+            or not Path(prediction.overlay_path).exists()
+        ):
+            return HTMLResponse("Overlay not found", status_code=404)
+        return FileResponse(prediction.overlay_path, media_type="image/png")
 
     @app.get("/leaderboard", response_class=HTMLResponse)
     def leaderboard(

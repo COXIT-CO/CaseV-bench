@@ -27,17 +27,25 @@ def run_object_counting(
         except (json.JSONDecodeError, ValueError) as error:
             print(f"failed to parse response as JSON: {error}")
             model_results.append(
-                ModelFailure(model=model, parse_error=str(error), raw_content=content, page=page)
+                ModelFailure(
+                    model=model, parse_error=str(error), raw_content=content, page=page
+                )
             )
             continue
 
-        model_results.append(ModelSuccess[CountResult](model=model, result=count_result, page=page))
+        model_results.append(
+            ModelSuccess[CountResult](model=model, result=count_result, page=page)
+        )
 
     return model_results
 
 
 def run_location_detection(
-    models: list[str], prompt_path: Path, image_path: Path, overlay_dir: Path, page: int = 0,
+    models: list[str],
+    prompt_path: Path,
+    image_path: Path,
+    overlay_dir: Path,
+    page: int = 0,
 ) -> None:
     prompt = prompt_path.read_text()
     prompt_version = prompt_path.name
@@ -51,13 +59,14 @@ def run_location_detection(
 
         try:
             detections = [
-                LocationDetection(**detection)
-                for detection in parse_json(content)
+                LocationDetection(**detection) for detection in parse_json(content)
             ]
         except (json.JSONDecodeError, ValueError) as error:
             print(f"failed to parse response as JSON: {error}")
             model_results.append(
-                ModelFailure(model=model, parse_error=str(error), raw_content=content, page=page)
+                ModelFailure(
+                    model=model, parse_error=str(error), raw_content=content, page=page
+                )
             )
             continue
 
@@ -68,7 +77,10 @@ def run_location_detection(
         )
 
         model_slug = model.replace("/", "_")
-        overlay_path = overlay_dir / f"{prompt_version.removesuffix('.md')}_{model_slug}_page_{page}.png"
+        overlay_path = (
+            overlay_dir
+            / f"{prompt_version.removesuffix('.md')}_{model_slug}_page_{page}.png"
+        )
         draw_overlay(image_path, detections, overlay_path)
         print(f"overlay saved to {overlay_path}")
 
@@ -95,12 +107,17 @@ if __name__ == "__main__":
             )
 
         run_log_service = RunLogService("object_counting", logs_root=args.logs_dir)
-        run_log_service.append_run(args.counting_prompt_path.name, args.project, results)
+        run_log_service.append_run(
+            args.counting_prompt_path.name, args.project, results
+        )
     else:
         results = []
         for ind, image in enumerate(image_paths, start=1):
             downsampled_image = image.with_stem(f"{image.stem}_downsampled")
-            downsample(image, downsampled_image,)
+            downsample(
+                image,
+                downsampled_image,
+            )
             results.extend(
                 run_location_detection(
                     models=args.models,
@@ -111,4 +128,6 @@ if __name__ == "__main__":
                 )
             )
         run_log_service = RunLogService("object_location", logs_root=args.logs_dir)
-        run_log_service.append_run(args.location_prompt_path.name, args.project, results)
+        run_log_service.append_run(
+            args.location_prompt_path.name, args.project, results
+        )
