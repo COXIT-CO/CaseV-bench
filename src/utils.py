@@ -5,6 +5,9 @@ from PIL import Image, ImageDraw
 
 from models.results import LocationDetection
 
+# Long-edge (px) each page image is downsampled to at ingest; snapshotted on a Run.
+DEFAULT_DOWNSAMPLE_PX = 1568
+
 
 def parse_json(content: str) -> dict:
     def _strip_code_fence(content: str) -> str:
@@ -23,7 +26,9 @@ def parse_json(content: str) -> dict:
     return json.loads(stripped)
 
 
-def downsample(source: Path, dest: Path, max_long_edge: int = 1568) -> Path:
+def downsample(
+    source: Path, dest: Path, max_long_edge: int = DEFAULT_DOWNSAMPLE_PX
+) -> Path:
     with Image.open(source) as image:
         scale = max_long_edge / max(image.size)
         new_size = (round(image.width * scale), round(image.height * scale))

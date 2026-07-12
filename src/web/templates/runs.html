@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Runs — {{ title }}{% endblock %}
+{% block content %}
+<h2>Launch a counting Run</h2>
+
+{% if prompts and drawings %}
+<form action="/runs" method="post">
+  <p>
+    <label>
+      Prompt version:
+      <select name="prompt_id" required>
+        {% for p in prompts %}
+        <option value="{{ p.id }}">
+          {{ p.family }} — v{{ "%04d"|format(p.version) }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+  </p>
+  <p>
+    <label>
+      Drawing:
+      <select name="drawing_id" required>
+        {% for d in drawings %}
+        <option value="{{ d.id }}">{{ d.name }} ({{ d.pages|length }} page(s))</option>
+        {% endfor %}
+      </select>
+    </label>
+  </p>
+  {% include "_model_selection.html" %}
+  <button type="submit">Launch run</button>
+</form>
+{% else %}
+<p>
+  A counting Run needs at least one counting
+  <a href="/prompts">prompt</a> and one uploaded
+  <a href="/drawings">drawing</a>.
+</p>
+{% endif %}
+
+<h2>Runs</h2>
+{% if runs %}
+<ul>
+  {% for run in runs %}
+  <li>
+    <a href="/runs/{{ run.id }}">Run #{{ run.id }}</a>
+    — {{ run.task.value }} — {{ run.status.value }}
+    ({{ run.progress }}/{{ run.total_units }})
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No runs yet.</p>
+{% endif %}
+{% endblock %}
