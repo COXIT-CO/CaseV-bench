@@ -16,7 +16,9 @@ from sqlmodel import Session, select
 
 from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
+from models.prompt import Task
 from services.drawing import DrawingService
+from services.prompt import PromptService, seed_default_prompts
 
 APP_TITLE = "Prompt & Config Lab"
 
@@ -29,10 +31,17 @@ def get_drawing_service(session: Session = Depends(get_session)) -> DrawingServi
     return DrawingService(session)
 
 
+def get_prompt_service(session: Session = Depends(get_session)) -> PromptService:
+    """FastAPI dependency yielding a PromptService bound to the request session."""
+    return PromptService(session)
+
+
 def create_app(engine: Engine | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(app.state.engine)
+        with Session(app.state.engine) as session:
+            seed_default_prompts(session)
         yield
 
     app = FastAPI(title=APP_TITLE, lifespan=lifespan)
@@ -107,6 +116,79 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         if page is None or not Path(page.image_path).exists():
             return HTMLResponse("Page image not found", status_code=404)
         return FileResponse(page.image_path, media_type="image/png")
+
+    @app.get("/prompts", response_class=HTMLResponse)
+    def list_prompts(
+        request: Request, service: PromptService = Depends(get_prompt_service)
+    ) -> HTMLResponse:
+        # Group families under their Task so a counting prompt is never shown as a
+        # location option (Task-scoping, ADR 0009).
+        groups = []
+        for task in Task:
+            families = []
+            for family in service.families(task):
+                versions = service.history(task, family)
+                families.append(
+                    {
+                        "name": family,
+                        "latest_version": versions[0].version,
+                        "count": len(versions),
+                    }
+                )
+            groups.append({"task": task.value, "families": families})
+        return templates.TemplateResponse(
+            request,
+            "prompts.html",
+            {"title": APP_TITLE, "groups": groups, "tasks": [t.value for t in Task]},
+        )
+
+    @app.post("/prompts")
+    def author_prompt(
+        task: Task = Form(...),
+        family: str = Form(...),
+        text: str = Form(...),
+        service: PromptService = Depends(get_prompt_service),
+    ) -> HTMLResponse:
+        family = family.strip()
+        try:
+            service.create(task, family=family, text=text)
+        except ValueError as exc:
+            return HTMLResponse(str(exc), status_code=400)
+        return RedirectResponse(url=f"/prompts/{task.value}/{family}", status_code=303)
+
+    @app.get("/prompts/{task}/{family}", response_class=HTMLResponse)
+    def view_prompt_family(
+        task: Task,
+        family: str,
+        request: Request,
+        service: PromptService = Depends(get_prompt_service),
+    ) -> HTMLResponse:
+        versions = service.history(task, family)
+        if not versions:
+            return HTMLResponse("Prompt family not found", status_code=404)
+        return templates.TemplateResponse(
+            request,
+            "prompt_history.html",
+            {
+                "title": APP_TITLE,
+                "task": task.value,
+                "family": family,
+                "versions": versions,
+            },
+        )
+
+    @app.post("/prompts/{task}/{family}")
+    def edit_prompt_family(
+        task: Task,
+        family: str,
+        text: str = Form(...),
+        service: PromptService = Depends(get_prompt_service),
+    ) -> HTMLResponse:
+        try:
+            service.edit(task, family=family, text=text)
+        except ValueError as exc:
+            return HTMLResponse(str(exc), status_code=404)
+        return RedirectResponse(url=f"/prompts/{task.value}/{family}", status_code=303)
 
     return app
 
