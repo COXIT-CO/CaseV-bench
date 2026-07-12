@@ -1,8 +1,12 @@
-from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, get_args
 
+from pydantic import BaseModel, Field
 
 ObjectLabel = Literal["cabinets", "countertops", "elevations", "elevation_callout"]
+
+# The fixed object taxonomy in canonical order (glossary: ObjectType). Derived from
+# ``ObjectLabel`` so the enum stays the single source of truth for the labels.
+OBJECT_LABELS: tuple[ObjectLabel, ...] = get_args(ObjectLabel)
 
 
 class CountResult(BaseModel):

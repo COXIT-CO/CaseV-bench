@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
 from sqlmodel import Session, select
@@ -18,7 +18,9 @@ from adapters.openrouter import OpenRouterAdapter, get_openrouter_adapter
 from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
 from models.prompt import Prompt, Task
+from models.results import OBJECT_LABELS
 from models.run import Run
+from services.counting_ground_truth import CountingGroundTruthService
 from services.drawing import DrawingService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
@@ -129,6 +131,47 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         if page is None or not Path(page.image_path).exists():
             return HTMLResponse("Page image not found", status_code=404)
         return FileResponse(page.image_path, media_type="image/png")
+
+    @app.get(
+        "/drawings/{drawing_id}/counting-ground-truth", response_class=HTMLResponse
+    )
+    def counting_ground_truth_form(
+        drawing_id: int,
+        request: Request,
+        session: Session = Depends(get_session),
+    ) -> HTMLResponse:
+        drawing = session.get(Drawing, drawing_id)
+        if drawing is None:
+            return HTMLResponse("Drawing not found", status_code=404)
+        # Pre-fill each taxonomy label with its stored total for editing (ticket 07).
+        totals = CountingGroundTruthService(session).get_totals(drawing_id)
+        labels = [
+            {"name": label, "value": totals.get(label)} for label in OBJECT_LABELS
+        ]
+        return templates.TemplateResponse(
+            request,
+            "counting_ground_truth.html",
+            {"title": APP_TITLE, "drawing": drawing, "labels": labels},
+        )
+
+    @app.post("/drawings/{drawing_id}/counting-ground-truth")
+    async def save_counting_ground_truth(
+        drawing_id: int,
+        request: Request,
+        session: Session = Depends(get_session),
+    ) -> Response:
+        drawing = session.get(Drawing, drawing_id)
+        if drawing is None:
+            return HTMLResponse("Drawing not found", status_code=404)
+        form = await request.form()
+        try:
+            totals = {label: int(form[label]) for label in OBJECT_LABELS}
+        except (KeyError, ValueError):
+            return HTMLResponse("A total is required for every label", status_code=400)
+        CountingGroundTruthService(session).save(drawing_id, totals)
+        return RedirectResponse(
+            url=f"/drawings/{drawing_id}/counting-ground-truth", status_code=303
+        )
 
     @app.get("/models", response_class=HTMLResponse)
     def select_models(
