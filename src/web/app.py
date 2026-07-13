@@ -18,11 +18,13 @@ from sqlmodel import Session, select
 from adapters.openrouter import OpenRouterAdapter, get_openrouter_adapter
 from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
+from models.location_ground_truth import LocationGroundTruth
 from models.prompt import Prompt, Task
-from models.results import OBJECT_LABELS
-from models.run import Prediction, Result, Run
+from models.results import OBJECT_LABELS, LabeledBox, LocationResult
+from models.run import Prediction, PredictionStatus, Result, Run
 from services.counting_ground_truth import CountingGroundTruthService
 from services.drawing import DrawingService
+from services.location_ground_truth import LocationGroundTruthService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
 from services.run import RunService
@@ -31,6 +33,7 @@ from services.scoring import (
     LocationLeaderboardMetric,
     ScoringService,
 )
+from utils import render_compare_overlay
 
 APP_TITLE = "Prompt & Config Lab"
 
@@ -401,6 +404,44 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             return HTMLResponse("Overlay not found", status_code=404)
         return FileResponse(prediction.overlay_path, media_type="image/png")
 
+    @app.get("/results/{result_id}/pages/{page_number}/compare-overlay")
+    def result_compare_overlay(
+        result_id: int,
+        page_number: int,
+        session: Session = Depends(get_session),
+    ) -> Response:
+        # The GT-vs-prediction compare PNG for one (Result, Page): the model's boxes and
+        # the page's ground-truth boxes drawn together so a developer can see where the
+        # model was spatially right or wrong (ticket 12). Rendered on demand from current
+        # GT — not the cached prediction overlay — so a GT import after the Run shows up
+        # without a re-run (ADR 0004). A page with no GT still renders its predictions.
+        prediction = session.exec(
+            select(Prediction).where(
+                Prediction.result_id == result_id,
+                Prediction.page_number == page_number,
+            )
+        ).first()
+        if prediction is None:
+            return HTMLResponse("Prediction not found", status_code=404)
+        page = session.get(Page, prediction.page_id)
+        if page is None or not Path(page.image_path).exists():
+            return HTMLResponse("Page image not found", status_code=404)
+        detections = (
+            LocationResult.model_validate_json(prediction.parsed_json).detections
+            if prediction.status == PredictionStatus.ok and prediction.parsed_json
+            else []
+        )
+        gt_boxes = [
+            LabeledBox(row.label, row.x_min, row.y_min, row.x_max, row.y_max)
+            for row in session.exec(
+                select(LocationGroundTruth).where(
+                    LocationGroundTruth.page_id == prediction.page_id
+                )
+            ).all()
+        ]
+        png = render_compare_overlay(Path(page.image_path), detections, gt_boxes)
+        return Response(content=png, media_type="image/png")
+
     @app.get("/leaderboard", response_class=HTMLResponse)
     def leaderboard(
         request: Request,
@@ -463,8 +504,18 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         prompt = session.get(Prompt, run.prompt_id)
         drawing = session.get(Drawing, run.drawing_id)
         scoring = ScoringService(session)
+        # Which page numbers carry location GT, so the compare drill-down can flag a page
+        # whose overlay shows predictions with no ground truth to compare against (ticket
+        # 12). Empty for counting Results, which don't render the compare view.
+        pages_with_gt: set[int] = set()
         if run.task == Task.location:
             score = scoring.score_location_result(result_id)
+            gt_page_ids = set(
+                LocationGroundTruthService(session).boxes_by_page(drawing.id)
+            )
+            pages_with_gt = {
+                page.page_number for page in drawing.pages if page.id in gt_page_ids
+            }
         else:
             score = scoring.score_result(result_id)
         per_label = json.loads(score.per_label_json) if score else None
@@ -481,6 +532,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
                 "score": score,
                 "per_label": per_label,
                 "label_count": len(OBJECT_LABELS),
+                "pages_with_gt": pages_with_gt,
             },
         )
 

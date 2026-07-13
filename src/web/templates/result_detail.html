@@ -69,6 +69,47 @@
   <a href="/drawings/{{ drawing.id }}/counting-ground-truth">Enter it →</a></p>
 {% endif %}
 
+{% if task == "location" %}
+<h3>Ground truth vs prediction</h3>
+<p>
+  <small>Each page draws the model's predicted boxes
+  (<span style="color: red;">red</span>) over the ground-truth boxes
+  (<span style="color: limegreen;">green</span>) so you can see where the model was
+  spatially right or wrong.</small>
+</p>
+<table border="1" cellpadding="4">
+  <thead>
+    <tr><th>Page</th><th>Overlay (prediction vs ground truth)</th><th>Predicted JSON</th></tr>
+  </thead>
+  <tbody>
+    {% for pred in result.predictions %}
+    <tr>
+      <td>
+        {{ pred.page_number }}
+        {% if pred.page_number not in pages_with_gt %}
+        <br /><small><em>no ground truth</em></small>
+        {% endif %}
+      </td>
+      <td>
+        <a href="/results/{{ result.id }}/pages/{{ pred.page_number }}/compare-overlay">
+          <img src="/results/{{ result.id }}/pages/{{ pred.page_number }}/compare-overlay"
+            alt="prediction vs ground truth for page {{ pred.page_number }}"
+            style="max-width: 300px; height: auto;">
+        </a>
+      </td>
+      <td>
+        {% if pred.status.value == "ok" %}
+        <code>{{ pred.parsed_json }}</code>
+        {% else %}
+        <em>{{ pred.parse_error }}</em>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 <h3>Per-page predictions</h3>
 {% include "_predictions.html" %}
 {% endblock %}
