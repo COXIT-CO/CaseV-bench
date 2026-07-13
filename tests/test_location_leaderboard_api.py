@@ -13,7 +13,7 @@ from models.drawing import Drawing, Page
 from models.prompt import Prompt, Task
 from services.location_ground_truth import LocationGroundTruthService
 from services.run import RunService
-from web.app import get_run_service
+from web.api import get_run_service
 
 SONNET = "anthropic/claude-sonnet-4.5"
 BOXES_JSON = json.dumps(
@@ -76,18 +76,17 @@ def _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id):
     )
     stub_adapter.responses = {SONNET: BOXES_JSON}
     launched = client.post(
-        "/runs",
-        data={
+        "/api/runs",
+        json={
             "prompt_id": _location_prompt_id(engine),
             "drawing_id": drawing_id,
             "models": [SONNET],
         },
-        follow_redirects=False,
     )
-    location = launched.headers["location"]
+    run_id = launched.json()["id"]
     deadline = time.time() + 10.0
     while time.time() < deadline:
-        if "done" in client.get(f"{location}/status").text:
+        if client.get(f"/api/runs/{run_id}/status").json()["status"] == "done":
             return
         time.sleep(0.02)
     raise AssertionError("run did not finish in time")

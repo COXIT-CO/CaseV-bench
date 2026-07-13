@@ -1,7 +1,8 @@
-"""Web-layer smoke check for location Runs (ticket 09): launching a Run against the
-seeded location prompt executes the location path in the background, and once done the
-per-page prediction overlay is served as a PNG. The adapter is stubbed via the ``app``
-fixture and the overlay root is pointed at a temp dir so no repo data is written."""
+"""Web-layer smoke check for location Runs (ticket 09) over the JSON API (spec §A.4):
+launching a Run against the seeded location prompt executes the location path in the
+background, and once done the per-page prediction overlay is served as a PNG under
+``/api``. The adapter is stubbed via the ``app`` fixture and the overlay root is pointed
+at a temp dir so no repo data is written."""
 
 import json
 import time
@@ -9,11 +10,10 @@ import time
 from PIL import Image
 from sqlmodel import Session, select
 
-from adapters.openrouter import get_openrouter_adapter
 from models.drawing import Drawing, Page
 from models.prompt import Prompt, Task
 from services.run import RunService
-from web.app import get_run_service
+from web.api import get_run_service
 
 SONNET = "anthropic/claude-sonnet-4.5"
 BOXES_JSON = json.dumps(
@@ -69,45 +69,35 @@ def test_location_run_launches_and_serves_overlay(
     prompt_id = _location_prompt_id(engine)
 
     launched = client.post(
-        "/runs",
-        data={"prompt_id": prompt_id, "drawing_id": drawing_id, "models": [SONNET]},
-        follow_redirects=False,
+        "/api/runs",
+        json={"prompt_id": prompt_id, "drawing_id": drawing_id, "models": [SONNET]},
     )
-    assert launched.status_code == 303
-    location = launched.headers["location"]
+    assert launched.status_code == 201
+    run_id = launched.json()["id"]
 
-    status = _poll_status(client, f"{location}/status")
-    assert "done" in status.text
-    # The overlay image is wired into the results fragment...
-    assert "/overlay" in status.text
+    status = _poll_status(client, run_id)
+    assert status["status"] == "done"
 
-    # ...and the overlay endpoint serves the rendered PNG.
-    run_id = int(location.rsplit("/", 1)[1])
-    result_id = _first_result_id(engine, run_id)
-    overlay = client.get(f"/results/{result_id}/pages/1/overlay")
+    # The overlay endpoint serves the rendered PNG under /api for the SPA.
+    result_id = status["results"][0]["id"]
+    overlay = client.get(f"/api/results/{result_id}/pages/1/overlay")
     assert overlay.status_code == 200
     assert overlay.headers["content-type"] == "image/png"
 
 
 def test_missing_overlay_returns_404(client, engine):
     # A (result, page) with no overlay (e.g. a non-existent one) 404s rather than 500s.
-    missing = client.get("/results/999/pages/1/overlay")
+    missing = client.get("/api/results/999/pages/1/overlay")
     assert missing.status_code == 404
 
 
-def _first_result_id(engine, run_id) -> int:
-    from models.run import Result
-
-    with Session(engine) as session:
-        return session.exec(select(Result).where(Result.run_id == run_id)).first().id
-
-
-def _poll_status(client, url, timeout=10.0):
+def _poll_status(client, run_id, timeout=10.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        status = client.get(url)
+        status = client.get(f"/api/runs/{run_id}/status")
         assert status.status_code == 200
-        if "done" in status.text or "failed" in status.text:
-            return status
+        body = status.json()
+        if body["status"] in ("done", "failed"):
+            return body
         time.sleep(0.02)
-    raise AssertionError(f"run did not finish within {timeout}s")
+    raise AssertionError(f"run {run_id} did not finish within {timeout}s")

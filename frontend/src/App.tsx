@@ -5,6 +5,7 @@ import { Leaderboard } from "@/routes/Leaderboard";
 import { NotFound } from "@/routes/NotFound";
 import { Prompts } from "@/routes/Prompts";
 import { ResultDetail } from "@/routes/ResultDetail";
+import { RunDetail } from "@/routes/RunDetail";
 import { Runs } from "@/routes/Runs";
 import { Drawings } from "@/routes/library/Drawings";
 import { Models } from "@/routes/library/Models";
@@ -19,6 +20,7 @@ export function App() {
         <Route index element={<Leaderboard />} />
         <Route path="results/:id" element={<ResultDetail />} />
         <Route path="runs" element={<Runs />} />
+        <Route path="runs/:id" element={<RunDetail />} />
         <Route path="prompts" element={<Prompts />} />
         <Route path="library">
           <Route index element={<Navigate to="/library/drawings" replace />} />

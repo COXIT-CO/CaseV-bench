@@ -1,7 +1,11 @@
 import type {
   ApiMeta,
+  LaunchOptionsResponse,
   LeaderboardResponse,
   ResultDetailResponse,
+  RunDetailResponse,
+  RunHistoryResponse,
+  RunStatusResponse,
 } from "@/types";
 
 /** A representative `GET /api/meta` payload shared across tests. */
@@ -218,4 +222,85 @@ export const UNSCORED_RESULT: ResultDetailResponse = {
   scored: false,
   counting_score: null,
   location_score: null,
+};
+
+/** A run history with one running and one done Run. */
+export const RUN_HISTORY: RunHistoryResponse = {
+  runs: [
+    {
+      id: 812,
+      task: "location",
+      status: "running",
+      progress: 3,
+      total_units: 6,
+      prompt_family: "strict-json",
+      prompt_version: 9,
+      drawing_name: "prj0001",
+      created_at: "2026-07-13T10:00:00Z",
+    },
+    {
+      id: 811,
+      task: "counting",
+      status: "done",
+      progress: 6,
+      total_units: 6,
+      prompt_family: "cabinet-count-v2",
+      prompt_version: 12,
+      drawing_name: "prj0002",
+      created_at: "2026-07-13T09:00:00Z",
+    },
+  ],
+};
+
+/** The launch form's option set: two prompts, two drawings, three curated models. */
+export const LAUNCH_OPTIONS: LaunchOptionsResponse = {
+  prompts: [
+    { id: 9, task: "counting", family: "count-v2", version: 3 },
+    { id: 4, task: "location", family: "loc-v1", version: 2 },
+  ],
+  drawings: [
+    { id: 3, name: "prj0001", page_count: 4 },
+    { id: 5, name: "prj0002", page_count: 2 },
+  ],
+  catalog: [
+    { slug: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
+    { slug: "openai/gpt-5-mini", label: "GPT-5 mini" },
+    { slug: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  ],
+};
+
+/** An empty launch option set — no prompts and no drawings yet. */
+export const EMPTY_LAUNCH_OPTIONS: LaunchOptionsResponse = {
+  prompts: [],
+  drawings: [],
+  catalog: [],
+};
+
+/** A run detail whose knobs snapshot and result rows the detail page renders. */
+export const RUN_DETAIL: RunDetailResponse = {
+  run: { id: 812, task: "location", status: "running", progress: 3, total_units: 6 },
+  prompt: { family: "strict-json", version: 9 },
+  drawing: { id: 3, name: "prj0001" },
+  knobs: {
+    dpi: 200,
+    downsample_px: 1600,
+    max_tokens: 4096,
+    prefill: true,
+    temperature: 0.0,
+  },
+  results: [
+    { id: 42, model: "anthropic/claude-sonnet-4.5" },
+    { id: 43, model: "openai/gpt-5-mini" },
+  ],
+};
+
+/** A terminal (done) status payload with results ready to view. */
+export const RUN_STATUS_DONE: RunStatusResponse = {
+  status: "done",
+  progress: 6,
+  total_units: 6,
+  results: [
+    { id: 42, model: "anthropic/claude-sonnet-4.5" },
+    { id: 43, model: "openai/gpt-5-mini" },
+  ],
 };

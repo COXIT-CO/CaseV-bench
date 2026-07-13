@@ -51,18 +51,17 @@ def _counting_prompt_id(engine) -> int:
 
 def _launch_and_wait(client, engine, drawing_id, prompt_id):
     launched = client.post(
-        "/runs",
-        data={
+        "/api/runs",
+        json={
             "prompt_id": prompt_id,
             "drawing_id": drawing_id,
             "models": [ACCURATE, SLOPPY],
         },
-        follow_redirects=False,
     )
-    location = launched.headers["location"]
+    run_id = launched.json()["id"]
     deadline = time.time() + 10.0
     while time.time() < deadline:
-        if "done" in client.get(f"{location}/status").text:
+        if client.get(f"/api/runs/{run_id}/status").json()["status"] == "done":
             return
         time.sleep(0.02)
     raise AssertionError("run did not finish in time")

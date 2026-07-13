@@ -141,3 +141,118 @@ export interface ResultDetailResponse {
   location_score: LocationScore | null;
   predictions: ResultPrediction[];
 }
+
+/** Terminal Run statuses — polling stops and results are viewable at these (spec §B.4). */
+export const TERMINAL_RUN_STATUSES: RunStatus[] = ["done", "failed"];
+
+export function isTerminalRunStatus(status: RunStatus | undefined): boolean {
+  return status !== undefined && TERMINAL_RUN_STATUSES.includes(status);
+}
+
+/** One line of the run history list (`GET /api/runs`, spec §A.4). */
+export interface RunListItem {
+  id: number;
+  task: Task;
+  status: RunStatus;
+  progress: number;
+  total_units: number;
+  prompt_family: string;
+  prompt_version: number;
+  drawing_name: string;
+  created_at: string;
+}
+
+/** `GET /api/runs` — the run history. */
+export interface RunHistoryResponse {
+  runs: RunListItem[];
+}
+
+/** One selectable prompt version in the launch form; its `task` drives the Run's Task. */
+export interface LaunchPrompt {
+  id: number;
+  task: Task;
+  family: string;
+  version: number;
+}
+
+/** One curated model rendered as a launch-form checkbox/chip. */
+export interface CatalogEntry {
+  slug: string;
+  label: string;
+}
+
+/** `GET /api/runs/launch-options` — everything the launch form needs (spec §A.4). */
+export interface LaunchOptionsResponse {
+  prompts: LaunchPrompt[];
+  drawings: LeaderboardDrawing[];
+  catalog: CatalogEntry[];
+}
+
+/** `POST /api/runs` body: curated slugs + a free-text escape hatch, resolved server-side. */
+export interface RunCreateRequest {
+  prompt_id: number;
+  drawing_id: number;
+  models: string[];
+  free_text: string;
+}
+
+/** `POST /api/runs` → the just-queued Run the SPA routes to (spec §A.4). */
+export interface RunCreated {
+  id: number;
+  status: RunStatus;
+  task: Task;
+  total_units: number;
+}
+
+/** One model's Result row under a Run (links to its Result drill-down once terminal). */
+export interface RunResult {
+  id: number;
+  model: string;
+}
+
+/** The run header + live progress on the detail page. */
+export interface RunRef {
+  id: number;
+  task: Task;
+  status: RunStatus;
+  progress: number;
+  total_units: number;
+}
+
+/** The prompt reference on a run detail (mirrors the API's `PromptRef`). */
+export interface PromptRef {
+  family: string;
+  version: number;
+}
+
+/** The drawing reference on a run detail (mirrors the API's `DrawingRef`). */
+export interface DrawingRef {
+  id: number;
+  name: string;
+}
+
+/** The read-only fixed-knobs snapshot a Run recorded (spec: Runs 18). */
+export interface RunKnobs {
+  dpi: number;
+  downsample_px: number;
+  max_tokens: number;
+  prefill: boolean;
+  temperature: number;
+}
+
+/** `GET /api/runs/{id}` — header + fixed-knobs snapshot + result rows (spec §A.4). */
+export interface RunDetailResponse {
+  run: RunRef;
+  prompt: PromptRef;
+  drawing: DrawingRef;
+  knobs: RunKnobs;
+  results: RunResult[];
+}
+
+/** `GET /api/runs/{id}/status` — the cheap poll target that stops at terminal (spec §A.4). */
+export interface RunStatusResponse {
+  status: RunStatus;
+  progress: number;
+  total_units: number;
+  results: RunResult[];
+}

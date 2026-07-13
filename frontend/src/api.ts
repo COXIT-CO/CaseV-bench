@@ -1,8 +1,14 @@
 import type {
   ApiMeta,
+  LaunchOptionsResponse,
   LeaderboardParams,
   LeaderboardResponse,
   ResultDetailResponse,
+  RunCreated,
+  RunCreateRequest,
+  RunDetailResponse,
+  RunHistoryResponse,
+  RunStatusResponse,
 } from "@/types";
 
 // Thin typed fetch client over `/api/**` (spec §B.1). In dev, Vite proxies these paths to
@@ -26,6 +32,26 @@ async function getJson<T>(path: string): Promise<T> {
     response = await fetch(path, { headers: { Accept: "application/json" } });
   } catch {
     // Network / proxy failure — no HTTP status to read.
+    throw new ApiError(0, "Could not reach the API. Is the FastAPI server running?");
+  }
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await readDetail(response));
+  }
+  return (await response.json()) as T;
+}
+
+/** POST a JSON body and parse the JSON response, surfacing the same `{detail}` envelope
+ * as `getJson` (spec §A.0). Used by the mutating endpoints (e.g. launching a Run). */
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
     throw new ApiError(0, "Could not reach the API. Is the FastAPI server running?");
   }
 
@@ -64,4 +90,22 @@ export const api = {
 
   /** One Result's drill-down: header refs, the score block, and the per-page predictions (spec §A.3). */
   result: (id: number) => getJson<ResultDetailResponse>(`/api/results/${id}`),
+
+  /** The run history, newest-first (spec §A.4). */
+  runs: () => getJson<RunHistoryResponse>("/api/runs"),
+
+  /** The launch form's option set: prompt versions, drawings, curated catalog (spec §A.4). */
+  launchOptions: () =>
+    getJson<LaunchOptionsResponse>("/api/runs/launch-options"),
+
+  /** Launch a Run; the server resolves the slug list and returns the queued Run (spec §A.4). */
+  createRun: (body: RunCreateRequest) =>
+    postJson<RunCreated>("/api/runs", body),
+
+  /** One Run's detail: header, fixed-knobs snapshot, and result rows (spec §A.4). */
+  run: (id: number) => getJson<RunDetailResponse>(`/api/runs/${id}`),
+
+  /** The poll target: live progress + results once terminal (spec §A.4/§B.4). */
+  runStatus: (id: number) =>
+    getJson<RunStatusResponse>(`/api/runs/${id}/status`),
 };

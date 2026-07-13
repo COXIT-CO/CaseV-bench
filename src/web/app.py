@@ -14,17 +14,14 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
-from adapters.openrouter import OpenRouterAdapter, get_openrouter_adapter
 from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
 from models.prompt import Prompt, Task
 from models.results import OBJECT_LABELS
-from models.run import Prediction, Result, Run
 from services.counting_ground_truth import CountingGroundTruthService
 from services.drawing import DrawingService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
-from services.run import RunService
 from web.api import api_router
 
 APP_TITLE = "Prompt & Config Lab"
@@ -41,14 +38,6 @@ def get_drawing_service(session: Session = Depends(get_session)) -> DrawingServi
 def get_prompt_service(session: Session = Depends(get_session)) -> PromptService:
     """FastAPI dependency yielding a PromptService bound to the request session."""
     return PromptService(session)
-
-
-def get_run_service(
-    session: Session = Depends(get_session),
-    adapter: OpenRouterAdapter = Depends(get_openrouter_adapter),
-) -> RunService:
-    """FastAPI dependency yielding a RunService; the adapter is overridable in tests."""
-    return RunService(session, adapter)
 
 
 def create_app(engine: Engine | None = None) -> FastAPI:
@@ -282,123 +271,14 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             return HTMLResponse(str(exc), status_code=404)
         return RedirectResponse(url=f"/prompts/{task.value}/{family}", status_code=303)
 
-    @app.get("/runs", response_class=HTMLResponse)
-    def list_runs(
-        request: Request, session: Session = Depends(get_session)
-    ) -> HTMLResponse:
-        # Offer every prompt version; the chosen prompt's Task drives the Run (counting:
-        # ticket 05/06, location: ticket 09), so no separate task picker is needed.
-        prompts = session.exec(
-            select(Prompt).order_by(Prompt.task, Prompt.family, Prompt.version.desc())
-        ).all()
-        drawings = session.exec(
-            select(Drawing).order_by(Drawing.created_at.desc())
-        ).all()
-        catalog = ModelCatalogService(session).list_catalog()
-        runs = session.exec(select(Run).order_by(Run.created_at.desc())).all()
-        return templates.TemplateResponse(
-            request,
-            "runs.html",
-            {
-                "title": APP_TITLE,
-                "prompts": prompts,
-                "drawings": drawings,
-                "catalog": catalog,
-                "runs": runs,
-            },
-        )
-
-    @app.post("/runs")
-    def launch_run(
-        request: Request,
-        prompt_id: int = Form(...),
-        drawing_id: int = Form(...),
-        models: list[str] = Form(default=[]),
-        free_text: str = Form(default=""),
-        session: Session = Depends(get_session),
-        service: RunService = Depends(get_run_service),
-    ) -> HTMLResponse:
-        # Insert the queued Run and return at once; the fan-out runs on an in-process
-        # background task the detail page then polls (ADR 0006). The Run's Task is the
-        # chosen prompt's own Task (counting or location).
-        prompt = session.get(Prompt, prompt_id)
-        if prompt is None:
-            return HTMLResponse(f"no prompt with id {prompt_id}", status_code=400)
-        slugs = ModelCatalogService.resolve_selection(models, free_text)
-        try:
-            run = service.create_run(prompt.task, prompt_id, drawing_id, slugs)
-        except ValueError as exc:
-            return HTMLResponse(str(exc), status_code=400)
-        service.background_runner(request.app.state.engine).submit(run.id)
-        return RedirectResponse(url=f"/runs/{run.id}", status_code=303)
-
-    @app.get("/runs/{run_id}", response_class=HTMLResponse)
-    def view_run(
-        run_id: int,
-        request: Request,
-        session: Session = Depends(get_session),
-    ) -> HTMLResponse:
-        run = session.get(Run, run_id)
-        if run is None:
-            return HTMLResponse("Run not found", status_code=404)
-        prompt = session.get(Prompt, run.prompt_id)
-        drawing = session.get(Drawing, run.drawing_id)
-        return templates.TemplateResponse(
-            request,
-            "run_detail.html",
-            {
-                "title": APP_TITLE,
-                "run": run,
-                "prompt": prompt,
-                "drawing": drawing,
-            },
-        )
-
-    @app.get("/runs/{run_id}/status", response_class=HTMLResponse)
-    def run_status(
-        run_id: int,
-        request: Request,
-        session: Session = Depends(get_session),
-    ) -> HTMLResponse:
-        # The HTMX polling target: renders live progress while running and swaps in the
-        # Results once the Run reaches a terminal state, stopping the poll (ADR 0006).
-        run = session.get(Run, run_id)
-        if run is None:
-            return HTMLResponse("Run not found", status_code=404)
-        return templates.TemplateResponse(
-            request, "run_status.html", {"title": APP_TITLE, "run": run}
-        )
-
-    @app.get("/results/{result_id}/pages/{page_number}/overlay")
-    def result_overlay(
-        result_id: int,
-        page_number: int,
-        session: Session = Depends(get_session),
-    ) -> Response:
-        # The location prediction-overlay PNG for one (Result, Page): the model's boxes
-        # drawn on the page image during the Run, served from the cached file here
-        # (ticket 09).
-        prediction = session.exec(
-            select(Prediction).where(
-                Prediction.result_id == result_id,
-                Prediction.page_number == page_number,
-            )
-        ).first()
-        if (
-            prediction is None
-            or not prediction.overlay_path
-            or not Path(prediction.overlay_path).exists()
-        ):
-            return HTMLResponse("Overlay not found", status_code=404)
-        return FileResponse(prediction.overlay_path, media_type="image/png")
-
-    # The Jinja ``/leaderboard`` (ticket 02) and ``/results/{id}`` (ticket 03) drill-downs
-    # + their templates were retired here: both now live in the React SPA against
-    # ``GET /api/leaderboard`` (spec §A.2) and ``GET /api/results/{id}`` (spec §A.3). The
-    # GT-vs-prediction compare-overlay route moved with the drill-down to ``/api`` — its
-    # only consumer was ``result_detail.html``. The prediction ``/overlay`` above stays
-    # live: the HTMX run-status fragment still renders ``_predictions.html`` (retired with
-    # the Runs slice, ticket 04), which links it.
+    # The Jinja ``/leaderboard`` (ticket 02), ``/results/{id}`` (ticket 03), and ``/runs``
+    # launch/detail/status pages (ticket 04) were retired here: all now live in the React
+    # SPA against ``GET /api/leaderboard`` (§A.2), ``GET /api/results/{id}`` (§A.3), and the
+    # ``/api/runs`` family (§A.4). Their prediction/compare-overlay PNG routes moved with
+    # them to ``/api`` (``result_detail.html``'s compare-overlay and the run-status
+    # fragment's prediction ``/overlay``), so the SPA fetches every binary asset under one
+    # ``/api`` prefix. The ``/drawings``, ``/prompts``, and ``/models`` Jinja pages stay
+    # live until their own Library/Prompts slices reach parity.
 
     return app
 

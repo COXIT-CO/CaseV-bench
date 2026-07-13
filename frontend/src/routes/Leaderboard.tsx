@@ -1,7 +1,7 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { LaunchRunDialog } from "@/components/LaunchRun";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -88,6 +88,7 @@ export function Leaderboard() {
             Compare prompt + model configurations by score.
           </p>
         </div>
+        <LaunchRunDialog />
       </header>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -169,11 +170,7 @@ export function Leaderboard() {
         <EmptyState
           title="No results yet — launch a run"
           description="Launch a run to see scored configurations here."
-          action={
-            <Button asChild size="sm">
-              <Link to="/runs">Launch a run</Link>
-            </Button>
-          }
+          action={<LaunchRunDialog />}
         />
       ) : (
         data && (
