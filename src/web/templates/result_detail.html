@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Result #{{ result.id }} — {{ title }}{% endblock %}
 {% block content %}
-<p><a href="/leaderboard">← Leaderboard</a></p>
+<p><a href="/">← Home</a></p>
 <h2>Result #{{ result.id }} — <code>{{ result.model }}</code></h2>
 <p>
   Prompt: {{ prompt.family }} v{{ "%04d"|format(prompt.version) }}

@@ -28,11 +28,7 @@ from services.location_ground_truth import LocationGroundTruthService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
 from services.run import RunService
-from services.scoring import (
-    LeaderboardMetric,
-    LocationLeaderboardMetric,
-    ScoringService,
-)
+from services.scoring import ScoringService
 from utils import render_compare_overlay
 from web.api import api_router
 
@@ -40,15 +36,6 @@ APP_TITLE = "Prompt & Config Lab"
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-
-def _parse_metric(sort: str | None, metric_enum, default):
-    """Resolve a ``?sort=`` value to one of ``metric_enum``'s members, falling back to
-    ``default`` for a missing or unrecognized metric so a stale URL never 500s."""
-    try:
-        return metric_enum(sort)
-    except ValueError:
-        return default
 
 
 def get_drawing_service(session: Session = Depends(get_session)) -> DrawingService:
@@ -448,51 +435,10 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         png = render_compare_overlay(Path(page.image_path), detections, gt_boxes)
         return Response(content=png, media_type="image/png")
 
-    @app.get("/leaderboard", response_class=HTMLResponse)
-    def leaderboard(
-        request: Request,
-        task: str = Task.counting.value,
-        drawing_id: int | None = None,
-        sort: str | None = None,
-        session: Session = Depends(get_session),
-    ) -> HTMLResponse:
-        # One board per task (counting: ticket 08; location: ticket 11): filter by
-        # Drawing, rank by the chosen metric. The task tab swaps both the ranking metrics
-        # and the score columns; an unknown metric falls back to the task's default.
-        scoring = ScoringService(session)
-        board_task = Task.location if task == Task.location.value else Task.counting
-        drawings = session.exec(
-            select(Drawing).order_by(Drawing.created_at.desc())
-        ).all()
-        if board_task == Task.location:
-            metric_enum, default = (
-                LocationLeaderboardMetric,
-                LocationLeaderboardMetric.f1,
-            )
-            metric = _parse_metric(sort, metric_enum, default)
-            rows = scoring.location_leaderboard(drawing_id, metric=metric)
-        else:
-            metric_enum, default = (
-                LeaderboardMetric,
-                LeaderboardMetric.total_absolute_error,
-            )
-            metric = _parse_metric(sort, metric_enum, default)
-            rows = scoring.leaderboard(drawing_id, metric=metric)
-        return templates.TemplateResponse(
-            request,
-            "leaderboard.html",
-            {
-                "title": APP_TITLE,
-                "task": board_task.value,
-                "tasks": [Task.counting.value, Task.location.value],
-                "drawings": drawings,
-                "drawing_id": drawing_id,
-                "rows": rows,
-                "sort": metric.value,
-                "metrics": [m.value for m in metric_enum],
-                "label_count": len(OBJECT_LABELS),
-            },
-        )
+    # The Jinja ``/leaderboard`` route + ``leaderboard.html`` were retired here (ticket
+    # 02): the Landing board now lives in the React SPA against ``GET /api/leaderboard``
+    # (spec §A.2). The still-live HTMX ``/results/{id}`` drill-down below is retired later,
+    # with the rest of the result-detail slice (ticket 03).
 
     @app.get("/results/{result_id}", response_class=HTMLResponse)
     def view_result(

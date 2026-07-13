@@ -1,4 +1,4 @@
-import type { ApiMeta } from "@/types";
+import type { ApiMeta, LeaderboardParams, LeaderboardResponse } from "@/types";
 
 // Thin typed fetch client over `/api/**` (spec §B.1). In dev, Vite proxies these paths to
 // FastAPI, so relative URLs need no origin and no CORS. Every method mirrors one Part-A
@@ -44,4 +44,16 @@ async function readDetail(response: Response): Promise<string> {
 export const api = {
   /** App-level facts for the shell (proves the Vite → JSON → shadcn pipeline). */
   meta: () => getJson<ApiMeta>("/api/meta"),
+
+  /**
+   * The ranked Leaderboard for a Task, filtered by Drawing and ranked by a metric
+   * (spec §A.2). Params map 1:1 to the URL query the SPA mirrors; `null` values are
+   * omitted so the server applies its defaults ("All drawings", the task's default sort).
+   */
+  leaderboard: ({ task, drawing_id, sort }: LeaderboardParams) => {
+    const query = new URLSearchParams({ task });
+    if (drawing_id !== null) query.set("drawing_id", String(drawing_id));
+    if (sort !== null) query.set("sort", sort);
+    return getJson<LeaderboardResponse>(`/api/leaderboard?${query}`);
+  },
 };
