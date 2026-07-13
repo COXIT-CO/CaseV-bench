@@ -1,133 +1,110 @@
-import json
+"""CLI entry point, refactored onto the shared service layer (ticket 13, ADR 0007).
+
+The CLI no longer writes JSON run logs. It ingests the PDF as a Drawing, resolves the
+prompt version to pin, and launches through the same ``RunService`` the UI uses — so a
+CLI run and an equivalent UI run are the same Run / Results / Predictions in the one
+SQLite store, with no second source of truth to drift.
+
+``execute_cli_run`` is the injectable seam: it takes an open ``Session`` and an
+``OpenRouterAdapter`` so a test can drive the whole path against a temp DB with a stubbed
+adapter. ``main`` wires the real engine + HTTP adapter and seeds the store exactly as the
+web app's startup does, so the two entry points share identical seed data.
+"""
+
 from pathlib import Path
 
-from adapters.openrouter import send_image_prompt
+from sqlmodel import Session
+
+from adapters.openrouter import HttpxOpenRouterAdapter, OpenRouterAdapter
 from cli import parse_args
-from models.results import CountResult, LocationDetection, LocationResult
-from models.run_log import ModelFailure, ModelSuccess
-from services.pdf_processing import PDFProcessingService
-from services.run_log import RunLogService
-from utils import downsample, draw_overlay, parse_json
+from db import init_db, make_engine
+from models.prompt import Prompt, Task
+from models.run import PredictionStatus, Run
+from services.drawing import DEFAULT_CACHE_ROOT, DrawingService
+from services.model_catalog import ModelCatalogService
+from services.prompt import DEFAULT_FAMILY, PromptService, seed_default_prompts
+from services.run import DEFAULT_OVERLAY_ROOT, RunService
 
 
-def run_object_counting(
-    models: list[str], prompt_path: Path, image_path: Path, page: int = 0
-) -> list[ModelSuccess[CountResult] | ModelFailure]:
-    prompt = prompt_path.read_text()
-    model_results = []
-
-    for model in models:
-        print(f"\n===== {model} =====")
-        result = send_image_prompt(image_path, model, prompt, prefill_json=True)
-        content = result["choices"][0]["message"]["content"]
-        print(content)
-
-        try:
-            count_result = CountResult(**parse_json(content))
-        except (json.JSONDecodeError, ValueError) as error:
-            print(f"failed to parse response as JSON: {error}")
-            model_results.append(
-                ModelFailure(
-                    model=model, parse_error=str(error), raw_content=content, page=page
-                )
+def resolve_prompt(
+    session: Session, task: Task, family: str, version: int | None
+) -> Prompt:
+    """The prompt version a Run pins: an explicit ``version`` within ``(task, family)``,
+    or the family's latest when none is given. Raises if it doesn't exist."""
+    service = PromptService(session)
+    if version is None:
+        prompt = service.latest(task, family)
+        if prompt is None:
+            raise ValueError(
+                f"no {task.value} prompt family {family!r} to run; author one first"
             )
-            continue
+        return prompt
 
-        model_results.append(
-            ModelSuccess[CountResult](model=model, result=count_result, page=page)
-        )
+    prompt = service.get(task, family, version)
+    if prompt is None:
+        raise ValueError(f"no {task.value} prompt {family!r} v{version}")
+    return prompt
 
-    return model_results
 
-
-def run_location_detection(
+def execute_cli_run(
+    session: Session,
+    adapter: OpenRouterAdapter,
+    *,
+    pdf_path: Path,
+    name: str,
+    task: Task,
     models: list[str],
-    prompt_path: Path,
-    image_path: Path,
-    overlay_dir: Path,
-    page: int = 0,
-) -> None:
-    prompt = prompt_path.read_text()
-    prompt_version = prompt_path.name
-    model_results: list[ModelSuccess[LocationResult] | ModelFailure] = []
+    prompt_family: str = DEFAULT_FAMILY,
+    prompt_version: int | None = None,
+    cache_root: Path = DEFAULT_CACHE_ROOT,
+    overlay_root: Path = DEFAULT_OVERLAY_ROOT,
+) -> Run:
+    """Ingest the PDF, resolve the prompt, and launch a Run to completion through the
+    shared services — landing the same rows a UI run produces. Returns the finished Run.
+    """
+    drawing = DrawingService(session, cache_root=cache_root).ingest(pdf_path, name=name)
+    prompt = resolve_prompt(session, task, prompt_family, prompt_version)
+    slugs = ModelCatalogService.resolve_selection(models)
 
-    for model in models:
-        print(f"\n===== {model} =====")
-        result = send_image_prompt(image_path, model, prompt, prefill_json=True)
-        content = result["choices"][0]["message"]["content"]
-        print(content)
+    run = RunService(session, adapter, overlay_root=overlay_root).launch(
+        task, prompt.id, drawing.id, slugs
+    )
+    _print_summary(run)
+    return run
 
-        try:
-            detections = [
-                LocationDetection(**detection) for detection in parse_json(content)
-            ]
-        except (json.JSONDecodeError, ValueError) as error:
-            print(f"failed to parse response as JSON: {error}")
-            model_results.append(
-                ModelFailure(
-                    model=model, parse_error=str(error), raw_content=content, page=page
-                )
-            )
-            continue
 
-        model_results.append(
-            ModelSuccess[LocationResult](
-                model=model, result=LocationResult(detections=detections), page=page
-            )
+def _print_summary(run: Run) -> None:
+    """A concise post-run report to stdout — the CLI's view of what landed in the DB."""
+    print(f"\nRun {run.id}: {run.task.value} — {run.status.value}")
+    print(
+        f"drawing {run.drawing_id}, prompt {run.prompt_id}, {run.progress}/{run.total_units} units"
+    )
+    for result in run.results:
+        ok = sum(1 for p in result.predictions if p.status == PredictionStatus.ok)
+        total = len(result.predictions)
+        print(f"  {result.model}: {ok}/{total} pages ok")
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    engine = make_engine()
+    init_db(engine)
+    adapter = HttpxOpenRouterAdapter()
+    with Session(engine) as session:
+        # Mirror the web app's startup seeding so both entry points share seed data.
+        seed_default_prompts(session)
+        ModelCatalogService(session).seed_defaults()
+        execute_cli_run(
+            session,
+            adapter,
+            pdf_path=args.pdf_path,
+            name=args.name,
+            task=args.task,
+            models=args.models,
+            prompt_family=args.prompt_family,
+            prompt_version=args.prompt_version,
         )
-
-        model_slug = model.replace("/", "_")
-        overlay_path = (
-            overlay_dir
-            / f"{prompt_version.removesuffix('.md')}_{model_slug}_page_{page}.png"
-        )
-        draw_overlay(image_path, detections, overlay_path)
-        print(f"overlay saved to {overlay_path}")
-
-    return model_results
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    service = PDFProcessingService(output_dir=args.output_dir)
-    image_paths = service.extract_images(args.pdf_path)
-
-    if args.task == "object_counting":
-        results = []
-        for ind, image in enumerate(image_paths, start=1):
-            downsampled_image = image.with_stem(f"{image.stem}_downsampled")
-            downsample(image, downsampled_image)
-            results.extend(
-                run_object_counting(
-                    models=args.models,
-                    prompt_path=args.counting_prompt_path,
-                    image_path=downsampled_image,
-                    page=ind,
-                )
-            )
-
-        run_log_service = RunLogService("object_counting", logs_root=args.logs_dir)
-        run_log_service.append_run(
-            args.counting_prompt_path.name, args.project, results
-        )
-    else:
-        results = []
-        for ind, image in enumerate(image_paths, start=1):
-            downsampled_image = image.with_stem(f"{image.stem}_downsampled")
-            downsample(
-                image,
-                downsampled_image,
-            )
-            results.extend(
-                run_location_detection(
-                    models=args.models,
-                    prompt_path=args.location_prompt_path,
-                    image_path=downsampled_image,
-                    overlay_dir=args.overlay_dir,
-                    page=ind,
-                )
-            )
-        run_log_service = RunLogService("object_location", logs_root=args.logs_dir)
-        run_log_service.append_run(
-            args.location_prompt_path.name, args.project, results
-        )
+    main()

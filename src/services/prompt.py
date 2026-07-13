@@ -51,6 +51,17 @@ class PromptService:
             .order_by(Prompt.version.desc())
         ).first()
 
+    def get(self, task: Task, family: str, version: int) -> Prompt | None:
+        """One exact ``(task, family, version)``, or None — so a caller can pin a
+        specific immutable version without hand-rolling the by-key query."""
+        return self.session.exec(
+            select(Prompt).where(
+                Prompt.task == task,
+                Prompt.family == family,
+                Prompt.version == version,
+            )
+        ).first()
+
     def history(self, task: Task, family: str) -> list[Prompt]:
         """Every version of a family, newest-first (spec: browse version history)."""
         return list(
