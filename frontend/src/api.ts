@@ -3,6 +3,10 @@ import type {
   LaunchOptionsResponse,
   LeaderboardParams,
   LeaderboardResponse,
+  PromptCreateRequest,
+  PromptHistoryResponse,
+  PromptsResponse,
+  PromptVersionRef,
   ResultDetailResponse,
   RunCreated,
   RunCreateRequest,
@@ -108,4 +112,25 @@ export const api = {
   /** The poll target: live progress + results once terminal (spec §A.4/§B.4). */
   runStatus: (id: number) =>
     getJson<RunStatusResponse>(`/api/runs/${id}/status`),
+
+  /** Prompt families grouped by Task, each with its latest version + count (spec §A.5). */
+  prompts: () => getJson<PromptsResponse>("/api/prompts"),
+
+  /** Author a new family's v1; a duplicate family surfaces the service `400` (spec §A.5). */
+  createPrompt: (body: PromptCreateRequest) =>
+    postJson<PromptVersionRef>("/api/prompts", body),
+
+  /** A family's immutable version history, newest-first, each version's text included so
+   * compare/read needs no follow-up fetch (spec §A.5). */
+  promptHistory: (task: string, family: string) =>
+    getJson<PromptHistoryResponse>(
+      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}`,
+    ),
+
+  /** "Edit" = append the next immutable version to a family (ADR 0009, spec §A.5). */
+  appendPromptVersion: (task: string, family: string, text: string) =>
+    postJson<PromptVersionRef>(
+      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions`,
+      { text },
+    ),
 };

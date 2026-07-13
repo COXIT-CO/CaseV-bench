@@ -2,6 +2,8 @@ import type {
   ApiMeta,
   LaunchOptionsResponse,
   LeaderboardResponse,
+  PromptHistoryResponse,
+  PromptsResponse,
   ResultDetailResponse,
   RunDetailResponse,
   RunHistoryResponse,
@@ -291,6 +293,55 @@ export const RUN_DETAIL: RunDetailResponse = {
   results: [
     { id: 42, model: "anthropic/claude-sonnet-4.5" },
     { id: 43, model: "openai/gpt-5-mini" },
+  ],
+};
+
+/** The Prompts list: counting has two families, location has the seeded default. */
+export const PROMPTS: PromptsResponse = {
+  tasks: ["counting", "location"],
+  groups: [
+    {
+      task: "counting",
+      families: [
+        { name: "cabinet-count-v2", latest_version: 3, count: 3 },
+        { name: "default", latest_version: 1, count: 1 },
+      ],
+    },
+    {
+      task: "location",
+      families: [{ name: "default", latest_version: 1, count: 1 }],
+    },
+  ],
+};
+
+/** A counting family's history with two immutable versions, newest-first. */
+export const PROMPT_HISTORY: PromptHistoryResponse = {
+  task: "counting",
+  family: "cabinet-count-v2",
+  versions: [
+    {
+      version: 2,
+      text: "Count only base cabinets, ignore wall cabinets.",
+      created_at: "2026-06-18T12:00:00Z",
+    },
+    {
+      version: 1,
+      text: "Count every cabinet in the drawing.",
+      created_at: "2026-06-17T09:00:00Z",
+    },
+  ],
+};
+
+/** A single-version family — compare falls back to reading v1 against itself. */
+export const PROMPT_HISTORY_SINGLE: PromptHistoryResponse = {
+  task: "location",
+  family: "default",
+  versions: [
+    {
+      version: 1,
+      text: "Return bounding boxes for every fixture.",
+      created_at: "2026-06-10T09:00:00Z",
+    },
   ],
 };
 

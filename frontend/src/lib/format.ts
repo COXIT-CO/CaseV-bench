@@ -25,6 +25,19 @@ export function formatRate(value: number): string {
   return value.toFixed(2);
 }
 
+/** An ISO timestamp as a short local date (e.g. a prompt version's authored day). Falls
+ * back to the raw string if it isn't a parseable date. */
+export function formatDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : date.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+}
+
 /** Exact matches read as `n / total` against the taxonomy size (spec §A.2). */
 export function formatExactMatch(count: number, labelCount: number): string {
   return `${count} / ${labelCount}`;

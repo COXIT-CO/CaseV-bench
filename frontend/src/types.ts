@@ -256,3 +256,52 @@ export interface RunStatusResponse {
   total_units: number;
   results: RunResult[];
 }
+
+/** One family in the Task-grouped Prompts list (src/web/api.py::PromptFamilyOut): its
+ * name, newest version, and version count. */
+export interface PromptFamily {
+  name: string;
+  latest_version: number;
+  count: number;
+}
+
+/** All of one Task's prompt families (Task-scoping, ADR 0009). */
+export interface PromptGroup {
+  task: Task;
+  families: PromptFamily[];
+}
+
+/** `GET /api/prompts` — the fixed Task taxonomy + each Task's families (spec §A.5). */
+export interface PromptsResponse {
+  tasks: Task[];
+  groups: PromptGroup[];
+}
+
+/** One immutable version in a family's history; `text` rides along so compare/read needs
+ * no extra fetch (src/web/api.py::PromptVersionOut). */
+export interface PromptVersion {
+  version: number;
+  text: string;
+  created_at: string;
+}
+
+/** `GET /api/prompts/{task}/{family}` — the family's versions newest-first (spec §A.5). */
+export interface PromptHistoryResponse {
+  task: Task;
+  family: string;
+  versions: PromptVersion[];
+}
+
+/** `POST /api/prompts` body: author a new family's v1 for a Task. */
+export interface PromptCreateRequest {
+  task: Task;
+  family: string;
+  text: string;
+}
+
+/** The just-written version returned from create/append, so the SPA routes to it. */
+export interface PromptVersionRef {
+  task: Task;
+  family: string;
+  version: number;
+}
