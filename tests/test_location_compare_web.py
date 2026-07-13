@@ -1,10 +1,12 @@
-"""GT-vs-prediction overlay drill-down (ticket 12). Two seams:
+"""GT-vs-prediction overlay drill-down (ticket 12, re-mounted under ``/api`` in ticket
+03). Two seams:
 
 - ``render_compare_overlay`` (pure): predicted + GT boxes drawn together on the page
   image, returned as PNG bytes — the shared box-drawing reused from the prediction
   overlay (ticket 09), now two color-coded groups.
-- the Result drill-down: a scored location Result renders a per-page compare overlay
-  alongside the raw predicted JSON, degrading gracefully on a page with no GT.
+- the Result drill-down: a scored location Result exposes a per-page compare overlay
+  (``GET /api/results/{id}/pages/{n}/compare-overlay``) and flags pages with no GT via
+  ``GET /api/results/{id}`` (spec §A.3), degrading gracefully on a page with no GT.
 
 Results are seeded directly so the boxes are exact (one matched, one spurious prediction,
 one missed GT box — a mixed-match Result) without depending on a live model.
@@ -150,15 +152,13 @@ def test_drilldown_renders_compare_view_for_mixed_match_result(
 ):
     result_id = _seed_mixed_match_result(engine, tmp_path, with_gt=True)
 
-    page = client.get(f"/results/{result_id}")
-    assert page.status_code == 200
-    # The compare section and its per-page overlay + raw predicted JSON are present.
-    assert "Ground truth vs prediction" in page.text
-    compare_url = f"/results/{result_id}/pages/1/compare-overlay"
-    assert compare_url in page.text
-    assert "cabinets" in page.text  # the predicted JSON alongside the overlay
+    detail = client.get(f"/api/results/{result_id}").json()
+    # The page carries GT and its predicted boxes, alongside a scored location block.
+    assert detail["location_score"] is not None
+    assert detail["predictions"][0]["has_gt"] is True
+    assert detail["predictions"][0]["box_count"] == 2
 
-    overlay = client.get(compare_url)
+    overlay = client.get(f"/api/results/{result_id}/pages/1/compare-overlay")
     assert overlay.status_code == 200
     assert overlay.headers["content-type"] == "image/png"
 
@@ -168,15 +168,15 @@ def test_drilldown_handles_page_with_no_ground_truth(client, engine, tmp_path):
     # is flagged as having no ground truth rather than 500ing.
     result_id = _seed_mixed_match_result(engine, tmp_path, with_gt=False)
 
-    page = client.get(f"/results/{result_id}")
-    assert page.status_code == 200
-    assert "no ground truth" in page.text
+    detail = client.get(f"/api/results/{result_id}").json()
+    assert detail["scored"] is False
+    assert detail["predictions"][0]["has_gt"] is False
 
-    overlay = client.get(f"/results/{result_id}/pages/1/compare-overlay")
+    overlay = client.get(f"/api/results/{result_id}/pages/1/compare-overlay")
     assert overlay.status_code == 200
     assert overlay.headers["content-type"] == "image/png"
 
 
 def test_compare_overlay_missing_prediction_404s(client):
-    missing = client.get("/results/999/pages/1/compare-overlay")
+    missing = client.get("/api/results/999/pages/1/compare-overlay")
     assert missing.status_code == 404

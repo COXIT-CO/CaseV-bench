@@ -4,7 +4,6 @@
 and override the OpenRouter adapter. The schema is created on startup (ADR 0008).
 """
 
-import json
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,18 +17,14 @@ from sqlmodel import Session, select
 from adapters.openrouter import OpenRouterAdapter, get_openrouter_adapter
 from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
-from models.location_ground_truth import LocationGroundTruth
 from models.prompt import Prompt, Task
-from models.results import OBJECT_LABELS, LabeledBox, LocationResult
-from models.run import Prediction, PredictionStatus, Result, Run
+from models.results import OBJECT_LABELS
+from models.run import Prediction, Result, Run
 from services.counting_ground_truth import CountingGroundTruthService
 from services.drawing import DrawingService
-from services.location_ground_truth import LocationGroundTruthService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
 from services.run import RunService
-from services.scoring import ScoringService
-from utils import render_compare_overlay
 from web.api import api_router
 
 APP_TITLE = "Prompt & Config Lab"
@@ -397,96 +392,13 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             return HTMLResponse("Overlay not found", status_code=404)
         return FileResponse(prediction.overlay_path, media_type="image/png")
 
-    @app.get("/results/{result_id}/pages/{page_number}/compare-overlay")
-    def result_compare_overlay(
-        result_id: int,
-        page_number: int,
-        session: Session = Depends(get_session),
-    ) -> Response:
-        # The GT-vs-prediction compare PNG for one (Result, Page): the model's boxes and
-        # the page's ground-truth boxes drawn together so a developer can see where the
-        # model was spatially right or wrong (ticket 12). Rendered on demand from current
-        # GT — not the cached prediction overlay — so a GT import after the Run shows up
-        # without a re-run (ADR 0004). A page with no GT still renders its predictions.
-        prediction = session.exec(
-            select(Prediction).where(
-                Prediction.result_id == result_id,
-                Prediction.page_number == page_number,
-            )
-        ).first()
-        if prediction is None:
-            return HTMLResponse("Prediction not found", status_code=404)
-        page = session.get(Page, prediction.page_id)
-        if page is None or not Path(page.image_path).exists():
-            return HTMLResponse("Page image not found", status_code=404)
-        detections = (
-            LocationResult.model_validate_json(prediction.parsed_json).detections
-            if prediction.status == PredictionStatus.ok and prediction.parsed_json
-            else []
-        )
-        gt_boxes = [
-            LabeledBox(row.label, row.x_min, row.y_min, row.x_max, row.y_max)
-            for row in session.exec(
-                select(LocationGroundTruth).where(
-                    LocationGroundTruth.page_id == prediction.page_id
-                )
-            ).all()
-        ]
-        png = render_compare_overlay(Path(page.image_path), detections, gt_boxes)
-        return Response(content=png, media_type="image/png")
-
-    # The Jinja ``/leaderboard`` route + ``leaderboard.html`` were retired here (ticket
-    # 02): the Landing board now lives in the React SPA against ``GET /api/leaderboard``
-    # (spec §A.2). The still-live HTMX ``/results/{id}`` drill-down below is retired later,
-    # with the rest of the result-detail slice (ticket 03).
-
-    @app.get("/results/{result_id}", response_class=HTMLResponse)
-    def view_result(
-        result_id: int,
-        request: Request,
-        session: Session = Depends(get_session),
-    ) -> HTMLResponse:
-        # Drill-down: the Result's Score summary plus its per-page Predictions + raw JSON.
-        # Scored on the Run's own task so a location Result uses IoU@0.5 P/R/F1 and never
-        # gets clobbered by counting scoring (the per-page overlay compare is ticket 12).
-        result = session.get(Result, result_id)
-        if result is None:
-            return HTMLResponse("Result not found", status_code=404)
-        run = session.get(Run, result.run_id)
-        prompt = session.get(Prompt, run.prompt_id)
-        drawing = session.get(Drawing, run.drawing_id)
-        scoring = ScoringService(session)
-        # Which page numbers carry location GT, so the compare drill-down can flag a page
-        # whose overlay shows predictions with no ground truth to compare against (ticket
-        # 12). Empty for counting Results, which don't render the compare view.
-        pages_with_gt: set[int] = set()
-        if run.task == Task.location:
-            score = scoring.score_location_result(result_id)
-            gt_page_ids = set(
-                LocationGroundTruthService(session).boxes_by_page(drawing.id)
-            )
-            pages_with_gt = {
-                page.page_number for page in drawing.pages if page.id in gt_page_ids
-            }
-        else:
-            score = scoring.score_result(result_id)
-        per_label = json.loads(score.per_label_json) if score else None
-        return templates.TemplateResponse(
-            request,
-            "result_detail.html",
-            {
-                "title": APP_TITLE,
-                "task": run.task.value,
-                "result": result,
-                "run": run,
-                "prompt": prompt,
-                "drawing": drawing,
-                "score": score,
-                "per_label": per_label,
-                "label_count": len(OBJECT_LABELS),
-                "pages_with_gt": pages_with_gt,
-            },
-        )
+    # The Jinja ``/leaderboard`` (ticket 02) and ``/results/{id}`` (ticket 03) drill-downs
+    # + their templates were retired here: both now live in the React SPA against
+    # ``GET /api/leaderboard`` (spec §A.2) and ``GET /api/results/{id}`` (spec §A.3). The
+    # GT-vs-prediction compare-overlay route moved with the drill-down to ``/api`` — its
+    # only consumer was ``result_detail.html``. The prediction ``/overlay`` above stays
+    # live: the HTMX run-status fragment still renders ``_predictions.html`` (retired with
+    # the Runs slice, ticket 04), which links it.
 
     return app
 
