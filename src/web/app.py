@@ -10,8 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Request, UploadFile
-from fastapi.responses import (FileResponse, HTMLResponse, RedirectResponse,
-                               Response)
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
 from sqlmodel import Session, select
@@ -27,12 +26,25 @@ from services.drawing import DrawingService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService, seed_default_prompts
 from services.run import RunService
-from services.scoring import LeaderboardMetric, ScoringService
+from services.scoring import (
+    LeaderboardMetric,
+    LocationLeaderboardMetric,
+    ScoringService,
+)
 
 APP_TITLE = "Prompt & Config Lab"
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def _parse_metric(sort: str | None, metric_enum, default):
+    """Resolve a ``?sort=`` value to one of ``metric_enum``'s members, falling back to
+    ``default`` for a missing or unrecognized metric so a stale URL never 500s."""
+    try:
+        return metric_enum(sort)
+    except ValueError:
+        return default
 
 
 def get_drawing_service(session: Session = Depends(get_session)) -> DrawingService:
@@ -392,29 +404,45 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     @app.get("/leaderboard", response_class=HTMLResponse)
     def leaderboard(
         request: Request,
+        task: str = Task.counting.value,
         drawing_id: int | None = None,
-        sort: str = LeaderboardMetric.total_absolute_error.value,
+        sort: str | None = None,
         session: Session = Depends(get_session),
     ) -> HTMLResponse:
-        # Counting-only for now (ticket 08): filter by Drawing, rank by the chosen metric.
+        # One board per task (counting: ticket 08; location: ticket 11): filter by
+        # Drawing, rank by the chosen metric. The task tab swaps both the ranking metrics
+        # and the score columns; an unknown metric falls back to the task's default.
+        scoring = ScoringService(session)
+        board_task = Task.location if task == Task.location.value else Task.counting
         drawings = session.exec(
             select(Drawing).order_by(Drawing.created_at.desc())
         ).all()
-        try:
-            metric = LeaderboardMetric(sort)
-        except ValueError:
-            metric = LeaderboardMetric.total_absolute_error
-        rows = ScoringService(session).leaderboard(drawing_id, metric=metric)
+        if board_task == Task.location:
+            metric_enum, default = (
+                LocationLeaderboardMetric,
+                LocationLeaderboardMetric.f1,
+            )
+            metric = _parse_metric(sort, metric_enum, default)
+            rows = scoring.location_leaderboard(drawing_id, metric=metric)
+        else:
+            metric_enum, default = (
+                LeaderboardMetric,
+                LeaderboardMetric.total_absolute_error,
+            )
+            metric = _parse_metric(sort, metric_enum, default)
+            rows = scoring.leaderboard(drawing_id, metric=metric)
         return templates.TemplateResponse(
             request,
             "leaderboard.html",
             {
                 "title": APP_TITLE,
+                "task": board_task.value,
+                "tasks": [Task.counting.value, Task.location.value],
                 "drawings": drawings,
                 "drawing_id": drawing_id,
                 "rows": rows,
                 "sort": metric.value,
-                "metrics": [m.value for m in LeaderboardMetric],
+                "metrics": [m.value for m in metric_enum],
                 "label_count": len(OBJECT_LABELS),
             },
         )
@@ -426,19 +454,26 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         session: Session = Depends(get_session),
     ) -> HTMLResponse:
         # Drill-down: the Result's Score summary plus its per-page Predictions + raw JSON.
+        # Scored on the Run's own task so a location Result uses IoU@0.5 P/R/F1 and never
+        # gets clobbered by counting scoring (the per-page overlay compare is ticket 12).
         result = session.get(Result, result_id)
         if result is None:
             return HTMLResponse("Result not found", status_code=404)
         run = session.get(Run, result.run_id)
         prompt = session.get(Prompt, run.prompt_id)
         drawing = session.get(Drawing, run.drawing_id)
-        score = ScoringService(session).score_result(result_id)
+        scoring = ScoringService(session)
+        if run.task == Task.location:
+            score = scoring.score_location_result(result_id)
+        else:
+            score = scoring.score_result(result_id)
         per_label = json.loads(score.per_label_json) if score else None
         return templates.TemplateResponse(
             request,
             "result_detail.html",
             {
                 "title": APP_TITLE,
+                "task": run.task.value,
                 "result": result,
                 "run": run,
                 "prompt": prompt,

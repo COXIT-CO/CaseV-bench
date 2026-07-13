@@ -10,7 +10,35 @@
 </p>
 
 <h3>Score</h3>
-{% if score %}
+{% if score and task == "location" %}
+<p>
+  Precision: <strong>{{ "%.2f"|format(score.precision) }}</strong>
+  · Recall: <strong>{{ "%.2f"|format(score.recall) }}</strong>
+  · F1: <strong>{{ "%.2f"|format(score.f1) }}</strong>
+  <br /><small>IoU@0.5, matched per page then micro-averaged across labels.</small>
+</p>
+<table border="1" cellpadding="4">
+  <thead>
+    <tr>
+      <th>Label</th><th>TP</th><th>FP</th><th>FN</th>
+      <th>Precision</th><th>Recall</th><th>F1</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ls in per_label %}
+    <tr>
+      <td>{{ ls.label }}</td>
+      <td>{{ ls.tp }}</td>
+      <td>{{ ls.fp }}</td>
+      <td>{{ ls.fn }}</td>
+      <td>{{ "%.2f"|format(ls.precision) }}</td>
+      <td>{{ "%.2f"|format(ls.recall) }}</td>
+      <td>{{ "%.2f"|format(ls.f1) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% elif score %}
 <p>
   Total absolute error: <strong>{{ score.total_absolute_error }}</strong>
   · Exact matches: <strong>{{ score.exact_match_count }} / {{ label_count }}</strong>
@@ -34,6 +62,8 @@
     {% endfor %}
   </tbody>
 </table>
+{% elif task == "location" %}
+<p><em>Unscored — no location ground truth imported for this Drawing yet.</em></p>
 {% else %}
 <p><em>Unscored — no counting ground truth entered for this Drawing yet.</em>
   <a href="/drawings/{{ drawing.id }}/counting-ground-truth">Enter it →</a></p>

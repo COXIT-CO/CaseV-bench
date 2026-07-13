@@ -151,6 +151,20 @@ class LocationGroundTruthService:
         self.session.commit()
         return result
 
+    def boxes_by_page(self, drawing_id: int) -> dict[int, list[LocationGroundTruth]]:
+        """This Drawing's location GT boxes grouped by ``page_id``; empty when none has
+        been imported, so callers can tell "unlabeled" from "labeled with no boxes on a
+        page" (the empty dict is what makes a location Result read as unscored)."""
+        rows = self.session.exec(
+            select(LocationGroundTruth)
+            .join(Page, LocationGroundTruth.page_id == Page.id)
+            .where(Page.drawing_id == drawing_id)
+        ).all()
+        grouped: dict[int, list[LocationGroundTruth]] = {}
+        for row in rows:
+            grouped.setdefault(row.page_id, []).append(row)
+        return grouped
+
     def _clear_existing(self, pages) -> None:
         page_ids = [page.id for page in pages]
         if not page_ids:
