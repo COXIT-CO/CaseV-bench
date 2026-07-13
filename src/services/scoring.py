@@ -17,12 +17,11 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import NamedTuple
 
 from sqlmodel import Session, select
 
 from models.prompt import Prompt, Task
-from models.results import OBJECT_LABELS, LocationResult
+from models.results import OBJECT_LABELS, LabeledBox, LocationResult
 from models.run import Prediction, PredictionStatus, Result, Run
 from models.score import Score
 from services.counting_ground_truth import CountingGroundTruthService
@@ -98,16 +97,10 @@ def score_counting(
     return CountingScore(per_label=per_label)
 
 
-class LocationBox(NamedTuple):
-    """A labeled normalized (0-1) box — the shared shape both a predicted detection and
-    a ``LocationGroundTruth`` row reduce to, so the pure matcher never touches the ORM.
-    """
-
-    label: str
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
+# The pure matcher and Leaderboard work in ``LabeledBox`` (models.results) — the flat
+# labeled-box shape shared with the overlay renderer. Kept aliased so scoring code and
+# its tests keep referring to it as ``LocationBox``.
+LocationBox = LabeledBox
 
 
 def _iou(a: LocationBox, b: LocationBox) -> float:

@@ -1,4 +1,4 @@
-from typing import Literal, get_args
+from typing import Literal, NamedTuple, get_args
 
 from pydantic import BaseModel, Field
 
@@ -30,3 +30,16 @@ class LocationDetection(BaseModel):
 
 class LocationResult(BaseModel):
     detections: list[LocationDetection]
+
+
+class LabeledBox(NamedTuple):
+    """A labeled normalized (0-1) box — the flat shape both a predicted detection and a
+    ``LocationGroundTruth`` row reduce to. Shared by scoring's pure matcher (so it never
+    touches the ORM) and the overlay renderer (so it draws predictions and GT uniformly).
+    """
+
+    label: str
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
