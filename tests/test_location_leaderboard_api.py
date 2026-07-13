@@ -1,9 +1,6 @@
-"""Web-layer check for the still-live HTMX location Result drill-down (ticket 11). The
-Jinja Leaderboard board was retired in ticket 02 — the location board now lives in the
-React SPA against ``GET /api/leaderboard?task=location`` (see
-``tests/test_location_leaderboard_api.py``). The location ``/results/{id}`` detail page
-stays on HTMX until the result-detail slice (ticket 03), so its IoU@0.5 P/R/F1 score
-(never a counting score) is still covered here."""
+"""JSON contract for the location Leaderboard (spec §A.2, ticket 02). Under
+``?task=location`` the ``/api`` twin serves the P/R/F1-ranked board — the location metric
+set and per-row rates instead of the counting pair — with unscored Results pinned last."""
 
 import json
 import time
@@ -11,6 +8,7 @@ import time
 from PIL import Image
 from sqlmodel import Session, select
 
+from adapters.openrouter import get_openrouter_adapter
 from models.drawing import Drawing, Page
 from models.prompt import Prompt, Task
 from services.location_ground_truth import LocationGroundTruthService
@@ -95,19 +93,43 @@ def _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id):
     raise AssertionError("run did not finish in time")
 
 
-def test_location_result_detail_shows_iou_score(
+def test_location_leaderboard_api_ranks_by_prf1(
     app, client, engine, stub_adapter, tmp_path
 ):
     drawing_id = _seed_drawing(engine, tmp_path)
     _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
     _import_gt(engine, drawing_id)
 
-    with Session(engine) as session:
-        from models.run import Result
+    body = client.get(f"/api/leaderboard?task=location&drawing_id={drawing_id}").json()
 
-        result_id = session.exec(select(Result)).first().id
-    detail = client.get(f"/results/{result_id}")
-    assert detail.status_code == 200
-    # A location Result uses IoU@0.5 P/R/F1 and never gets a counting score.
-    assert "IoU@0.5" in detail.text
-    assert "Total absolute error" not in detail.text
+    assert body["task"] == "location"
+    assert body["sort"] == "f1"
+    assert body["metrics"] == ["f1", "precision", "recall"]
+
+    rows = body["rows"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["rank"] == 1
+    assert row["scored"] is True
+    assert row["model"] == SONNET
+    # A single perfectly-matched box → P/R/F1 all 1.0.
+    assert row["f1"] == 1.0
+    assert row["precision"] == 1.0
+    assert row["recall"] == 1.0
+    # Location rows carry no counting metrics.
+    assert row["total_absolute_error"] is None
+
+
+def test_location_leaderboard_api_unscored_without_gt(
+    app, client, engine, stub_adapter, tmp_path
+):
+    drawing_id = _seed_drawing(engine, tmp_path)
+    _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
+
+    rows = client.get(
+        f"/api/leaderboard?task=location&drawing_id={drawing_id}"
+    ).json()["rows"]
+    assert len(rows) == 1
+    assert rows[0]["scored"] is False
+    assert rows[0]["rank"] is None
+    assert rows[0]["f1"] is None

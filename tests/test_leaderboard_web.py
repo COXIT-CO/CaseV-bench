@@ -1,7 +1,8 @@
-"""Web-layer check for the Leaderboard + drill-down (ticket 08). With the adapter
-stubbed via the ``app`` fixture, a launched Run then entered GT renders a ranked board;
-clicking a row reaches the Result's per-page Predictions + raw JSON; a Drawing with no
-GT shows its Results as unscored, distinct from a zero score."""
+"""Web-layer check for the still-live HTMX Result drill-down (ticket 08). The Jinja
+Leaderboard board was retired in ticket 02 — it now lives in the React SPA against
+``GET /api/leaderboard`` (see ``tests/test_leaderboard_api.py``). The counting
+``/results/{id}`` detail page stays on HTMX until the result-detail slice (ticket 03), so
+its per-page Predictions + raw JSON + score summary are still covered here."""
 
 import time
 
@@ -66,21 +67,14 @@ def _launch_and_wait(client, engine, drawing_id, prompt_id):
     raise AssertionError("run did not finish in time")
 
 
-def test_leaderboard_ranks_and_drills_into_result(client, engine, stub_adapter):
+def test_counting_result_detail_shows_score_and_raw_output(
+    client, engine, stub_adapter
+):
     drawing_id = _seed_drawing(engine)
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     _launch_and_wait(client, engine, drawing_id, _counting_prompt_id(engine))
-
-    # Enter GT so the board can score.
     client.post(f"/drawings/{drawing_id}/counting-ground-truth", data=GT)
 
-    board = client.get(f"/leaderboard?drawing_id={drawing_id}")
-    assert board.status_code == 200
-    # Accurate model (0 error) is ranked above the sloppy one (its row appears first).
-    assert board.text.index(ACCURATE) < board.text.index(SLOPPY)
-    assert "/ 4" in board.text  # exact-match column rendered
-
-    # Drill into the accurate Result via its linked drill-down page.
     with Session(engine) as session:
         from models.run import Result
 
@@ -90,16 +84,7 @@ def test_leaderboard_ranks_and_drills_into_result(client, engine, stub_adapter):
     detail = client.get(f"/results/{result_id}")
     assert detail.status_code == 200
     assert "cabinets" in detail.text  # per-page parsed counts
-    assert "Total absolute error" in detail.text
+    assert "Total absolute error" in detail.text  # counting score summary
     assert "Raw model output" in detail.text  # raw JSON section present
-
-
-def test_leaderboard_shows_unscored_without_ground_truth(client, engine, stub_adapter):
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
-    _launch_and_wait(client, engine, drawing_id, _counting_prompt_id(engine))
-
-    board = client.get(f"/leaderboard?drawing_id={drawing_id}")
-    assert board.status_code == 200
-    # No GT entered → unscored, and the word distinguishes it from a zero score.
-    assert "unscored" in board.text.lower()
+    # The retired board's back-link now points Home, not at /leaderboard.
+    assert "/leaderboard" not in detail.text
