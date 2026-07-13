@@ -23,3 +23,11 @@ export function useLeaderboard(params: LeaderboardParams) {
     placeholderData: (prev) => prev,
   });
 }
+
+/** One Result's drill-down, keyed by its id (spec §A.3). */
+export function useResult(id: number) {
+  return useQuery({
+    queryKey: ["result", id],
+    queryFn: () => api.result(id),
+  });
+}

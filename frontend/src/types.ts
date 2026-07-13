@@ -69,3 +69,75 @@ export interface LeaderboardParams {
   drawing_id: number | null;
   sort: string | null;
 }
+
+/** One label's counting breakdown in the Result drill-down (src/web/api.py::CountingLabelDetail). */
+export interface CountingLabelDetail {
+  label: string;
+  predicted: number;
+  gt: number;
+  absolute_error: number;
+  exact_match: boolean;
+}
+
+/** A counting Result's Score block: the two ranked aggregates + the per-label rows. */
+export interface CountingScore {
+  total_absolute_error: number;
+  exact_match_count: number;
+  per_label: CountingLabelDetail[];
+}
+
+/** One label's location breakdown: the IoU@0.5 tally + its derived rates. */
+export interface LocationLabelDetail {
+  label: string;
+  tp: number;
+  fp: number;
+  fn: number;
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
+/** A location Result's Score block: the micro-averaged P/R/F1 headline + per-label rows. */
+export interface LocationScore {
+  precision: number;
+  recall: number;
+  f1: number;
+  per_label: LocationLabelDetail[];
+}
+
+/**
+ * One Page's Prediction in the drill-down (src/web/api.py::PredictionOut): the raw model
+ * output + parsed JSON on success, or a parse-error failure record. `has_gt` flags whether
+ * the page carries location ground truth; `box_count` is the predicted box count (location
+ * only, 0 otherwise).
+ */
+export interface ResultPrediction {
+  page_number: number;
+  status: PredictionStatus;
+  raw_content: string | null;
+  parsed_json: string | null;
+  parse_error: string | null;
+  has_gt: boolean;
+  box_count: number;
+}
+
+/**
+ * `GET /api/results/{id}` — the Result drill-down (spec §A.3, src/web/api.py::ResultDetailResponse).
+ * Exactly one of `counting_score` / `location_score` is set, per the Run's Task; both are
+ * `null` when the Drawing has no ground truth (unscored, distinct from scored-zero).
+ */
+export interface ResultDetailResponse {
+  result_id: number;
+  model: string;
+  task: Task;
+  prompt_family: string;
+  prompt_version: number;
+  run_id: number;
+  drawing_id: number;
+  drawing_name: string;
+  scored: boolean;
+  label_count: number;
+  counting_score: CountingScore | null;
+  location_score: LocationScore | null;
+  predictions: ResultPrediction[];
+}

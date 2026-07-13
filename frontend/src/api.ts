@@ -1,4 +1,9 @@
-import type { ApiMeta, LeaderboardParams, LeaderboardResponse } from "@/types";
+import type {
+  ApiMeta,
+  LeaderboardParams,
+  LeaderboardResponse,
+  ResultDetailResponse,
+} from "@/types";
 
 // Thin typed fetch client over `/api/**` (spec §B.1). In dev, Vite proxies these paths to
 // FastAPI, so relative URLs need no origin and no CORS. Every method mirrors one Part-A
@@ -56,4 +61,7 @@ export const api = {
     if (sort !== null) query.set("sort", sort);
     return getJson<LeaderboardResponse>(`/api/leaderboard?${query}`);
   },
+
+  /** One Result's drill-down: header refs, the score block, and the per-page predictions (spec §A.3). */
+  result: (id: number) => getJson<ResultDetailResponse>(`/api/results/${id}`),
 };
