@@ -16,12 +16,11 @@ from sqlmodel import Session, select
 
 from db import get_session, init_db, make_engine
 from models.drawing import Drawing, Page
-from models.prompt import Prompt, Task
 from models.results import OBJECT_LABELS
 from services.counting_ground_truth import CountingGroundTruthService
 from services.drawing import DrawingService
 from services.model_catalog import ModelCatalogService
-from services.prompt import PromptService, seed_default_prompts
+from services.prompt import seed_default_prompts
 from web.api import api_router
 
 APP_TITLE = "Prompt & Config Lab"
@@ -33,11 +32,6 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 def get_drawing_service(session: Session = Depends(get_session)) -> DrawingService:
     """FastAPI dependency; override in tests to inject a fast/low-DPI service."""
     return DrawingService(session)
-
-
-def get_prompt_service(session: Session = Depends(get_session)) -> PromptService:
-    """FastAPI dependency yielding a PromptService bound to the request session."""
-    return PromptService(session)
 
 
 def create_app(engine: Engine | None = None) -> FastAPI:
@@ -198,87 +192,15 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             },
         )
 
-    @app.get("/prompts", response_class=HTMLResponse)
-    def list_prompts(
-        request: Request, service: PromptService = Depends(get_prompt_service)
-    ) -> HTMLResponse:
-        # Group families under their Task so a counting prompt is never shown as a
-        # location option (Task-scoping, ADR 0009).
-        groups = []
-        for task in Task:
-            families = []
-            for family in service.families(task):
-                versions = service.history(task, family)
-                families.append(
-                    {
-                        "name": family,
-                        "latest_version": versions[0].version,
-                        "count": len(versions),
-                    }
-                )
-            groups.append({"task": task.value, "families": families})
-        return templates.TemplateResponse(
-            request,
-            "prompts.html",
-            {"title": APP_TITLE, "groups": groups, "tasks": [t.value for t in Task]},
-        )
-
-    @app.post("/prompts")
-    def author_prompt(
-        task: Task = Form(...),
-        family: str = Form(...),
-        text: str = Form(...),
-        service: PromptService = Depends(get_prompt_service),
-    ) -> HTMLResponse:
-        family = family.strip()
-        try:
-            service.create(task, family=family, text=text)
-        except ValueError as exc:
-            return HTMLResponse(str(exc), status_code=400)
-        return RedirectResponse(url=f"/prompts/{task.value}/{family}", status_code=303)
-
-    @app.get("/prompts/{task}/{family}", response_class=HTMLResponse)
-    def view_prompt_family(
-        task: Task,
-        family: str,
-        request: Request,
-        service: PromptService = Depends(get_prompt_service),
-    ) -> HTMLResponse:
-        versions = service.history(task, family)
-        if not versions:
-            return HTMLResponse("Prompt family not found", status_code=404)
-        return templates.TemplateResponse(
-            request,
-            "prompt_history.html",
-            {
-                "title": APP_TITLE,
-                "task": task.value,
-                "family": family,
-                "versions": versions,
-            },
-        )
-
-    @app.post("/prompts/{task}/{family}")
-    def edit_prompt_family(
-        task: Task,
-        family: str,
-        text: str = Form(...),
-        service: PromptService = Depends(get_prompt_service),
-    ) -> HTMLResponse:
-        try:
-            service.edit(task, family=family, text=text)
-        except ValueError as exc:
-            return HTMLResponse(str(exc), status_code=404)
-        return RedirectResponse(url=f"/prompts/{task.value}/{family}", status_code=303)
-
-    # The Jinja ``/leaderboard`` (ticket 02), ``/results/{id}`` (ticket 03), and ``/runs``
-    # launch/detail/status pages (ticket 04) were retired here: all now live in the React
-    # SPA against ``GET /api/leaderboard`` (§A.2), ``GET /api/results/{id}`` (§A.3), and the
-    # ``/api/runs`` family (§A.4). Their prediction/compare-overlay PNG routes moved with
-    # them to ``/api`` (``result_detail.html``'s compare-overlay and the run-status
-    # fragment's prediction ``/overlay``), so the SPA fetches every binary asset under one
-    # ``/api`` prefix. The ``/drawings``, ``/prompts``, and ``/models`` Jinja pages stay
-    # live until their own Library/Prompts slices reach parity.
+    # The Jinja ``/leaderboard`` (ticket 02), ``/results/{id}`` (ticket 03), ``/runs``
+    # launch/detail/status pages (ticket 04), and ``/prompts`` list/authoring/history
+    # pages (ticket 05) were retired here: all now live in the React SPA against
+    # ``GET /api/leaderboard`` (§A.2), ``GET /api/results/{id}`` (§A.3), the ``/api/runs``
+    # family (§A.4), and the ``/api/prompts`` family (§A.5). Their prediction/compare-overlay
+    # PNG routes moved with them to ``/api`` (``result_detail.html``'s compare-overlay and
+    # the run-status fragment's prediction ``/overlay``), so the SPA fetches every binary
+    # asset under one ``/api`` prefix. The ``/drawings`` and ``/models`` Jinja pages stay
+    # live until their own Library slice reaches parity.
 
     return app
 

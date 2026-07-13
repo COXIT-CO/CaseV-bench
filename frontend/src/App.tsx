@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { Leaderboard } from "@/routes/Leaderboard";
 import { NotFound } from "@/routes/NotFound";
+import { PromptHistory } from "@/routes/PromptHistory";
 import { Prompts } from "@/routes/Prompts";
 import { ResultDetail } from "@/routes/ResultDetail";
 import { RunDetail } from "@/routes/RunDetail";
@@ -22,6 +23,7 @@ export function App() {
         <Route path="runs" element={<Runs />} />
         <Route path="runs/:id" element={<RunDetail />} />
         <Route path="prompts" element={<Prompts />} />
+        <Route path="prompts/:task/:family" element={<PromptHistory />} />
         <Route path="library">
           <Route index element={<Navigate to="/library/drawings" replace />} />
           <Route path="drawings" element={<Drawings />} />
