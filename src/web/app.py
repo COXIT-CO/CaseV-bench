@@ -34,6 +34,7 @@ from services.scoring import (
     ScoringService,
 )
 from utils import render_compare_overlay
+from web.api import api_router
 
 APP_TITLE = "Prompt & Config Lab"
 
@@ -79,6 +80,11 @@ def create_app(engine: Engine | None = None) -> FastAPI:
 
     app = FastAPI(title=APP_TITLE, lifespan=lifespan)
     app.state.engine = engine or make_engine()
+
+    # The JSON API (ADR 0010) is mounted additively under /api; the Jinja/HTMX routes
+    # below are left unchanged so the live app keeps serving until each slice reaches
+    # parity. Registered first so /api/** never falls through to an HTML handler.
+    app.include_router(api_router)
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request) -> HTMLResponse:
