@@ -5,7 +5,6 @@ Kept DB-agnostic (no SQLite-only constructs) so a later Postgres swap stays smal
 once it stabilizes. Delete the ``.sqlite`` file to reset during early dev.
 """
 
-import os
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -13,12 +12,14 @@ from fastapi import Request
 from sqlalchemy import Engine, make_url
 from sqlmodel import Session, SQLModel, create_engine
 
-DEFAULT_DATABASE_URL = "sqlite:///data/casev.sqlite"
+from config import settings
 
 
 def get_database_url() -> str:
-    """The database URL, overridable via ``CASEV_DATABASE_URL`` (e.g. a temp DB in tests)."""
-    return os.environ.get("CASEV_DATABASE_URL", DEFAULT_DATABASE_URL)
+    """The production database URL, derived from settings (``CASEV_DATABASE_URL`` overrides,
+    else a SQLite file under ``CASEV_DATA_ROOT``). Tests pass their temp DB URL to
+    ``make_engine`` directly and never hit this default (ADR-0014)."""
+    return settings.database_url
 
 
 def make_engine(database_url: str | None = None) -> Engine:

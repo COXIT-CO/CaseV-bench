@@ -1,12 +1,10 @@
 import base64
-import os
 from pathlib import Path
 from typing import Protocol
 
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+from config import settings
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -36,7 +34,7 @@ def send_image_prompt(
     max_tokens: int = DEFAULT_MAX_TOKENS,
     temperature: float | None = None,
 ) -> dict:
-    api_key = os.environ["OPENROUTER_API_KEY"]
+    api_key = settings.require_openrouter_api_key()
     image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
 
     messages = [
