@@ -23,6 +23,7 @@ from api.routers import all_routers
 from core.db import init_db, make_engine
 from core.services.model_catalog import ModelCatalogService
 from core.services.prompt import seed_default_prompts
+from core.services.run import reconcile_orphaned_runs
 
 APP_TITLE = "Prompt & Config Lab"
 
@@ -39,6 +40,8 @@ def create_app(engine: Engine | None = None, spa_dist: Path | None = None) -> Fa
         with Session(app.state.engine) as session:
             ModelCatalogService(session).seed_defaults()
             seed_default_prompts(session)
+            # Reconcile any run orphaned by a prior process, e.g. a redeploy (ticket 04).
+            reconcile_orphaned_runs(session)
         yield
 
     app = FastAPI(title=APP_TITLE, lifespan=lifespan)

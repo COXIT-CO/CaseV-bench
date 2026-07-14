@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from sqlalchemy import Engine
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
 from core.config import settings
@@ -54,6 +54,25 @@ DEFAULT_OVERLAY_ROOT = settings.overlays_root
 
 # Tasks the run path can execute today (counting: ticket 05/06; location: ticket 09).
 SUPPORTED_TASKS = (Task.counting, Task.location)
+
+
+def reconcile_orphaned_runs(session: Session) -> int:
+    """Sweep any Run left ``running`` by an interrupted process to ``failed`` (ticket 04).
+
+    Background runs execute on an in-process thread (ADR 0006), so they die with the
+    process that hosts them — e.g. a Railway redeploy kills the old container mid-run
+    (ADR 0013). The Run row is then stuck ``running`` with no thread left to finish it,
+    and the Leaderboard would show a zombie run that can never complete. Startup is a safe
+    moment to reconcile: a freshly booted process has nothing legitimately in flight, so
+    every ``running`` Run is an orphan of a prior process. Runs already in a terminal state
+    (``done``, ``failed``) — and ones still merely ``queued`` — are left untouched. Returns
+    the number of Runs swept.
+    """
+    orphaned = session.exec(select(Run).where(Run.status == RunStatus.running)).all()
+    for run in orphaned:
+        run.status = RunStatus.failed
+    session.commit()
+    return len(orphaned)
 
 
 @dataclass(frozen=True)
