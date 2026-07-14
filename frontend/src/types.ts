@@ -340,3 +340,36 @@ export interface DrawingDetailResponse {
 export interface ModelsResponse {
   catalog: CatalogEntry[];
 }
+
+/** One taxonomy label's counting total in the GT form (src/web/api.py::CountingGtLabel):
+ * `value` is `null` when the label has not been entered yet, distinct from an entered 0. */
+export interface CountingGtLabel {
+  name: string;
+  value: number | null;
+}
+
+/** `GET`/`PUT /api/drawings/{id}/counting-ground-truth` — the per-label totals in the fixed
+ * taxonomy order (spec §A.6). The same shape pre-fills the form and returns the saved totals,
+ * so a save can seed the query cache directly. */
+export interface CountingGroundTruthResponse {
+  drawing_id: number;
+  labels: CountingGtLabel[];
+}
+
+/** `PUT /api/drawings/{id}/counting-ground-truth` body: one integer per taxonomy label, all
+ * required (a missing/non-integer total is a `400`). */
+export type CountingGtSaveRequest = Record<string, number>;
+
+/** One annotation the COCO import reported rather than silently dropped: an unmapped label
+ * or a reference to a page the Drawing lacks (src/web/api.py::ImportProblemOut). */
+export interface LocationImportProblem {
+  kind: "unmapped_label" | "unknown_page";
+  detail: string;
+}
+
+/** `POST /api/drawings/{id}/location-ground-truth` → the COCO import result: how many boxes
+ * were created and every problem reported (spec §A.6). */
+export interface LocationImportResponse {
+  created: number;
+  problems: LocationImportProblem[];
+}

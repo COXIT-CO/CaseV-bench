@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-query";
 
 import { api } from "@/api";
-import type { LeaderboardParams } from "@/types";
+import type { CountingGtSaveRequest, LeaderboardParams } from "@/types";
 import { isTerminalRunStatus } from "@/types";
 
 // React Query hooks keyed per Part-A endpoint. Slice 0 has just the proof query; feature
@@ -170,4 +170,52 @@ export function useDrawing(id: number, enabled = true) {
 /** The curated model catalog for the Library view (spec §A.6). */
 export function useModels() {
   return useQuery({ queryKey: ["models"], queryFn: api.models });
+}
+
+/** One Drawing's counting-GT totals per taxonomy label, pre-filling the entry form (spec
+ * §A.6). `enabled` skips the fetch for an invalid id, as the drawing detail does. */
+export function useCountingGroundTruth(id: number, enabled = true) {
+  return useQuery({
+    queryKey: ["counting-gt", id],
+    queryFn: () => api.countingGroundTruth(id),
+    enabled,
+  });
+}
+
+/**
+ * Entering ground truth makes the previously-unscored Leaderboard rows and Result details
+ * for this Drawing scored — with no re-run, since scores recompute on read (spec Further
+ * Notes). So both are invalidated after a save/import; React Query re-fetches and the rows
+ * flip to scored. Shared by the counting-save and COCO-import mutations.
+ */
+function invalidateScored(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+  queryClient.invalidateQueries({ queryKey: ["result"] });
+}
+
+/** Upsert one Drawing's counting-GT totals. On success the returned totals seed the
+ * pre-fill cache and the now-scored board/results are invalidated (spec §A.6). */
+export function useSaveCountingGroundTruth(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (totals: CountingGtSaveRequest) =>
+      api.saveCountingGroundTruth(id, totals),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["counting-gt", id], saved);
+      invalidateScored(queryClient);
+    },
+  });
+}
+
+/** Import one Drawing's LocationGroundTruth from a COCO upload. On success the now-scored
+ * board/results are invalidated (spec §A.6); the caller renders the returned problem report. */
+export function useImportLocationGroundTruth(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, labelMap }: { file: File; labelMap?: string }) =>
+      api.importLocationGroundTruth(id, file, labelMap),
+    onSuccess: () => {
+      invalidateScored(queryClient);
+    },
+  });
 }

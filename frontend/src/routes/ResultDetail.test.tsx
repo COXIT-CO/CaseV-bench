@@ -112,7 +112,7 @@ describe("ResultDetail", () => {
     // The CTA points at the Drawing's ground-truth entry.
     expect(screen.getByRole("link", { name: "Add ground truth" })).toHaveAttribute(
       "href",
-      "/library/drawings/3",
+      "/library/drawings/3#ground-truth",
     );
     // No score headline is shown, but the predictions are still inspectable.
     expect(screen.queryByText("Total abs. error")).not.toBeInTheDocument();

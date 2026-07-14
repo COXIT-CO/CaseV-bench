@@ -293,7 +293,7 @@ function BoardRow({
           {row.drawing_name}
           {!row.scored && (
             <Link
-              to={`/library/drawings/${row.drawing_id}`}
+              to={`/library/drawings/${row.drawing_id}#ground-truth`}
               onClick={(e) => e.stopPropagation()}
               className="font-semibold text-primary hover:underline"
             >

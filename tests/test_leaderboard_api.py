@@ -71,7 +71,7 @@ def test_leaderboard_api_ranks_scored_rows(client, engine, stub_adapter):
     drawing_id = _seed_drawing(engine)
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     _launch_and_wait(client, engine, drawing_id, _counting_prompt_id(engine))
-    client.post(f"/drawings/{drawing_id}/counting-ground-truth", data=GT)
+    client.put(f"/api/drawings/{drawing_id}/counting-ground-truth", json=GT)
 
     response = client.get(f"/api/leaderboard?drawing_id={drawing_id}")
     assert response.status_code == 200
@@ -105,7 +105,7 @@ def test_leaderboard_api_sort_by_exact_matches(client, engine, stub_adapter):
     drawing_id = _seed_drawing(engine)
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     _launch_and_wait(client, engine, drawing_id, _counting_prompt_id(engine))
-    client.post(f"/drawings/{drawing_id}/counting-ground-truth", data=GT)
+    client.put(f"/api/drawings/{drawing_id}/counting-ground-truth", json=GT)
 
     body = client.get(
         f"/api/leaderboard?drawing_id={drawing_id}&sort=exact_match_count"

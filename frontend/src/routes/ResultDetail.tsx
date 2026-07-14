@@ -130,7 +130,9 @@ function UnscoredCta({ drawingId }: { drawingId: number }) {
         This prediction can’t be scored until ground truth is added.
       </p>
       <Button asChild size="sm" className="mt-4">
-        <Link to={`/library/drawings/${drawingId}`}>Add ground truth</Link>
+        <Link to={`/library/drawings/${drawingId}#ground-truth`}>
+          Add ground truth
+        </Link>
       </Button>
     </div>
   );
