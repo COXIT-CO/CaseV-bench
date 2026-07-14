@@ -1,7 +1,10 @@
 import type {
   ApiMeta,
+  DrawingDetailResponse,
+  DrawingsResponse,
   LaunchOptionsResponse,
   LeaderboardResponse,
+  ModelsResponse,
   PromptHistoryResponse,
   PromptsResponse,
   ResultDetailResponse,
@@ -342,6 +345,42 @@ export const PROMPT_HISTORY_SINGLE: PromptHistoryResponse = {
       text: "Return bounding boxes for every fixture.",
       created_at: "2026-06-10T09:00:00Z",
     },
+  ],
+};
+
+/** The Library Drawings list with two ingested drawings. */
+export const DRAWINGS_LIST: DrawingsResponse = {
+  drawings: [
+    { id: 3, name: "prj0001", page_count: 4 },
+    { id: 5, name: "prj0002", page_count: 1 },
+  ],
+};
+
+/** One Drawing's detail: two rendered pages with distinct pixel dimensions. */
+export const DRAWING_DETAIL: DrawingDetailResponse = {
+  drawing: { id: 3, name: "prj0001" },
+  pages: [
+    {
+      page_number: 1,
+      width_px: 1700,
+      height_px: 2200,
+      image_url: "/api/drawings/3/pages/1/image",
+    },
+    {
+      page_number: 2,
+      width_px: 2200,
+      height_px: 1700,
+      image_url: "/api/drawings/3/pages/2/image",
+    },
+  ],
+};
+
+/** The curated model catalog for the Library Models view. */
+export const MODELS: ModelsResponse = {
+  catalog: [
+    { slug: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
+    { slug: "openai/gpt-5-mini", label: "GPT-5 mini" },
+    { slug: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   ],
 };
 

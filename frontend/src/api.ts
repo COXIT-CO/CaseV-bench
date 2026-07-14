@@ -1,8 +1,12 @@
 import type {
   ApiMeta,
+  DrawingDetailResponse,
+  DrawingsResponse,
+  DrawingSummary,
   LaunchOptionsResponse,
   LeaderboardParams,
   LeaderboardResponse,
+  ModelsResponse,
   PromptCreateRequest,
   PromptHistoryResponse,
   PromptsResponse,
@@ -54,6 +58,27 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, "Could not reach the API. Is the FastAPI server running?");
+  }
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await readDetail(response));
+  }
+  return (await response.json()) as T;
+}
+
+/** POST `multipart/form-data` (a file upload) and parse the JSON response, surfacing the
+ * same `{detail}` envelope as the other helpers (spec §A.6). The browser sets the multipart
+ * `Content-Type` (with its boundary) from the `FormData`, so it must not be set here. */
+async function postForm<T>(path: string, form: FormData): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      body: form,
     });
   } catch {
     throw new ApiError(0, "Could not reach the API. Is the FastAPI server running?");
@@ -133,4 +158,22 @@ export const api = {
       `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions`,
       { text },
     ),
+
+  /** The Library catalog of Drawings with page counts, newest-first (spec §A.6). */
+  drawings: () => getJson<DrawingsResponse>("/api/drawings"),
+
+  /** Upload a PDF (multipart); ingests via `DrawingService` and returns the created
+   * Drawing so the SPA can route to its detail (spec §A.6). */
+  uploadDrawing: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return postForm<DrawingSummary>("/api/drawings", form);
+  },
+
+  /** One Drawing's rendered Pages with pixel dims + image URLs (spec §A.6). */
+  drawing: (id: number) =>
+    getJson<DrawingDetailResponse>(`/api/drawings/${id}`),
+
+  /** The curated model catalog for the Library view (spec §A.6). */
+  models: () => getJson<ModelsResponse>("/api/models"),
 };

@@ -305,3 +305,38 @@ export interface PromptVersionRef {
   family: string;
   version: number;
 }
+
+/** One Drawing in the Library list / created-upload response (src/web/api.py::DrawingSummary):
+ * its id, name, and page count. Same shape as `LeaderboardDrawing`, named for the Library. */
+export interface DrawingSummary {
+  id: number;
+  name: string;
+  page_count: number;
+}
+
+/** `GET /api/drawings` — the Library catalog of Drawings, newest-first (spec §A.6). */
+export interface DrawingsResponse {
+  drawings: DrawingSummary[];
+}
+
+/** One rendered Page on the Drawing detail (src/web/api.py::DrawingPageOut): its number, the
+ * full-resolution pixel dims, and the URL of its cached image PNG (under `/api`). */
+export interface DrawingPage {
+  page_number: number;
+  width_px: number;
+  height_px: number;
+  image_url: string;
+}
+
+/** `GET /api/drawings/{id}` — the Drawing plus its rendered Pages (spec §A.6). The detail is
+ * where ground-truth entry hangs off (ticket 07). */
+export interface DrawingDetailResponse {
+  drawing: DrawingRef;
+  pages: DrawingPage[];
+}
+
+/** `GET /api/models` — the curated model catalog (spec §A.6). Selection stays inline at Run
+ * launch; this is catalog *viewing* only (ADR 0011). */
+export interface ModelsResponse {
+  catalog: CatalogEntry[];
+}

@@ -8,10 +8,11 @@ results, runs, prompts, library) land in their own later slices (spec Part A).
 """
 
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -24,6 +25,7 @@ from models.location_ground_truth import LocationGroundTruth
 from models.prompt import Prompt, Task
 from models.results import OBJECT_LABELS, LabeledBox, LocationResult
 from models.run import Prediction, PredictionStatus, Result, Run
+from services.drawing import DrawingService
 from services.location_ground_truth import LocationGroundTruthService
 from services.model_catalog import ModelCatalogService
 from services.prompt import PromptService
@@ -885,4 +887,142 @@ def append_prompt_version(
         raise HTTPException(status_code=404, detail=str(exc))
     return PromptVersionRef(
         task=prompt.task.value, family=prompt.family, version=prompt.version
+    )
+
+
+# --- Library (spec §A.6) ---------------------------------------------------------------
+# The JSON twins of the Jinja ``/drawings`` list/upload/detail pages, the cached page-image
+# PNG re-mounted under ``/api`` for the SPA, and the ``/models`` curated catalog. Ingestion
+# reuses ``DrawingService`` unchanged — only the web layer differs. Ground-truth entry
+# (counting form, COCO import) is ticket 07; the Drawing detail is only the entry point it
+# hangs off.
+
+
+def get_drawing_service(session: Session = Depends(get_session)) -> DrawingService:
+    """The ingestion service for the upload route; override in tests to inject a fast,
+    low-DPI service. Defined here (not imported from ``web.app``) so this router carries no
+    import cycle back to the app factory — the same pattern as ``get_run_service``."""
+    return DrawingService(session)
+
+
+class DrawingSummary(BaseModel):
+    """One Drawing in the Library list / created-upload response: its id, name, and page
+    count (the same shape the launch form's Drawing dropdown uses)."""
+
+    id: int
+    name: str
+    page_count: int
+
+
+class DrawingsResponse(BaseModel):
+    drawings: list[DrawingSummary]
+
+
+class DrawingPageOut(BaseModel):
+    """One rendered Page on the Drawing detail: its number, the full-resolution pixel dims
+    (COCO boxes are annotated against these), and the URL of its cached image PNG."""
+
+    page_number: int
+    width_px: int
+    height_px: int
+    image_url: str
+
+
+class DrawingDetailResponse(BaseModel):
+    """``GET /api/drawings/{id}``: the Drawing plus its rendered Pages. The detail is where
+    ground-truth entry hangs off (ticket 07)."""
+
+    drawing: DrawingRef
+    pages: list[DrawingPageOut]
+
+
+class ModelsResponse(BaseModel):
+    """``GET /api/models``: the curated catalog. Model *selection* still happens inline at
+    Run launch; this is catalog *viewing* only (ADR 0011)."""
+
+    catalog: list[CatalogEntryOut]
+
+
+@api_router.get("/drawings", response_model=DrawingsResponse)
+def list_drawings(session: Session = Depends(get_session)) -> DrawingsResponse:
+    """Every Drawing with its page count, newest-first (spec §A.6)."""
+    drawings = session.exec(select(Drawing).order_by(Drawing.created_at.desc())).all()
+    return DrawingsResponse(
+        drawings=[
+            DrawingSummary(id=d.id, name=d.name, page_count=len(d.pages))
+            for d in drawings
+        ]
+    )
+
+
+@api_router.post("/drawings", response_model=DrawingSummary, status_code=201)
+async def upload_drawing(
+    file: UploadFile,
+    service: DrawingService = Depends(get_drawing_service),
+) -> DrawingSummary:
+    """Ingest an uploaded PDF (multipart) via ``DrawingService`` and return the created
+    Drawing (spec §A.6). Upload stays ``multipart/form-data``; the file is written to a
+    temp PDF the service renders, then removed."""
+    name = Path(file.filename or "drawing").stem or "drawing"
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = Path(tmp.name)
+    try:
+        drawing = service.ingest(tmp_path, name=name)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    return DrawingSummary(
+        id=drawing.id, name=drawing.name, page_count=len(drawing.pages)
+    )
+
+
+@api_router.get("/drawings/{drawing_id}", response_model=DrawingDetailResponse)
+def drawing_detail(
+    drawing_id: int, session: Session = Depends(get_session)
+) -> DrawingDetailResponse:
+    """The Drawing's rendered Pages with pixel dims + image URLs (spec §A.6). The page
+    image URLs point at the ``/api`` PNG route so the SPA fetches under one origin. An
+    unknown Drawing is a ``404``."""
+    drawing = session.get(Drawing, drawing_id)
+    if drawing is None:
+        raise HTTPException(status_code=404, detail="Drawing not found")
+    return DrawingDetailResponse(
+        drawing=DrawingRef(id=drawing.id, name=drawing.name),
+        pages=[
+            DrawingPageOut(
+                page_number=page.page_number,
+                width_px=page.width_px,
+                height_px=page.height_px,
+                image_url=f"/api/drawings/{drawing_id}/pages/{page.page_number}/image",
+            )
+            for page in drawing.pages
+        ],
+    )
+
+
+@api_router.get("/drawings/{drawing_id}/pages/{page_number}/image")
+def drawing_page_image(
+    drawing_id: int,
+    page_number: int,
+    session: Session = Depends(get_session),
+) -> Response:
+    """The cached, downsampled page image PNG for one (Drawing, Page), re-mounted under
+    ``/api`` for the SPA (the Jinja twin stays live for HTMX). Unchanged handler."""
+    page = session.exec(
+        select(Page).where(
+            Page.drawing_id == drawing_id, Page.page_number == page_number
+        )
+    ).first()
+    if page is None or not Path(page.image_path).exists():
+        raise HTTPException(status_code=404, detail="Page image not found")
+    return FileResponse(page.image_path, media_type="image/png")
+
+
+@api_router.get("/models", response_model=ModelsResponse)
+def list_models(session: Session = Depends(get_session)) -> ModelsResponse:
+    """The curated model catalog (spec §A.6). The free-text escape hatch is a client-side
+    input resolved at Run launch, not part of this list."""
+    catalog = ModelCatalogService(session).list_catalog()
+    return ModelsResponse(
+        catalog=[CatalogEntryOut(slug=e.slug, label=e.label) for e in catalog]
     )
