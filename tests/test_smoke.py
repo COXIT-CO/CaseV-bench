@@ -6,11 +6,13 @@ from adapters.openrouter import get_openrouter_adapter
 from models.meta import AppMeta
 
 
-def test_base_page_renders_with_htmx(client):
-    response = client.get("/")
+def test_app_boots_and_serves_json_api(client):
+    # Post-cutover (ticket 08) the web surface is the JSON API + the SPA; the meta proof
+    # endpoint is the cheapest confirmation the app booted. SPA serving is covered in
+    # test_spa_serving.py.
+    response = client.get("/api/meta")
     assert response.status_code == 200
-    assert "Prompt &amp; Config Lab" in response.text
-    assert "htmx.org" in response.text  # HTMX wired into the base layout
+    assert response.json()["app"] == "Prompt & Config Lab"
 
 
 def test_schema_created_and_row_round_trips(session):
