@@ -74,7 +74,7 @@ describe("Leaderboard", () => {
 
     const gtLink = await screen.findByRole("link", { name: /ground truth/i });
     // The CTA points at the unscored row's own Drawing (id 5 in the fixture).
-    expect(gtLink).toHaveAttribute("href", "/library/drawings/5");
+    expect(gtLink).toHaveAttribute("href", "/library/drawings/5#ground-truth");
   });
 
   it("swaps metrics and columns when the Task tab changes, mirroring it to the URL", async () => {

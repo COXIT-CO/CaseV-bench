@@ -1,14 +1,16 @@
-import { Link, useParams } from "react-router-dom";
+import * as React from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
+import { GroundTruthEntry } from "@/routes/library/GroundTruthEntry";
 import { useDrawing } from "@/hooks/queries";
 import type { DrawingDetailResponse, DrawingPage } from "@/types";
 
 // The Drawing detail (ADR 0011, spec §A.6/§B.2): the rendered Page thumbnails with their
-// full-resolution pixel dims, and the entry point ground-truth entry hangs off (ticket 07).
-// Reached both from the Drawings list and from the contextual "unscored → enter ground
-// truth" CTAs on the Leaderboard/Result (ADR 0011), so the ground-truth section is the
-// anchor those links land on.
+// full-resolution pixel dims, and the ground-truth entry the scoring payoff hangs off
+// (ticket 07). Reached both from the Drawings list and from the contextual "unscored → enter
+// ground truth" CTAs on the Leaderboard/Result (ADR 0011), so the ground-truth section is
+// the `#ground-truth` anchor those links land on.
 
 export function DrawingDetail() {
   const { id } = useParams();
@@ -16,6 +18,15 @@ export function DrawingDetail() {
   const valid = Number.isInteger(drawingId);
 
   const { data, isLoading, isError, error } = useDrawing(drawingId, valid);
+
+  // The unscored CTAs on the Leaderboard/Result link here with a `#ground-truth` hash
+  // (ADR 0011). React Router v6 doesn't scroll to a hash target on its own, so bring the
+  // section into view once the detail has loaded and the anchor exists.
+  const { hash } = useLocation();
+  React.useEffect(() => {
+    if (!data || !hash) return;
+    document.getElementById(hash.slice(1))?.scrollIntoView?.();
+  }, [data, hash]);
 
   if (!valid) {
     return (
@@ -45,7 +56,7 @@ export function DrawingDetail() {
   return (
     <Shell>
       <Header detail={data} />
-      <GroundTruthEntry />
+      <GroundTruthEntry drawingId={drawingId} />
       <PageGrid pages={data.pages} />
     </Shell>
   );
@@ -73,24 +84,6 @@ function Header({ detail }: { detail: DrawingDetailResponse }) {
         </p>
       </div>
     </>
-  );
-}
-
-/** The entry point ground-truth entry hangs off (ticket 07). The counting-totals form and
- * the COCO location import mount into this section; the `id` anchor lets the unscored CTAs
- * from the Leaderboard/Result land directly on it. */
-function GroundTruthEntry() {
-  return (
-    <section
-      id="ground-truth"
-      className="mb-6 scroll-mt-6 rounded-lg border bg-card p-4"
-    >
-      <h2 className="text-sm font-semibold">Ground truth</h2>
-      <p className="mt-1 text-[12.5px] text-muted-foreground">
-        Record ground truth so this drawing's results become scored — counting totals per
-        object type, or a COCO location import. Entry lands in the next slice (ticket 07).
-      </p>
-    </section>
   );
 }
 

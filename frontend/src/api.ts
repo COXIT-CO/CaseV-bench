@@ -1,11 +1,14 @@
 import type {
   ApiMeta,
+  CountingGroundTruthResponse,
+  CountingGtSaveRequest,
   DrawingDetailResponse,
   DrawingsResponse,
   DrawingSummary,
   LaunchOptionsResponse,
   LeaderboardParams,
   LeaderboardResponse,
+  LocationImportResponse,
   ModelsResponse,
   PromptCreateRequest,
   PromptHistoryResponse,
@@ -56,6 +59,27 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   try {
     response = await fetch(path, {
       method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, "Could not reach the API. Is the FastAPI server running?");
+  }
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await readDetail(response));
+  }
+  return (await response.json()) as T;
+}
+
+/** PUT a JSON body and parse the JSON response, surfacing the same `{detail}` envelope as
+ * `postJson` (spec §A.0). Used by the idempotent upserts (e.g. saving counting ground
+ * truth). */
+async function putJson<T>(path: string, body: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "PUT",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
@@ -176,4 +200,30 @@ export const api = {
 
   /** The curated model catalog for the Library view (spec §A.6). */
   models: () => getJson<ModelsResponse>("/api/models"),
+
+  /** Pre-fill: one Drawing's counting-GT totals per taxonomy label (spec §A.6). */
+  countingGroundTruth: (id: number) =>
+    getJson<CountingGroundTruthResponse>(
+      `/api/drawings/${id}/counting-ground-truth`,
+    ),
+
+  /** Upsert one Drawing's counting-GT totals; returns the saved totals (spec §A.6). */
+  saveCountingGroundTruth: (id: number, totals: CountingGtSaveRequest) =>
+    putJson<CountingGroundTruthResponse>(
+      `/api/drawings/${id}/counting-ground-truth`,
+      totals,
+    ),
+
+  /** Import a Drawing's LocationGroundTruth from a COCO JSON upload (multipart), surfacing
+   * the importer's problem report (spec §A.6). An optional `label_map` (a JSON object) maps
+   * external category names onto the taxonomy. */
+  importLocationGroundTruth: (id: number, file: File, labelMap?: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (labelMap) form.append("label_map", labelMap);
+    return postForm<LocationImportResponse>(
+      `/api/drawings/${id}/location-ground-truth`,
+      form,
+    );
+  },
 };

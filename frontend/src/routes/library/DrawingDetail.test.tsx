@@ -1,14 +1,23 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DrawingDetail } from "@/routes/library/DrawingDetail";
 import { renderWithProviders } from "@/test/render";
-import { DRAWING_DETAIL } from "@/test/fixtures";
+import { COUNTING_GT, DRAWING_DETAIL } from "@/test/fixtures";
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
-  return { ...actual, api: { drawing: vi.fn() } };
+  return {
+    ...actual,
+    api: {
+      drawing: vi.fn(),
+      // The detail now embeds the ground-truth entry, which pre-fills the counting totals.
+      countingGroundTruth: vi.fn(),
+      saveCountingGroundTruth: vi.fn(),
+      importLocationGroundTruth: vi.fn(),
+    },
+  };
 });
 import { api } from "@/api";
 
@@ -24,6 +33,8 @@ function renderDetail(route = "/library/drawings/3") {
 describe("DrawingDetail", () => {
   beforeEach(() => {
     vi.mocked(api.drawing).mockReset();
+    vi.mocked(api.countingGroundTruth).mockReset();
+    vi.mocked(api.countingGroundTruth).mockResolvedValue(COUNTING_GT);
   });
 
   it("renders the page thumbnails with pixel dimensions and image URLs", async () => {
@@ -40,13 +51,27 @@ describe("DrawingDetail", () => {
     expect(image).toHaveAttribute("src", "/api/drawings/3/pages/1/image");
   });
 
-  it("exposes the ground-truth entry point (consumed by ticket 07)", async () => {
+  it("mounts the ground-truth entry points (counting form + COCO import)", async () => {
     vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
     renderDetail();
 
     expect(
       await screen.findByRole("heading", { name: "Ground truth" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Counting totals")).toBeInTheDocument();
+    expect(screen.getByText("Location boxes (COCO import)")).toBeInTheDocument();
+  });
+
+  it("scrolls to the ground-truth section when linked with the #ground-truth hash", async () => {
+    // jsdom doesn't implement scrollIntoView; install a spy so the hash-scroll effect is
+    // observable (the CTAs from the Leaderboard/Result land on this section, ADR 0011).
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
+    renderDetail("/library/drawings/3#ground-truth");
+
+    await screen.findByRole("heading", { name: "Ground truth" });
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
   });
 
   it("treats a non-numeric id as not found without fetching", async () => {

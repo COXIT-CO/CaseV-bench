@@ -1,9 +1,11 @@
 import type {
   ApiMeta,
+  CountingGroundTruthResponse,
   DrawingDetailResponse,
   DrawingsResponse,
   LaunchOptionsResponse,
   LeaderboardResponse,
+  LocationImportResponse,
   ModelsResponse,
   PromptHistoryResponse,
   PromptsResponse,
@@ -371,6 +373,42 @@ export const DRAWING_DETAIL: DrawingDetailResponse = {
       width_px: 2200,
       height_px: 1700,
       image_url: "/api/drawings/3/pages/2/image",
+    },
+  ],
+};
+
+/** A counting-GT pre-fill with existing totals (cabinets already entered, one label still
+ * unentered/null) so a form seeds mixed state. */
+export const COUNTING_GT: CountingGroundTruthResponse = {
+  drawing_id: 3,
+  labels: [
+    { name: "cabinets", value: 4 },
+    { name: "countertops", value: 2 },
+    { name: "elevations", value: 1 },
+    { name: "elevation_callout", value: null },
+  ],
+};
+
+/** A counting-GT pre-fill with nothing entered yet — every label null. */
+export const COUNTING_GT_EMPTY: CountingGroundTruthResponse = {
+  drawing_id: 3,
+  labels: [
+    { name: "cabinets", value: null },
+    { name: "countertops", value: null },
+    { name: "elevations", value: null },
+    { name: "elevation_callout", value: null },
+  ],
+};
+
+/** A COCO import result: one box created, plus one unmapped label and one unknown page
+ * reported rather than silently dropped. */
+export const LOCATION_IMPORT_RESULT: LocationImportResponse = {
+  created: 37,
+  problems: [
+    { kind: "unmapped_label", detail: "no taxonomy mapping for label 'windows'" },
+    {
+      kind: "unknown_page",
+      detail: "annotation references page 9, which drawing 3 does not have",
     },
   ],
 };
