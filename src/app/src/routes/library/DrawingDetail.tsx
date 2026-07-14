@@ -1,9 +1,11 @@
 import * as React from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
+import { Button } from "@/components/ui/button";
 import { GroundTruthEntry } from "@/routes/library/GroundTruthEntry";
-import { useDrawing } from "@/hooks/queries";
+import { useDeleteDrawing, useDrawing } from "@/hooks/queries";
 import type { DrawingDetailResponse, DrawingPage } from "@/types";
 
 // The Drawing detail (ADR 0011, spec §A.6/§B.2): the rendered Page thumbnails with their
@@ -75,15 +77,69 @@ function Header({ detail }: { detail: DrawingDetailResponse }) {
         </Link>{" "}
         / {detail.drawing.name}
       </div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight">
-          {detail.drawing.name}
-        </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          {detail.pages.length} page{detail.pages.length === 1 ? "" : "s"}
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {detail.drawing.name}
+          </h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            {detail.pages.length} page{detail.pages.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <DeleteDrawingButton
+          drawingId={detail.drawing.id}
+          name={detail.drawing.name}
+          runCount={detail.run_count}
+          resultCount={detail.result_count}
+        />
       </div>
     </>
+  );
+}
+
+/** Delete this Drawing and everything derived from it, after a confirmation that states the
+ * collateral (ADR-0016): its Pages, ground truth, and every Run/Result that used it. On
+ * success the Drawings list/board/runs/meta are invalidated and we route back to the Library,
+ * since this detail page no longer has a Drawing to show. */
+function DeleteDrawingButton({
+  drawingId,
+  name,
+  runCount,
+  resultCount,
+}: {
+  drawingId: number;
+  name: string;
+  runCount: number;
+  resultCount: number;
+}) {
+  const navigate = useNavigate();
+  const deleteDrawing = useDeleteDrawing();
+
+  return (
+    <ConfirmDeleteDialog
+      trigger={
+        <Button variant="destructive" size="sm">
+          Delete drawing
+        </Button>
+      }
+      title={`Delete drawing “${name}”?`}
+      description={
+        <>
+          This permanently deletes drawing “{name}”, its pages and ground truth,
+          and the {runCount} run{runCount === 1 ? "" : "s"} / {resultCount} result
+          {resultCount === 1 ? "" : "s"} that used it — removing them from the
+          leaderboard.
+        </>
+      }
+      confirmLabel="Delete drawing"
+      pending={deleteDrawing.isPending}
+      error={deleteDrawing.error}
+      onConfirm={() =>
+        deleteDrawing
+          .mutateAsync(drawingId)
+          .then(() => navigate("/library/drawings"))
+      }
+    />
   );
 }
 

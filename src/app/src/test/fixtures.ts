@@ -358,9 +358,12 @@ export const DRAWINGS_LIST: DrawingsResponse = {
   ],
 };
 
-/** One Drawing's detail: two rendered pages with distinct pixel dimensions. */
+/** One Drawing's detail: two rendered pages with distinct pixel dimensions, plus the
+ * delete-collateral counts (2 runs / 5 results used this Drawing). */
 export const DRAWING_DETAIL: DrawingDetailResponse = {
   drawing: { id: 3, name: "prj0001" },
+  run_count: 2,
+  result_count: 5,
   pages: [
     {
       page_number: 1,

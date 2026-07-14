@@ -337,10 +337,22 @@ export interface DrawingPage {
 }
 
 /** `GET /api/drawings/{id}` — the Drawing plus its rendered Pages (spec §A.6). The detail is
- * where ground-truth entry hangs off (ticket 07). */
+ * where ground-truth entry hangs off (ticket 07) and where the Drawing can be deleted
+ * (ticket 08); `run_count`/`result_count` are the delete's collateral — the Runs + Results
+ * that used this Drawing — so the confirm dialog states the blast radius up front (ADR-0016). */
 export interface DrawingDetailResponse {
   drawing: DrawingRef;
   pages: DrawingPage[];
+  run_count: number;
+  result_count: number;
+}
+
+/** `DELETE /api/drawings/{id}` → the collateral the cascade removed (ADR-0016): the Runs and
+ * Results that used the Drawing — the delete's receipt, the same `(runs, results)` shape the
+ * Run delete returns. */
+export interface DrawingDeleted {
+  runs: number;
+  results: number;
 }
 
 /** `GET /api/models` — the curated model catalog (spec §A.6). Selection stays inline at Run
