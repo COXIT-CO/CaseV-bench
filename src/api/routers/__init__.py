@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from api.routers.drawings import router as drawings_router
 from api.routers.ground_truth import router as ground_truth_router
+from api.routers.health import router as health_router
 from api.routers.leaderboard import router as leaderboard_router
 from api.routers.meta import router as meta_router
 from api.routers.models import router as models_router
@@ -17,6 +18,7 @@ from api.routers.results import router as results_router
 from api.routers.runs import router as runs_router
 
 all_routers: list[APIRouter] = [
+    health_router,
     meta_router,
     leaderboard_router,
     results_router,
