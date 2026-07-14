@@ -25,7 +25,11 @@ from core.models.run import PredictionStatus, Run
 from core.services.drawing import DEFAULT_CACHE_ROOT, DrawingService
 from core.services.model_catalog import ModelCatalogService
 from core.services.prompt import DEFAULT_FAMILY, PromptService, seed_default_prompts
-from core.services.run import DEFAULT_OVERLAY_ROOT, RunService
+from core.services.run import (
+    DEFAULT_OVERLAY_ROOT,
+    RunService,
+    reconcile_orphaned_runs,
+)
 
 DEFAULT_MODELS = [
     "anthropic/claude-sonnet-4.5",
@@ -149,6 +153,13 @@ def main(argv: list[str] | None = None) -> None:
         # Mirror the web app's startup seeding so both entry points share seed data.
         seed_default_prompts(session)
         ModelCatalogService(session).seed_defaults()
+        # ...and its startup reconciliation (ticket 04): clear any run orphaned by a
+        # prior interrupted process before launching this one.
+        swept = reconcile_orphaned_runs(session)
+        if swept:
+            print(
+                f"Reconciled {swept} orphaned run(s) left 'running' by a prior process."
+            )
         execute_cli_run(
             session,
             adapter,
