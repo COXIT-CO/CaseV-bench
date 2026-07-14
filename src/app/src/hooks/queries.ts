@@ -62,6 +62,23 @@ export function useCreateRun() {
   });
 }
 
+/**
+ * Delete a Run and everything under it (ADR-0016, ticket 07). On success the run history,
+ * the Leaderboard (the Run's Results leave the board), and the shell's meta counts are all
+ * stale, so each is invalidated; the caller routes back to the run history.
+ */
+export function useDeleteRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteRun(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+}
+
 /** One Run's static detail: header, fixed-knobs snapshot, result rows (spec §A.4). */
 export function useRun(id: number) {
   return useQuery({

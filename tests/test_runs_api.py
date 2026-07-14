@@ -152,6 +152,25 @@ def test_run_status_polls_to_done_with_results(client, engine, stub_adapter):
     assert [r["model"] for r in status["results"]] == [SONNET]
 
 
+def test_delete_run_removes_it_and_returns_counts(client, engine, stub_adapter):
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {SONNET: COUNT_JSON}
+    run_id = _launch(client, engine, drawing_id, models=[SONNET]).json()["id"]
+    _poll_status(client, run_id)  # let it finish so a Result exists
+
+    resp = client.delete(f"/api/runs/{run_id}")
+    assert resp.status_code == 200
+    assert resp.json() == {"runs": 1, "results": 1}
+
+    # The Run is gone from both the detail endpoint and the history.
+    assert client.get(f"/api/runs/{run_id}").status_code == 404
+    assert all(r["id"] != run_id for r in client.get("/api/runs").json()["runs"])
+
+
+def test_delete_run_missing_404(client):
+    assert client.delete("/api/runs/999").status_code == 404
+
+
 def test_run_detail_missing_404(client):
     assert client.get("/api/runs/999").status_code == 404
 

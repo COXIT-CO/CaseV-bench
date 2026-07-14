@@ -196,6 +196,14 @@ export interface RunCreateRequest {
   free_text: string;
 }
 
+/** `DELETE /api/runs/{id}` → the collateral the cascade removed (ADR-0016): the Run itself
+ * plus its Results — the delete's receipt. (The confirm dialog states the count from the
+ * run's own result rows, so it can show the collateral before committing.) */
+export interface RunDeleted {
+  runs: number;
+  results: number;
+}
+
 /** `POST /api/runs` → the just-queued Run the SPA routes to (spec §A.4). */
 export interface RunCreated {
   id: number;

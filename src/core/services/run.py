@@ -37,6 +37,7 @@ from core.models.drawing import Drawing
 from core.models.prompt import Prompt, Task
 from core.models.results import CountResult, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
+from core.services.deletion import RunCascadeCounts, cascade_delete_runs
 from core.services.pdf_processing import DEFAULT_DPI
 from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, parse_json
 
@@ -146,6 +147,16 @@ class RunService:
         self.session.commit()
         self.session.refresh(run)
         return run
+
+    def delete_run(self, run_id: int) -> RunCascadeCounts:
+        """Permanently delete a Run and everything under it — its Results, Predictions,
+        Scores, and cached overlay files — returning the collateral counts the confirm
+        dialog showed (ADR-0016). The Run then vanishes from the Leaderboard and the run
+        history. Raises ``ValueError`` when there is no such Run so the route can 404.
+        """
+        if self.session.get(Run, run_id) is None:
+            raise ValueError(f"no run with id {run_id}")
+        return cascade_delete_runs(self.session, [run_id], self.overlay_root)
 
     def background_runner(self, engine: Engine) -> "BackgroundRunner":
         """A ``BackgroundRunner`` sharing this service's adapter and knob snapshot, so

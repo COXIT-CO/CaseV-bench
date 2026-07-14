@@ -17,6 +17,7 @@ import type {
   ResultDetailResponse,
   RunCreated,
   RunCreateRequest,
+  RunDeleted,
   RunDetailResponse,
   RunHistoryResponse,
   RunStatusResponse,
@@ -114,6 +115,25 @@ async function postForm<T>(path: string, form: FormData): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** DELETE a resource and parse the JSON response, surfacing the same `{detail}` envelope as
+ * the other helpers (spec §A.0). Used by the cascade deletes (ADR-0016). */
+async function deleteJson<T>(path: string): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "DELETE",
+      headers: { Accept: "application/json" },
+    });
+  } catch {
+    throw new ApiError(0, "Could not reach the API. Is the FastAPI server running?");
+  }
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await readDetail(response));
+  }
+  return (await response.json()) as T;
+}
+
 /** Pull FastAPI's `{"detail": …}` message, falling back to the status text. */
 async function readDetail(response: Response): Promise<string> {
   try {
@@ -157,6 +177,10 @@ export const api = {
 
   /** One Run's detail: header, fixed-knobs snapshot, and result rows (spec §A.4). */
   run: (id: number) => getJson<RunDetailResponse>(`/api/runs/${id}`),
+
+  /** Permanently delete a Run and everything under it; returns the collateral counts
+   * removed as the delete's receipt (ADR-0016, ticket 07). */
+  deleteRun: (id: number) => deleteJson<RunDeleted>(`/api/runs/${id}`),
 
   /** The poll target: live progress + results once terminal (spec §A.4/§B.4). */
   runStatus: (id: number) =>
