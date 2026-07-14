@@ -11,11 +11,13 @@ from pathlib import Path
 from PIL import Image
 from sqlmodel import Session
 
+from config import settings
 from models.drawing import Drawing, Page
 from services.pdf_processing import PDFProcessingService
 from utils import downsample
 
-DEFAULT_CACHE_ROOT = Path("data/drawings")
+# Production default under the single data root; tests inject a temp ``cache_root`` (ADR-0014).
+DEFAULT_CACHE_ROOT = settings.drawings_root
 
 
 class DrawingService:

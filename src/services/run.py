@@ -32,6 +32,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session
 
 from adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
+from config import settings
 from models.drawing import Drawing
 from models.prompt import Prompt, Task
 from models.results import CountResult, LocationDetection, LocationResult
@@ -48,7 +49,8 @@ DEFAULT_MAX_CONCURRENCY = 3
 
 # Where location prediction-overlay PNGs are cached, keyed by Result then page number
 # (ticket 09). A dedicated root (not the page-image dir) since many Results share a Page.
-DEFAULT_OVERLAY_ROOT = Path("data/overlays")
+# Production default under the single data root; tests inject a temp root (ADR-0014).
+DEFAULT_OVERLAY_ROOT = settings.overlays_root
 
 # Tasks the run path can execute today (counting: ticket 05/06; location: ticket 09).
 SUPPORTED_TASKS = (Task.counting, Task.location)
