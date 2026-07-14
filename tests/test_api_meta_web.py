@@ -1,5 +1,6 @@
-"""Slice-0 proof endpoint (ticket 01): the JSON API is mounted under ``/api`` beside the
-live HTMX app, so the SPA shell can verify the Vite -> JSON -> shadcn pipeline end to end.
+"""Slice-0 proof endpoint (ticket 01): the SPA shell fetches ``GET /api/meta`` to verify
+the Vite -> JSON -> shadcn pipeline end to end. Since the ticket-08 cutover the JSON API is
+the data half of the web surface; the SPA serving half is covered in test_spa_serving.py.
 """
 
 from models.prompt import Task
@@ -18,12 +19,3 @@ def test_api_meta_returns_app_facts(client):
     assert body["drawing_count"] == 0
     assert body["run_count"] == 0
     assert body["result_count"] == 0
-
-
-def test_api_layer_is_additive_htmx_index_stays_live(client):
-    # Coexistence (ADR 0010): the JSON layer is purely additive; the Jinja ``/`` route is
-    # left untouched and still serves the live HTMX app during the migration.
-    response = client.get("/")
-
-    assert response.status_code == 200
-    assert "htmx.org" in response.text

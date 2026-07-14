@@ -1,10 +1,12 @@
-"""JSON API router (ADR 0010), mounted under ``/api`` alongside the untouched Jinja/HTMX
-routes so the old app stays live while the React SPA is built slice by slice.
+"""JSON API router (ADR 0010), mounted under ``/api``. Since the ticket-08 cutover this is
+the data half of the web surface — the React SPA (served at ``/`` by ``web.app``) is the
+only client, and the Jinja/HTMX layer these routes were built alongside has been retired.
 
-Slice 0 (ticket 01) provides a single proof endpoint, ``GET /api/meta``, that the SPA
-shell fetches to verify the Vite -> JSON -> shadcn pipeline end to end. A JSON route and
-its HTMX twin call the **same service methods**; the feature endpoints (leaderboard,
-results, runs, prompts, library) land in their own later slices (spec Part A).
+Slice 0 (ticket 01) added the proof endpoint ``GET /api/meta`` that the SPA shell fetches
+to verify the Vite -> JSON -> shadcn pipeline end to end; the feature endpoints
+(leaderboard, results, runs, prompts, library) landed in the later slices (spec Part A).
+Each was ported from a Jinja/HTMX route that called the **same service methods**, so the
+route layer only ever changed what it serialized.
 """
 
 import json
@@ -390,10 +392,10 @@ def result_detail(
     )
 
 
-# The two binary overlay PNGs re-mounted under /api for the SPA (spec §A.3). The Jinja
-# originals in web.app stay live for the HTMX run-status fragment; the handlers here call
-# the same stored/rendered PNGs. The prefix keeps these off the client-side routes so the
-# SPA's own /results/:id path still falls through to index.html in dev.
+# The two binary overlay PNGs, served under /api for the SPA (spec §A.3) — the same
+# stored/rendered PNGs the retired Jinja run-status fragment once used. The /api prefix
+# keeps them off the client-side routes so the SPA's own /results/:id path still falls
+# through to index.html in dev.
 @api_router.get("/results/{result_id}/pages/{page_number}/overlay")
 def result_overlay(
     result_id: int,
@@ -1008,8 +1010,8 @@ def drawing_page_image(
     page_number: int,
     session: Session = Depends(get_session),
 ) -> Response:
-    """The cached, downsampled page image PNG for one (Drawing, Page), re-mounted under
-    ``/api`` for the SPA (the Jinja twin stays live for HTMX). Unchanged handler."""
+    """The cached, downsampled page image PNG for one (Drawing, Page), served under
+    ``/api`` for the SPA (ported unchanged from the retired Jinja twin)."""
     page = session.exec(
         select(Page).where(
             Page.drawing_id == drawing_id, Page.page_number == page_number
