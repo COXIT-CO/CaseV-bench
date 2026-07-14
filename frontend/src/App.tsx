@@ -8,6 +8,7 @@ import { Prompts } from "@/routes/Prompts";
 import { ResultDetail } from "@/routes/ResultDetail";
 import { RunDetail } from "@/routes/RunDetail";
 import { Runs } from "@/routes/Runs";
+import { DrawingDetail } from "@/routes/library/DrawingDetail";
 import { Drawings } from "@/routes/library/Drawings";
 import { Models } from "@/routes/library/Models";
 
@@ -27,6 +28,7 @@ export function App() {
         <Route path="library">
           <Route index element={<Navigate to="/library/drawings" replace />} />
           <Route path="drawings" element={<Drawings />} />
+          <Route path="drawings/:id" element={<DrawingDetail />} />
           <Route path="models" element={<Models />} />
         </Route>
         <Route path="*" element={<NotFound />} />

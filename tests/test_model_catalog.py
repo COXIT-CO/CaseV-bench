@@ -4,7 +4,10 @@ Two seams:
 - ``ModelCatalogService.resolve_selection`` — combine checked seeded slugs with
   free-text slugs into the plain list a Run consumes.
 - ``seed_defaults`` / ``list_catalog`` — the curated seed the checkboxes render.
-Plus a web check that the selection component round-trips through ``/models``.
+
+The HTMX ``/models`` selection page was retired in ticket 06 (the catalog now lives in the
+React SPA against ``GET /api/models``, tested in ``test_library_api.py``); slug resolution
+stays a pure-service unit test here, and ``POST /api/runs`` remains its authoritative caller.
 """
 
 from services.model_catalog import DEFAULT_MODEL_CATALOG, ModelCatalogService
@@ -44,23 +47,3 @@ def test_seed_defaults_is_idempotent(session):
     slugs = [entry.slug for entry in service.list_catalog()]
     assert set(slugs) == {slug for slug, _ in DEFAULT_MODEL_CATALOG}
     assert len(slugs) == len(set(slugs))  # no duplicate rows
-
-
-def test_models_page_renders_seeded_checkboxes_and_free_text(client):
-    response = client.get("/models")
-    assert response.status_code == 200
-    for slug in (SONNET, GPT, GEMINI):
-        assert slug in response.text
-    assert 'type="checkbox"' in response.text
-    assert 'name="free_text"' in response.text
-
-
-def test_post_selection_returns_slug_list_including_free_text(client):
-    response = client.post(
-        "/models",
-        data={"models": [SONNET, GPT], "free_text": "mistralai/pixtral-12b"},
-    )
-    assert response.status_code == 200
-    assert SONNET in response.text
-    assert GPT in response.text
-    assert "mistralai/pixtral-12b" in response.text

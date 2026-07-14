@@ -133,3 +133,41 @@ export function useAppendPromptVersion(task: string, family: string) {
     },
   });
 }
+
+/** The Library list of Drawings with page counts (spec §A.6). */
+export function useDrawings() {
+  return useQuery({ queryKey: ["drawings"], queryFn: api.drawings });
+}
+
+/**
+ * Upload a PDF. On success the Drawings list and the shell's meta counts are stale, so both
+ * are invalidated (a new Drawing also expands the launch form's options); the caller routes
+ * to the new Drawing's detail (spec §A.6).
+ */
+export function useUploadDrawing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => api.uploadDrawing(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["drawings"] });
+      queryClient.invalidateQueries({ queryKey: ["launch-options"] });
+      queryClient.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+}
+
+/** One Drawing's detail: its rendered Pages with dims + image URLs, keyed by id (spec §A.6).
+ * `enabled` lets the screen skip the fetch for an invalid id rather than firing a doomed
+ * request. */
+export function useDrawing(id: number, enabled = true) {
+  return useQuery({
+    queryKey: ["drawing", id],
+    queryFn: () => api.drawing(id),
+    enabled,
+  });
+}
+
+/** The curated model catalog for the Library view (spec §A.6). */
+export function useModels() {
+  return useQuery({ queryKey: ["models"], queryFn: api.models });
+}

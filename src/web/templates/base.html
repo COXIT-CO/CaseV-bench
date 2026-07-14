@@ -10,13 +10,11 @@
     <header>
       <h1>{{ title }}</h1>
       <nav>
-        <a href="/">Home</a> ·
-        <a href="/drawings">Drawings</a> ·
-        <a href="/models">Models</a> ·
-        <a href="/prompts">Prompts</a> ·
-        <a href="/runs">Runs</a>
-        {# Leaderboard retired from HTMX (ticket 02): the Landing board now lives in the
-           React SPA against GET /api/leaderboard. #}
+        <a href="/">Home</a>
+        {# The Leaderboard (ticket 02), Runs (ticket 04), Prompts (ticket 05), and the
+           Drawings + Models Library (ticket 06) were retired from HTMX and now live in the
+           React SPA. Only the counting-ground-truth form remains on the HTMX surface until
+           ticket 07; it is reached by direct link, not the nav. #}
       </nav>
     </header>
     <main>
