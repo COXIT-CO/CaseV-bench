@@ -3,8 +3,8 @@ the Vite -> JSON -> shadcn pipeline end to end. Since the ticket-08 cutover the 
 the data half of the web surface; the SPA serving half is covered in test_spa_serving.py.
 """
 
-from models.prompt import Task
-from models.results import OBJECT_LABELS
+from core.models.prompt import Task
+from core.models.results import OBJECT_LABELS
 
 
 def test_api_meta_returns_app_facts(client):

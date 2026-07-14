@@ -12,9 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
-from db import init_db, make_engine
-from web.app import create_app
+from api.app import create_app
+from core.adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
+from core.db import init_db, make_engine
 
 
 class StubOpenRouterAdapter:

@@ -17,12 +17,17 @@ from io import BytesIO
 from PIL import Image
 from sqlmodel import Session
 
-from models.drawing import Drawing, Page
-from models.location_ground_truth import LocationGroundTruth
-from models.prompt import Prompt, Task
-from models.results import BoundingBox, LabeledBox, LocationDetection, LocationResult
-from models.run import Prediction, PredictionStatus, Result, Run, RunStatus
-from utils import render_compare_overlay
+from core.models.drawing import Drawing, Page
+from core.models.location_ground_truth import LocationGroundTruth
+from core.models.prompt import Prompt, Task
+from core.models.results import (
+    BoundingBox,
+    LabeledBox,
+    LocationDetection,
+    LocationResult,
+)
+from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
+from core.utils import render_compare_overlay
 
 CAB = "cabinets"
 

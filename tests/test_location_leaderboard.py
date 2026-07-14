@@ -10,13 +10,13 @@ from pathlib import Path
 from PIL import Image
 from sqlmodel import select
 
-from models.drawing import Drawing, Page
-from models.prompt import Task
-from models.score import Score
-from services.location_ground_truth import LocationGroundTruthService
-from services.prompt import PromptService
-from services.run import RunService
-from services.scoring import LocationLeaderboardMetric, ScoringService
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Task
+from core.models.score import Score
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.services.prompt import PromptService
+from core.services.run import RunService
+from core.services.scoring import LocationLeaderboardMetric, ScoringService
 
 ACCURATE = "anthropic/claude-sonnet-4.5"
 SLOPPY = "openai/gpt-5-mini"

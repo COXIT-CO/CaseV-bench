@@ -25,9 +25,9 @@ from typing import Literal
 
 from sqlmodel import Session, select
 
-from models.drawing import Page
-from models.location_ground_truth import LocationGroundTruth
-from models.results import OBJECT_LABELS
+from core.models.drawing import Page
+from core.models.location_ground_truth import LocationGroundTruth
+from core.models.results import OBJECT_LABELS
 
 # The two reasons an annotation can't be imported (reported, never silently dropped).
 ProblemKind = Literal["unmapped_label", "unknown_page"]

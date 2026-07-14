@@ -13,11 +13,11 @@ import time
 
 from sqlmodel import Session, select
 
-from models.drawing import Drawing, Page
-from models.prompt import Task
-from models.run import Prediction, PredictionStatus, RunStatus
-from services.prompt import PromptService
-from services.run import BackgroundRunner, RunService
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Task
+from core.models.run import Prediction, PredictionStatus, RunStatus
+from core.services.prompt import PromptService
+from core.services.run import BackgroundRunner, RunService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
@@ -143,7 +143,7 @@ def test_model_error_recorded_without_losing_other_models(engine):
 
 
 def _get_run(session, run_id):
-    from models.run import Run
+    from core.models.run import Run
 
     return session.get(Run, run_id)
 

@@ -3,8 +3,8 @@ value for given inputs, not internal calls). ``score_counting`` is the session-f
 seam: it takes summed-across-pages predicted totals and GT totals and returns per-label
 absolute error + exact-match, or ``None`` when GT is missing (unscored, not zero)."""
 
-from models.results import OBJECT_LABELS
-from services.scoring import score_counting
+from core.models.results import OBJECT_LABELS
+from core.services.scoring import score_counting
 
 GT = {"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}
 

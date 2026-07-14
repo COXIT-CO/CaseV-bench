@@ -9,10 +9,10 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 
-from models.prompt import Prompt, Task
+from core.models.prompt import Prompt, Task
 
-SRC_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PROMPTS_DIR = SRC_ROOT / "prompts"
+CORE_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_PROMPTS_DIR = CORE_ROOT / "prompts"
 DEFAULT_FAMILY = "default"
 
 # The shipped prompt directory each Task seeds its initial version from.

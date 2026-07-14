@@ -31,14 +31,14 @@ from typing import NamedTuple
 from sqlalchemy import Engine
 from sqlmodel import Session
 
-from adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
-from config import settings
-from models.drawing import Drawing
-from models.prompt import Prompt, Task
-from models.results import CountResult, LocationDetection, LocationResult
-from models.run import Prediction, PredictionStatus, Result, Run, RunStatus
-from services.pdf_processing import DEFAULT_DPI
-from utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, parse_json
+from core.adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
+from core.config import settings
+from core.models.drawing import Drawing
+from core.models.prompt import Prompt, Task
+from core.models.results import CountResult, LocationDetection, LocationResult
+from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
+from core.services.pdf_processing import DEFAULT_DPI
+from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, parse_json
 
 # A Run pins a fixed temperature for reproducibility (spec: knobs recorded but fixed).
 DEFAULT_TEMPERATURE = 0.0

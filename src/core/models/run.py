@@ -17,7 +17,7 @@ from enum import Enum
 
 from sqlmodel import Field, Relationship, SQLModel
 
-from models.prompt import Task
+from core.models.prompt import Task
 
 
 def _utcnow() -> datetime:

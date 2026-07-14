@@ -9,9 +9,9 @@ dropped. The importer never calls a model, so no adapter seam is involved.
 import pytest
 from sqlmodel import select
 
-from models.drawing import Drawing, Page
-from models.location_ground_truth import LocationGroundTruth
-from services.location_ground_truth import (
+from core.models.drawing import Drawing, Page
+from core.models.location_ground_truth import LocationGroundTruth
+from core.services.location_ground_truth import (
     UNKNOWN_PAGE,
     UNMAPPED_LABEL,
     LocationGroundTruthService,

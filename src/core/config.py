@@ -15,8 +15,9 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Local-dev convenience: load secrets from ``src/.env`` (git-ignored). In the container the
-# vars come straight from the environment and this file is simply absent.
+# Local-dev convenience: load secrets from ``src/core/.env`` (git-ignored, alongside this
+# module). In the container the vars come straight from the environment and this file is
+# simply absent.
 _ENV_FILE = Path(__file__).resolve().parent / ".env"
 
 
@@ -67,8 +68,8 @@ class Settings(BaseSettings):
         point a real request is about to be made so a missing secret fails fast."""
         if not self.openrouter_api_key:
             raise RuntimeError(
-                "OPENROUTER_API_KEY is not set — export it (or add it to src/.env for local "
-                "dev) before launching a run."
+                "OPENROUTER_API_KEY is not set — export it (or add it to src/core/.env for "
+                "local dev) before launching a run."
             )
         return self.openrouter_api_key
 

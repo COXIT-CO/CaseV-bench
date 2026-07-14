@@ -4,11 +4,10 @@
 override the OpenRouter adapter, and point the SPA mount at a fixture build. The schema is
 created on startup (ADR 0008).
 
-Since ticket 08 — the *contract* step of the ADR-0010 expand→contract migration — the SPA
-owns ``/`` and the Jinja/HTMX layer is gone. The whole web surface is the JSON API and its
-re-mounted binary-asset routes under ``/api`` plus the SPA build. In dev the SPA runs on the
-Vite dev server (port 5173) which proxies ``/api`` here; in prod ``vite build`` writes
-``frontend/dist`` and FastAPI serves it.
+The web surface is the JSON API — split into one router per resource under ``routers/``
+(ADR-0015) — plus its binary-asset routes under ``/api`` and the SPA build. In dev the SPA
+runs on the Vite dev server (port 5173) which proxies ``/api`` here; in prod ``vite build``
+writes ``src/app/dist`` and FastAPI serves it.
 """
 
 from contextlib import asynccontextmanager
@@ -20,16 +19,17 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 from sqlmodel import Session
 
-from db import init_db, make_engine
-from services.model_catalog import ModelCatalogService
-from services.prompt import seed_default_prompts
-from web.api import api_router
+from api.routers import all_routers
+from core.db import init_db, make_engine
+from core.services.model_catalog import ModelCatalogService
+from core.services.prompt import seed_default_prompts
 
 APP_TITLE = "Prompt & Config Lab"
 
-# Default ``vite build`` output location. From src/web/app.py, parents[2] is the repo root.
-# The build isn't committed, so this may be absent on a fresh checkout (handled below).
-DEFAULT_SPA_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+# Default ``vite build`` output location. From src/api/app.py, parents[1] is src/, so the
+# SPA build lives at src/app/dist. The build isn't committed, so this may be absent on a
+# fresh checkout (handled below).
+DEFAULT_SPA_DIST = Path(__file__).resolve().parents[1] / "app" / "dist"
 
 
 def create_app(engine: Engine | None = None, spa_dist: Path | None = None) -> FastAPI:
@@ -44,8 +44,9 @@ def create_app(engine: Engine | None = None, spa_dist: Path | None = None) -> Fa
     app = FastAPI(title=APP_TITLE, lifespan=lifespan)
     app.state.engine = engine or make_engine()
 
-    # /api is registered first so JSON routes always win over the SPA catch-all below.
-    app.include_router(api_router)
+    # /api routers are registered first so JSON routes always win over the SPA catch-all.
+    for router in all_routers:
+        app.include_router(router)
     _mount_spa(app, spa_dist or DEFAULT_SPA_DIST)
 
     return app
@@ -83,7 +84,7 @@ def _mount_spa(app: FastAPI, dist: Path) -> None:
         if index.exists():
             return FileResponse(index)
         return PlainTextResponse(
-            "SPA build not found. Run `npm run build` in ./frontend, or use the Vite "
+            "SPA build not found. Run `npm run build` in ./src/app, or use the Vite "
             "dev server (`npm run dev`) during development.",
             status_code=503,
         )

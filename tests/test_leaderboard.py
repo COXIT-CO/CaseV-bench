@@ -5,13 +5,13 @@ Leaderboard ranked best-first; with no GT the Results render as unscored, not ze
 
 from sqlmodel import select
 
-from models.drawing import Drawing, Page
-from models.prompt import Task
-from models.score import Score
-from services.counting_ground_truth import CountingGroundTruthService
-from services.prompt import PromptService
-from services.run import RunService
-from services.scoring import LeaderboardMetric, ScoringService
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Task
+from core.models.score import Score
+from core.services.counting_ground_truth import CountingGroundTruthService
+from core.services.prompt import PromptService
+from core.services.run import RunService
+from core.services.scoring import LeaderboardMetric, ScoringService
 
 ACCURATE = "anthropic/claude-sonnet-4.5"
 SLOPPY = "openai/gpt-5-mini"

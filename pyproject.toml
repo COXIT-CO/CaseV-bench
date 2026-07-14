@@ -30,6 +30,11 @@ build-backend = "poetry.core.masonry.api"
 pythonpath = ["src"]
 testpaths = ["tests"]
 
+# Keep isort's multi-line import formatting compatible with black, so the two CI checks
+# (isort --check + black --check, ADR-0017) never disagree on a wrapped import.
+[tool.isort]
+profile = "black"
+
 [dependency-groups]
 dev = [
     "isort (>=8.0.1,<9.0.0)",

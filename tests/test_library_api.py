@@ -10,9 +10,9 @@ Drawing detail is only the entry point it hangs off.
 import pytest
 from sqlmodel import Session
 
-from services.drawing import DrawingService
-from services.pdf_processing import PDFProcessingService
-from web.api import get_drawing_service
+from api.deps import get_drawing_service
+from core.services.drawing import DrawingService
+from core.services.pdf_processing import PDFProcessingService
 
 
 @pytest.fixture
@@ -84,10 +84,7 @@ def test_detail_returns_pages_with_pixel_dims_and_image_urls(
     assert first["page_number"] == 1
     # The sample PDF's two pages have distinct sizes, so real per-page dims are recorded.
     assert first["width_px"] > 0 and first["height_px"] > 0
-    assert (
-        first["image_url"]
-        == f"/api/drawings/{ingested_drawing_id}/pages/1/image"
-    )
+    assert first["image_url"] == f"/api/drawings/{ingested_drawing_id}/pages/1/image"
     assert body["pages"][0]["width_px"] != body["pages"][1]["width_px"]
 
 
