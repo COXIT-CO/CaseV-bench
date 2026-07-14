@@ -184,6 +184,26 @@ export function useDrawing(id: number, enabled = true) {
   });
 }
 
+/**
+ * Delete a Drawing and everything derived from it (ADR-0016, ticket 08). On success the
+ * Drawings list, the run history (its Runs are gone), the Leaderboard (their Results leave
+ * the board), the launch form's options (the Drawing drops out), and the shell's meta counts
+ * are all stale, so each is invalidated; the caller routes back to the Drawings list.
+ */
+export function useDeleteDrawing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteDrawing(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["drawings"] });
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["launch-options"] });
+      queryClient.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+}
+
 /** The curated model catalog for the Library view (spec §A.6). */
 export function useModels() {
   return useQuery({ queryKey: ["models"], queryFn: api.models });

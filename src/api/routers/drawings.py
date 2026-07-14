@@ -44,10 +44,24 @@ class DrawingPageOut(BaseModel):
 
 class DrawingDetailResponse(BaseModel):
     """``GET /api/drawings/{id}``: the Drawing plus its rendered Pages. The detail is where
-    ground-truth entry hangs off (ticket 07)."""
+    ground-truth entry hangs off (ticket 07) and where the Drawing can be deleted (ticket
+    08) — so it carries the delete's collateral counts (the Runs + Results that used this
+    Drawing) up front, letting the confirm dialog state the blast radius before committing
+    (ADR-0016)."""
 
     drawing: DrawingRef
     pages: list[DrawingPageOut]
+    run_count: int
+    result_count: int
+
+
+class DrawingDeletedOut(BaseModel):
+    """The collateral ``DELETE /api/drawings/{id}`` removed (ADR-0016): how many Runs and
+    Results the cascade took with the Drawing — the delete's receipt, and the same
+    ``(runs, results)`` shape the Run delete returns."""
+
+    runs: int
+    results: int
 
 
 @router.get("/drawings", response_model=DrawingsResponse)
@@ -85,14 +99,18 @@ async def upload_drawing(
 
 @router.get("/drawings/{drawing_id}", response_model=DrawingDetailResponse)
 def drawing_detail(
-    drawing_id: int, session: Session = Depends(get_session)
+    drawing_id: int,
+    session: Session = Depends(get_session),
+    service: DrawingService = Depends(get_drawing_service),
 ) -> DrawingDetailResponse:
     """The Drawing's rendered Pages with pixel dims + image URLs (spec §A.6). The page
-    image URLs point at the ``/api`` PNG route so the SPA fetches under one origin. An
-    unknown Drawing is a ``404``."""
+    image URLs point at the ``/api`` PNG route so the SPA fetches under one origin. Also
+    carries the delete's collateral counts (the service computes them, ADR-0015/0016) so the
+    confirm dialog can state the blast radius. An unknown Drawing is a ``404``."""
     drawing = session.get(Drawing, drawing_id)
     if drawing is None:
         raise HTTPException(status_code=404, detail="Drawing not found")
+    collateral = service.collateral_counts(drawing_id)
     return DrawingDetailResponse(
         drawing=DrawingRef(id=drawing.id, name=drawing.name),
         pages=[
@@ -104,7 +122,25 @@ def drawing_detail(
             )
             for page in drawing.pages
         ],
+        run_count=collateral.runs,
+        result_count=collateral.results,
     )
+
+
+@router.delete("/drawings/{drawing_id}", response_model=DrawingDeletedOut)
+def delete_drawing(
+    drawing_id: int,
+    service: DrawingService = Depends(get_drawing_service),
+) -> DrawingDeletedOut:
+    """Permanently delete a Drawing and everything derived from it — its Pages, both kinds of
+    ground truth, its cached page images, and every Run/Result that used it (so they leave the
+    Leaderboard too) (ADR-0016). Returns the collateral counts the confirm dialog showed; a
+    missing Drawing is a ``404``."""
+    try:
+        counts = service.delete_drawing(drawing_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return DrawingDeletedOut(runs=counts.runs, results=counts.results)
 
 
 @router.get("/drawings/{drawing_id}/pages/{page_number}/image")

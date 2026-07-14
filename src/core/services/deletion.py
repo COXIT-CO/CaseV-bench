@@ -7,7 +7,9 @@ Runs and everything under them*: each Run's Results, their Predictions and Score
 location prediction-overlay PNGs cached per Result (``overlay_root/<result_id>/``). The Run
 delete (ticket 07) passes a single Run; the Drawing (ticket 08) and Prompt (ticket 09)
 deletes gather the Runs they cascade to and hand them here, so the cascade + file cleanup
-lives in exactly one place.
+lives in exactly one place. On-disk cleanup itself bottoms out in ``remove_tree`` — the one
+"delete this regenerable directory, tolerating one already gone" primitive every entity
+delete reuses (overlay dirs here; a Drawing's page-image dir in ticket 08).
 """
 
 import shutil
@@ -55,13 +57,18 @@ def cascade_delete_runs(
     session.commit()
 
     for result_id in result_ids:
-        _remove_overlay_dir(overlay_root / str(result_id))
+        remove_tree(overlay_root / str(result_id))
 
     return RunCascadeCounts(runs=len(runs), results=len(results))
 
 
-def _remove_overlay_dir(path: Path) -> None:
-    """Remove a Result's overlay directory, tolerating one that is already gone."""
+def remove_tree(path: Path) -> None:
+    """Remove a directory and its contents, tolerating one that is already gone.
+
+    The shared on-disk cleanup for entity deletes (ADR-0016): the artifacts it clears —
+    Result overlay dirs, a Drawing's cached page-image dir — are all a regenerable cache, so
+    a directory that vanished out from under us never blocks the delete.
+    """
     try:
         shutil.rmtree(path)
     except FileNotFoundError:

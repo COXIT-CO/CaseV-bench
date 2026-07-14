@@ -2,6 +2,7 @@ import type {
   ApiMeta,
   CountingGroundTruthResponse,
   CountingGtSaveRequest,
+  DrawingDeleted,
   DrawingDetailResponse,
   DrawingsResponse,
   DrawingSummary,
@@ -218,9 +219,16 @@ export const api = {
     return postForm<DrawingSummary>("/api/drawings", form);
   },
 
-  /** One Drawing's rendered Pages with pixel dims + image URLs (spec §A.6). */
+  /** One Drawing's rendered Pages with pixel dims + image URLs, plus its delete-collateral
+   * counts (spec §A.6). */
   drawing: (id: number) =>
     getJson<DrawingDetailResponse>(`/api/drawings/${id}`),
+
+  /** Permanently delete a Drawing and everything derived from it — its Pages, ground truth,
+   * page images, and every Run/Result that used it; returns the collateral counts removed as
+   * the delete's receipt (ADR-0016, ticket 08). */
+  deleteDrawing: (id: number) =>
+    deleteJson<DrawingDeleted>(`/api/drawings/${id}`),
 
   /** The curated model catalog for the Library view (spec §A.6). */
   models: () => getJson<ModelsResponse>("/api/models"),

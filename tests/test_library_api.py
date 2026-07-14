@@ -8,11 +8,40 @@ Drawing detail is only the entry point it hangs off.
 """
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from api.deps import get_drawing_service
+from core.models.prompt import Prompt, Task
+from core.models.run import Result, Run
 from core.services.drawing import DrawingService
 from core.services.pdf_processing import PDFProcessingService
+
+SONNET = "anthropic/claude-sonnet-4.5"
+
+
+def _add_run(engine, drawing_id: int, model: str = SONNET) -> int:
+    """Attach a done Run (with one Result) to a Drawing so the delete has collateral. The
+    counting prompt family is seeded on startup, so a Run can pin it directly."""
+    with Session(engine) as session:
+        prompt = session.exec(
+            select(Prompt).where(Prompt.task == Task.counting)
+        ).first()
+        run = Run(
+            task=Task.counting,
+            prompt_id=prompt.id,
+            drawing_id=drawing_id,
+            dpi=200,
+            downsample_px=1600,
+            max_tokens=4096,
+            prefill=True,
+            temperature=0.0,
+        )
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        session.add(Result(run_id=run.id, model=model))
+        session.commit()
+        return run.id
 
 
 @pytest.fixture
@@ -41,6 +70,24 @@ def fast_drawing_service(app, engine, tmp_path):
 
     app.dependency_overrides[get_drawing_service] = _fast
     return _fast
+
+
+@pytest.fixture
+def delete_capable_service(app, engine, tmp_path):
+    """Override the delete route's service so its cascade cleans on-disk artifacts under the
+    test's temp roots (the same ``drawings`` root ``ingested_drawing_id`` renders into).
+    """
+
+    def _svc():
+        with Session(engine) as session:
+            yield DrawingService(
+                session,
+                cache_root=tmp_path / "drawings",
+                overlay_root=tmp_path / "overlays",
+            )
+
+    app.dependency_overrides[get_drawing_service] = _svc
+    return _svc
 
 
 def test_list_returns_drawings_with_page_counts(client, ingested_drawing_id):
@@ -86,6 +133,42 @@ def test_detail_returns_pages_with_pixel_dims_and_image_urls(
     assert first["width_px"] > 0 and first["height_px"] > 0
     assert first["image_url"] == f"/api/drawings/{ingested_drawing_id}/pages/1/image"
     assert body["pages"][0]["width_px"] != body["pages"][1]["width_px"]
+    # No Runs use this Drawing yet, so the delete-collateral counts are zero (ADR-0016).
+    assert body["run_count"] == 0
+    assert body["result_count"] == 0
+
+
+def test_detail_reports_delete_collateral_counts(client, engine, ingested_drawing_id):
+    _add_run(engine, ingested_drawing_id)
+
+    body = client.get(f"/api/drawings/{ingested_drawing_id}").json()
+
+    # The confirm dialog needs the Runs/Results that would be cascaded, stated up front.
+    assert body["run_count"] == 1
+    assert body["result_count"] == 1
+
+
+def test_delete_drawing_cascades_and_returns_counts(
+    client, engine, ingested_drawing_id, delete_capable_service, tmp_path
+):
+    _add_run(engine, ingested_drawing_id)
+    page_dir = tmp_path / "drawings" / str(ingested_drawing_id)
+    assert page_dir.is_dir()  # ingestion rendered the page images here
+
+    resp = client.delete(f"/api/drawings/{ingested_drawing_id}")
+    assert resp.status_code == 200
+    assert resp.json() == {"runs": 1, "results": 1}
+
+    # The Drawing is gone from both the detail endpoint and the list, and its run with it.
+    assert client.get(f"/api/drawings/{ingested_drawing_id}").status_code == 404
+    assert client.get("/api/drawings").json() == {"drawings": []}
+    assert not page_dir.exists()
+    with Session(engine) as session:
+        assert session.exec(select(Run)).all() == []
+
+
+def test_delete_drawing_missing_404(client):
+    assert client.delete("/api/drawings/999").status_code == 404
 
 
 def test_detail_unknown_drawing_is_404(client):

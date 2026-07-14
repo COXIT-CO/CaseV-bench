@@ -1,4 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,7 @@ vi.mock("@/api", async () => {
     ...actual,
     api: {
       drawing: vi.fn(),
+      deleteDrawing: vi.fn(),
       // The detail now embeds the ground-truth entry, which pre-fills the counting totals.
       countingGroundTruth: vi.fn(),
       saveCountingGroundTruth: vi.fn(),
@@ -25,6 +27,7 @@ function renderDetail(route = "/library/drawings/3") {
   return renderWithProviders(
     <Routes>
       <Route path="/library/drawings/:id" element={<DrawingDetail />} />
+      <Route path="/library/drawings" element={<div>drawings list page</div>} />
     </Routes>,
     { route },
   );
@@ -33,6 +36,7 @@ function renderDetail(route = "/library/drawings/3") {
 describe("DrawingDetail", () => {
   beforeEach(() => {
     vi.mocked(api.drawing).mockReset();
+    vi.mocked(api.deleteDrawing).mockReset();
     vi.mocked(api.countingGroundTruth).mockReset();
     vi.mocked(api.countingGroundTruth).mockResolvedValue(COUNTING_GT);
   });
@@ -72,6 +76,33 @@ describe("DrawingDetail", () => {
 
     await screen.findByRole("heading", { name: "Ground truth" });
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+  });
+
+  it("deletes the drawing after a confirmation stating the collateral", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
+    vi.mocked(api.deleteDrawing).mockResolvedValue({ runs: 2, results: 5 });
+    renderDetail();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Delete drawing" }),
+    );
+
+    // The confirmation states the collateral (2 runs / 5 results) and the irreversible warning.
+    expect(
+      await screen.findByText(/2 runs \/ 5 results that used it/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("This cannot be undone.")).toBeInTheDocument();
+
+    // Confirm — the dialog's own destructive button, not the header trigger.
+    const confirm = screen
+      .getAllByRole("button", { name: "Delete drawing" })
+      .at(-1)!;
+    await user.click(confirm);
+
+    await waitFor(() => expect(api.deleteDrawing).toHaveBeenCalledWith(3));
+    // On success we route back to the Drawings list.
+    expect(await screen.findByText("drawings list page")).toBeInTheDocument();
   });
 
   it("treats a non-numeric id as not found without fetching", async () => {
