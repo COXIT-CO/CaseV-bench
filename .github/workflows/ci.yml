@@ -1,0 +1,79 @@
+# CI gate for pull requests (ADR-0017). Railway owns deploy (native git-deploy on `main`);
+# this workflow's only job is to stop broken code from reaching that auto-deploying branch.
+# Two independent jobs run in parallel — backend lint+tests and frontend build+tests — each
+# step isolated so a failure names itself. No `docker build`, no deploy: Railway's build +
+# keep-last-good is the safety net, and `npm run build` here already catches the common
+# "builds locally, breaks in container" causes pre-merge.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+# A newer push to the same PR cancels the in-flight run for that PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install Poetry before setup-python so its pip cache can key on our lockfile.
+      # Floor is 2.1: the dev tools live in a PEP 735 [dependency-groups] table, which
+      # `poetry install --with dev` only resolves on Poetry >= 2.1.
+      - name: Install Poetry
+        run: pipx install "poetry>=2.1,<3.0"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # matches the Dockerfile runtime stage
+          cache: poetry
+
+      # Dev group holds black/isort/pytest; --no-root since the project ships as a
+      # pythonpath source tree (pyproject pythonpath = ["src"]), not an installed package.
+      - name: Install dependencies
+        run: poetry install --with dev --no-root
+
+      - name: black --check
+        run: poetry run black --check src tests
+
+      - name: isort --check
+        run: poetry run isort --check-only src tests
+
+      - name: pytest
+        run: poetry run pytest
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22" # matches the Dockerfile frontend build stage
+          cache: npm
+          cache-dependency-path: src/app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # tsc -b && vite build — the same production build Railway runs, so a TypeScript or
+      # SPA-build break is caught here rather than at deploy.
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
