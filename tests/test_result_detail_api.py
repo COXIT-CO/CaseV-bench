@@ -10,11 +10,11 @@ Results are seeded directly so the score is exact without depending on a live mo
 from PIL import Image
 from sqlmodel import Session
 
-from models.drawing import Drawing, Page
-from models.location_ground_truth import LocationGroundTruth
-from models.prompt import Prompt, Task
-from models.results import BoundingBox, LocationDetection, LocationResult
-from models.run import Prediction, PredictionStatus, Result, Run, RunStatus
+from core.models.drawing import Drawing, Page
+from core.models.location_ground_truth import LocationGroundTruth
+from core.models.prompt import Prompt, Task
+from core.models.results import BoundingBox, LocationDetection, LocationResult
+from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 
 CAB = "cabinets"
 ACCURATE = "anthropic/claude-sonnet-4.5"
@@ -51,14 +51,21 @@ def _seed_counting_result(engine, *, with_gt: bool) -> int:
             session.refresh(page)
 
         if with_gt:
-            from services.counting_ground_truth import CountingGroundTruthService
+            from core.services.counting_ground_truth import CountingGroundTruthService
 
             CountingGroundTruthService(session).save(
                 drawing.id,
-                {"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0},
+                {
+                    "cabinets": 3,
+                    "countertops": 1,
+                    "elevations": 2,
+                    "elevation_callout": 0,
+                },
             )
 
-        prompt = Prompt(task=Task.counting, family="strict-json", version=1, text="count")
+        prompt = Prompt(
+            task=Task.counting, family="strict-json", version=1, text="count"
+        )
         session.add(prompt)
         session.commit()
         session.refresh(prompt)
@@ -96,7 +103,8 @@ def _seed_counting_result(engine, *, with_gt: bool) -> int:
 
 def _seed_location_result(engine, tmp_path, *, with_gt: bool) -> int:
     """A location Result: page 1 predicts two boxes (one matches GT, one spurious) with a
-    missed GT box; page 2 predicts one box with no GT on that page. Returns the Result id."""
+    missed GT box; page 2 predicts one box with no GT on that page. Returns the Result id.
+    """
     with Session(engine) as session:
         drawing = Drawing(name="floorplan")
         session.add(drawing)
@@ -124,17 +132,29 @@ def _seed_location_result(engine, tmp_path, *, with_gt: bool) -> int:
             # GT only on page 1: one box the prediction matches, one it misses.
             session.add(
                 LocationGroundTruth(
-                    page_id=pages[0].id, label=CAB, x_min=0.0, y_min=0.0, x_max=0.5, y_max=0.5
+                    page_id=pages[0].id,
+                    label=CAB,
+                    x_min=0.0,
+                    y_min=0.0,
+                    x_max=0.5,
+                    y_max=0.5,
                 )
             )
             session.add(
                 LocationGroundTruth(
-                    page_id=pages[0].id, label=CAB, x_min=0.8, y_min=0.8, x_max=1.0, y_max=1.0
+                    page_id=pages[0].id,
+                    label=CAB,
+                    x_min=0.8,
+                    y_min=0.8,
+                    x_max=1.0,
+                    y_max=1.0,
                 )
             )
             session.commit()
 
-        prompt = Prompt(task=Task.location, family="boxes", version=2, text="find boxes")
+        prompt = Prompt(
+            task=Task.location, family="boxes", version=2, text="find boxes"
+        )
         session.add(prompt)
         session.commit()
         session.refresh(prompt)

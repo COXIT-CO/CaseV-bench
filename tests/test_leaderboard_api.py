@@ -8,9 +8,9 @@ import time
 
 from sqlmodel import Session, select
 
-from models.drawing import Drawing, Page
-from models.prompt import Prompt, Task
-from models.run import Result
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Prompt, Task
+from core.models.run import Result
 
 ACCURATE = "anthropic/claude-sonnet-4.5"
 SLOPPY = "openai/gpt-5-mini"

@@ -8,7 +8,7 @@ Boxes are matched **within a page and within a label**; the aggregate sums TP/FP
 across every page and label, so a perfect prediction scores 1.0 whatever the label mix.
 """
 
-from services.scoring import LocationBox, score_location
+from core.services.scoring import LocationBox, score_location
 
 CAB = "cabinets"
 CTR = "countertops"

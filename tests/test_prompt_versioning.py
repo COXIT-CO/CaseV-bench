@@ -8,8 +8,8 @@ are Task-scoped. The two shipped prompt ``.md`` files seed each Task's initial v
 import pytest
 from sqlmodel import select
 
-from models.prompt import Prompt, Task
-from services.prompt import PromptService, seed_default_prompts
+from core.models.prompt import Prompt, Task
+from core.services.prompt import PromptService, seed_default_prompts
 
 
 def test_two_edits_yield_two_immutable_versions_with_distinct_text(session):

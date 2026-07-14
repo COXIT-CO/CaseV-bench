@@ -11,7 +11,7 @@ import re
 
 from sqlmodel import Session, select
 
-from models.model_catalog import ModelCatalogEntry
+from core.models.model_catalog import ModelCatalogEntry
 
 # The curated seed: known vision-capable OpenRouter slugs (the POC's three).
 DEFAULT_MODEL_CATALOG: list[tuple[str, str]] = [

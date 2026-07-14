@@ -4,8 +4,8 @@ isolated, and a label outside the fixed taxonomy is rejected (ticket 07)."""
 
 import pytest
 
-from models.drawing import Drawing
-from services.counting_ground_truth import CountingGroundTruthService
+from core.models.drawing import Drawing
+from core.services.counting_ground_truth import CountingGroundTruthService
 
 FULL_TOTALS = {
     "cabinets": 3,

@@ -20,12 +20,12 @@ from enum import Enum
 
 from sqlmodel import Session, select
 
-from models.prompt import Prompt, Task
-from models.results import OBJECT_LABELS, LabeledBox, LocationResult
-from models.run import Prediction, PredictionStatus, Result, Run
-from models.score import Score
-from services.counting_ground_truth import CountingGroundTruthService
-from services.location_ground_truth import LocationGroundTruthService
+from core.models.prompt import Prompt, Task
+from core.models.results import OBJECT_LABELS, LabeledBox, LocationResult
+from core.models.run import Prediction, PredictionStatus, Result, Run
+from core.models.score import Score
+from core.services.counting_ground_truth import CountingGroundTruthService
+from core.services.location_ground_truth import LocationGroundTruthService
 
 
 @dataclass(frozen=True)

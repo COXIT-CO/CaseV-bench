@@ -6,9 +6,9 @@ from pathlib import Path
 
 from sqlmodel import select
 
-from models.drawing import Drawing, Page
-from services.drawing import DrawingService
-from services.pdf_processing import PDFProcessingService
+from core.models.drawing import Drawing, Page
+from core.services.drawing import DrawingService
+from core.services.pdf_processing import PDFProcessingService
 
 
 def _fast_service(session, tmp_path) -> DrawingService:

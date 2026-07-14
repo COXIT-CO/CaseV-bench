@@ -5,7 +5,7 @@ from typing import Iterable
 
 from PIL import Image, ImageDraw
 
-from models.results import LabeledBox, LocationDetection
+from core.models.results import LabeledBox, LocationDetection
 
 # Long-edge (px) each page image is downsampled to at ingest; snapshotted on a Run.
 DEFAULT_DOWNSAMPLE_PX = 1568

@@ -11,10 +11,10 @@ recompute-on-read behavior is the service layer's and is covered by the scoring 
 import pytest
 from sqlmodel import Session
 
-from services.counting_ground_truth import CountingGroundTruthService
-from services.drawing import DrawingService
-from services.location_ground_truth import LocationGroundTruthService
-from services.pdf_processing import PDFProcessingService
+from core.services.counting_ground_truth import CountingGroundTruthService
+from core.services.drawing import DrawingService
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.services.pdf_processing import PDFProcessingService
 
 COUNTING_URL = "/api/drawings/{id}/counting-ground-truth"
 LOCATION_URL = "/api/drawings/{id}/location-ground-truth"
@@ -37,8 +37,9 @@ def drawing_id(engine, sample_pdf, tmp_path) -> int:
 def page_dims(engine, drawing_id) -> dict[int, tuple[int, int]]:
     """The ingested Pages' pixel dims, keyed by page number, so a COCO fixture can point at
     a page that really exists (the importer normalizes against these dims)."""
-    from models.drawing import Page
     from sqlmodel import select
+
+    from core.models.drawing import Page
 
     with Session(engine) as session:
         return {

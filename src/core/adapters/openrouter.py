@@ -4,7 +4,7 @@ from typing import Protocol
 
 import httpx
 
-from config import settings
+from core.config import settings
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 

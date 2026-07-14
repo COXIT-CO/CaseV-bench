@@ -26,7 +26,9 @@ def test_create_makes_v1_and_lists_it_under_its_task(client):
     assert resp.status_code == 201
     assert resp.json() == {"task": "counting", "family": "kitchen", "version": 1}
 
-    groups = {g["task"]: g["families"] for g in client.get("/api/prompts").json()["groups"]}
+    groups = {
+        g["task"]: g["families"] for g in client.get("/api/prompts").json()["groups"]
+    }
     kitchen = next(f for f in groups["counting"] if f["name"] == "kitchen")
     assert kitchen == {"name": "kitchen", "latest_version": 1, "count": 1}
     # Task-scoped: a counting family is never offered under location.
@@ -77,7 +79,10 @@ def test_append_version_never_mutates_prior_versions(client):
     assert resp.status_code == 201
     assert resp.json() == {"task": "counting", "family": "cab", "version": 2}
 
-    versions = {v["version"]: v["text"] for v in client.get("/api/prompts/counting/cab").json()["versions"]}
+    versions = {
+        v["version"]: v["text"]
+        for v in client.get("/api/prompts/counting/cab").json()["versions"]
+    }
     # The v1 row is untouched by the edit (immutable append, ADR 0009).
     assert versions == {1: "v1 text", 2: "v2 text"}
 

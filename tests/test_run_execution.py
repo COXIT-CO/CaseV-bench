@@ -9,11 +9,11 @@ import json
 
 from sqlmodel import select
 
-from models.drawing import Drawing, Page
-from models.prompt import Task
-from models.run import Prediction, PredictionStatus, Result, RunStatus
-from services.prompt import PromptService
-from services.run import RunService
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Task
+from core.models.run import Prediction, PredictionStatus, Result, RunStatus
+from core.services.prompt import PromptService
+from core.services.run import RunService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"

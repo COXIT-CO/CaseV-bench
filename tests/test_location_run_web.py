@@ -10,10 +10,10 @@ import time
 from PIL import Image
 from sqlmodel import Session, select
 
-from models.drawing import Drawing, Page
-from models.prompt import Prompt, Task
-from services.run import RunService
-from web.api import get_run_service
+from api.deps import get_run_service
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Prompt, Task
+from core.services.run import RunService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 BOXES_JSON = json.dumps(

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from config import Settings
+from core.config import Settings
 
 
 def _settings(monkeypatch, **env: str) -> Settings:

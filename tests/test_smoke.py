@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from adapters.openrouter import get_openrouter_adapter
-from models.meta import AppMeta
+from core.adapters.openrouter import get_openrouter_adapter
+from core.models.meta import AppMeta
 
 
 def test_app_boots_and_serves_json_api(client):

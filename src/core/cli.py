@@ -1,9 +1,11 @@
-"""CLI entry point, refactored onto the shared service layer (ticket 13, ADR 0007).
+"""CLI entry point, refactored onto the shared service layer (ADR 0007).
 
-The CLI no longer writes JSON run logs. It ingests the PDF as a Drawing, resolves the
-prompt version to pin, and launches through the same ``RunService`` the UI uses — so a
-CLI run and an equivalent UI run are the same Run / Results / Predictions in the one
-SQLite store, with no second source of truth to drift.
+The CLI drives the *same* shared services as the UI and writes to the same SQLite store,
+so a CLI run and an equivalent UI run are the same Run / Results / Predictions in the one
+store, with no second source of truth to drift. Its args map onto that model: a PDF to
+ingest as a Drawing, a Task, the models, and which prompt version to pin. The legacy
+``object_counting`` / ``object_location`` task names still parse so existing invocations
+keep working.
 
 ``execute_cli_run`` is the injectable seam: it takes an open ``Session`` and an
 ``OpenRouterAdapter`` so a test can drive the whole path against a temp DB with a stubbed
@@ -11,19 +13,72 @@ adapter. ``main`` wires the real engine + HTTP adapter and seeds the store exact
 web app's startup does, so the two entry points share identical seed data.
 """
 
+import argparse
 from pathlib import Path
 
 from sqlmodel import Session
 
-from adapters.openrouter import HttpxOpenRouterAdapter, OpenRouterAdapter
-from cli import parse_args
-from db import init_db, make_engine
-from models.prompt import Prompt, Task
-from models.run import PredictionStatus, Run
-from services.drawing import DEFAULT_CACHE_ROOT, DrawingService
-from services.model_catalog import ModelCatalogService
-from services.prompt import DEFAULT_FAMILY, PromptService, seed_default_prompts
-from services.run import DEFAULT_OVERLAY_ROOT, RunService
+from core.adapters.openrouter import HttpxOpenRouterAdapter, OpenRouterAdapter
+from core.db import init_db, make_engine
+from core.models.prompt import Prompt, Task
+from core.models.run import PredictionStatus, Run
+from core.services.drawing import DEFAULT_CACHE_ROOT, DrawingService
+from core.services.model_catalog import ModelCatalogService
+from core.services.prompt import DEFAULT_FAMILY, PromptService, seed_default_prompts
+from core.services.run import DEFAULT_OVERLAY_ROOT, RunService
+
+DEFAULT_MODELS = [
+    "anthropic/claude-sonnet-4.5",
+    "openai/gpt-5-mini",
+    "google/gemini-2.5-flash",
+]
+
+# Accept the current Task names and the POC's ``object_*`` spellings, both mapped to the
+# canonical Task the shared services speak.
+TASK_ALIASES = {
+    "counting": Task.counting,
+    "object_counting": Task.counting,
+    "location": Task.location,
+    "object_location": Task.location,
+}
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Run object counting / location detection over a PDF's pages, "
+        "persisting to the shared SQLite store."
+    )
+    parser.add_argument("--project", default="prj0001")
+    parser.add_argument("--pdf-path", type=Path, default=None)
+    parser.add_argument(
+        "--name", default=None, help="Drawing name (defaults to the PDF stem)."
+    )
+    parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
+    parser.add_argument("--task", choices=sorted(TASK_ALIASES), default="counting")
+    parser.add_argument(
+        "--prompt-family",
+        default="default",
+        help="Prompt family to run (its version is pinned on the Run).",
+    )
+    parser.add_argument(
+        "--prompt-version",
+        type=int,
+        default=None,
+        help="Prompt version to pin; defaults to the family's latest.",
+    )
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    args = build_parser().parse_args(argv)
+
+    if args.pdf_path is None:
+        args.pdf_path = Path(f"data/input/{args.project}.pdf")
+    if args.name is None:
+        args.name = args.pdf_path.stem
+    args.task = TASK_ALIASES[args.task]
+
+    return args
 
 
 def resolve_prompt(

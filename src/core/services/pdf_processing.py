@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pymupdf
 
-from config import settings
+from core.config import settings
 
 # Production default under the single data root; callers inject a temp dir in tests (ADR-0014).
 DEFAULT_OUTPUT_DIR = settings.output_root

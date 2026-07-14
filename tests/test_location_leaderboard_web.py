@@ -12,11 +12,11 @@ import time
 from PIL import Image
 from sqlmodel import Session, select
 
-from models.drawing import Drawing, Page
-from models.prompt import Prompt, Task
-from services.location_ground_truth import LocationGroundTruthService
-from services.run import RunService
-from web.api import get_run_service
+from api.deps import get_run_service
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Prompt, Task
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.services.run import RunService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 BOXES_JSON = json.dumps(
@@ -103,7 +103,7 @@ def test_location_result_detail_shows_iou_score(
     _import_gt(engine, drawing_id)
 
     with Session(engine) as session:
-        from models.run import Result
+        from core.models.run import Result
 
         result_id = session.exec(select(Result)).first().id
     detail = client.get(f"/api/results/{result_id}")

@@ -11,8 +11,8 @@ from collections.abc import Mapping
 
 from sqlmodel import Session, select
 
-from models.counting_ground_truth import CountingGroundTruth
-from models.results import OBJECT_LABELS
+from core.models.counting_ground_truth import CountingGroundTruth
+from core.models.results import OBJECT_LABELS
 
 
 class CountingGroundTruthService:

@@ -5,14 +5,12 @@ Kept DB-agnostic (no SQLite-only constructs) so a later Postgres swap stays smal
 once it stabilizes. Delete the ``.sqlite`` file to reset during early dev.
 """
 
-from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import Request
 from sqlalchemy import Engine, make_url
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import SQLModel, create_engine
 
-from config import settings
+from core.config import settings
 
 
 def get_database_url() -> str:
@@ -38,23 +36,16 @@ def make_engine(database_url: str | None = None) -> Engine:
 def init_db(engine: Engine) -> None:
     """Create every registered table. Idempotent."""
     # Import table models so they register on SQLModel.metadata before create_all.
-    import models.counting_ground_truth  # noqa: F401
-    import models.drawing  # noqa: F401
-    import models.location_ground_truth  # noqa: F401
-    import models.meta  # noqa: F401
-    import models.model_catalog  # noqa: F401
-    import models.prompt  # noqa: F401
-    import models.run  # noqa: F401
-    import models.score  # noqa: F401
+    import core.models.counting_ground_truth  # noqa: F401
+    import core.models.drawing  # noqa: F401
+    import core.models.location_ground_truth  # noqa: F401
+    import core.models.meta  # noqa: F401
+    import core.models.model_catalog  # noqa: F401
+    import core.models.prompt  # noqa: F401
+    import core.models.run  # noqa: F401
+    import core.models.score  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
-
-
-def get_session(request: Request) -> Iterator[Session]:
-    """FastAPI dependency yielding a session bound to the app's engine."""
-    engine: Engine = request.app.state.engine
-    with Session(engine) as session:
-        yield session
 
 
 def _ensure_sqlite_parent_dir(database: str | None) -> None:

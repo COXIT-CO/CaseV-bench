@@ -10,7 +10,7 @@ React SPA against ``GET /api/models``, tested in ``test_library_api.py``); slug 
 stays a pure-service unit test here, and ``POST /api/runs`` remains its authoritative caller.
 """
 
-from services.model_catalog import DEFAULT_MODEL_CATALOG, ModelCatalogService
+from core.services.model_catalog import DEFAULT_MODEL_CATALOG, ModelCatalogService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"

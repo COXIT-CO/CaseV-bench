@@ -9,8 +9,8 @@ import time
 
 from sqlmodel import Session, select
 
-from models.drawing import Drawing, Page
-from models.prompt import Prompt, Task
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Prompt, Task
 
 SONNET = "anthropic/claude-sonnet-4.5"
 COUNT_JSON = (
@@ -102,7 +102,9 @@ def test_create_run_returns_queued_run_and_detail_carries_knobs(
 def test_create_run_resolves_free_text_slugs_server_side(client, engine):
     drawing_id = _seed_drawing(engine)
     # No curated selection: the free-text escape hatch is resolved as the source of truth.
-    resp = _launch(client, engine, drawing_id, models=[], free_text="vendor/a, vendor/b")
+    resp = _launch(
+        client, engine, drawing_id, models=[], free_text="vendor/a, vendor/b"
+    )
     assert resp.status_code == 201
     detail = client.get(f"/api/runs/{resp.json()['id']}").json()
     assert {r["model"] for r in detail["results"]} == {"vendor/a", "vendor/b"}

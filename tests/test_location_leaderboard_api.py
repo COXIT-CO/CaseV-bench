@@ -1,6 +1,7 @@
 """JSON contract for the location Leaderboard (spec §A.2, ticket 02). Under
 ``?task=location`` the ``/api`` twin serves the P/R/F1-ranked board — the location metric
-set and per-row rates instead of the counting pair — with unscored Results pinned last."""
+set and per-row rates instead of the counting pair — with unscored Results pinned last.
+"""
 
 import json
 import time
@@ -8,12 +9,12 @@ import time
 from PIL import Image
 from sqlmodel import Session, select
 
-from adapters.openrouter import get_openrouter_adapter
-from models.drawing import Drawing, Page
-from models.prompt import Prompt, Task
-from services.location_ground_truth import LocationGroundTruthService
-from services.run import RunService
-from web.api import get_run_service
+from api.deps import get_run_service
+from core.adapters.openrouter import get_openrouter_adapter
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Prompt, Task
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.services.run import RunService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 BOXES_JSON = json.dumps(
@@ -125,9 +126,9 @@ def test_location_leaderboard_api_unscored_without_gt(
     drawing_id = _seed_drawing(engine, tmp_path)
     _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
 
-    rows = client.get(
-        f"/api/leaderboard?task=location&drawing_id={drawing_id}"
-    ).json()["rows"]
+    rows = client.get(f"/api/leaderboard?task=location&drawing_id={drawing_id}").json()[
+        "rows"
+    ]
     assert len(rows) == 1
     assert rows[0]["scored"] is False
     assert rows[0]["rank"] is None

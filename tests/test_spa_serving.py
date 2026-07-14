@@ -11,9 +11,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-import web.app
-from adapters.openrouter import get_openrouter_adapter
-from web.app import create_app
+import api.app
+from api.app import create_app
+from core.adapters.openrouter import get_openrouter_adapter
 
 # The client-side routes react-router owns (App.tsx). A refresh / deep link on any of these
 # must reach the server, miss every /api route, and fall back to the SPA shell.
@@ -36,7 +36,7 @@ def built_spa(tmp_path) -> Path:
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text(
-        '<!doctype html><html><head><title>Prompt &amp; Config Lab</title>'
+        "<!doctype html><html><head><title>Prompt &amp; Config Lab</title>"
         '<script type="module" src="/assets/index-abc123.js"></script></head>'
         '<body><div id="root"></div></body></html>'
     )
@@ -107,5 +107,5 @@ def test_missing_build_is_a_helpful_hint_not_a_crash(engine, tmp_path):
 
 def test_no_jinja_template_dir_remains():
     # No dead Jinja/HTMX template is left in the tree after the cutover.
-    templates = Path(web.app.__file__).parent / "templates"
+    templates = Path(api.app.__file__).parent / "templates"
     assert not templates.exists()

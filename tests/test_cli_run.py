@@ -11,12 +11,12 @@ from pathlib import Path
 
 from sqlmodel import select
 
-from main import execute_cli_run
-from models.prompt import Prompt, Task
-from models.results import LocationResult
-from models.run import Prediction, PredictionStatus, Result, RunStatus
-from services.prompt import PromptService, seed_default_prompts
-from services.run import RunKnobs
+from core.cli import execute_cli_run
+from core.models.prompt import Prompt, Task
+from core.models.results import LocationResult
+from core.models.run import Prediction, PredictionStatus, Result, RunStatus
+from core.services.prompt import PromptService, seed_default_prompts
+from core.services.run import RunKnobs
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
