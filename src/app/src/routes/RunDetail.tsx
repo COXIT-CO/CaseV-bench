@@ -1,9 +1,11 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useRun, useRunStatus } from "@/hooks/queries";
+import { useDeleteRun, useRun, useRunStatus } from "@/hooks/queries";
 import { isTerminalRunStatus } from "@/types";
 import type {
   RunDetailResponse,
@@ -60,7 +62,14 @@ export function RunDetail() {
 
   return (
     <Shell>
-      <Header detail={detail.data} status={live.status} progress={live.progress} total={live.total_units} />
+      <Header
+        detail={detail.data}
+        status={live.status}
+        progress={live.progress}
+        total={live.total_units}
+        resultCount={live.results.length}
+        terminal={terminal}
+      />
       <KnobsSnapshot knobs={detail.data.knobs} />
       <ProgressBlock progress={live.progress} total={live.total_units} />
       <ResultsBlock results={live.results} terminal={terminal} />
@@ -77,11 +86,15 @@ function Header({
   status,
   progress,
   total,
+  resultCount,
+  terminal,
 }: {
   detail: RunDetailResponse;
   status: RunStatus;
   progress: number;
   total: number;
+  resultCount: number;
+  terminal: boolean;
 }) {
   return (
     <>
@@ -112,12 +125,58 @@ function Header({
             </Link>
           </div>
         </div>
-        <span className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-          <StatusBadge status={status} />
-          {progress} / {total}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+            <StatusBadge status={status} />
+            {progress} / {total}
+          </span>
+          {/* Only a terminal Run may be deleted: a still-running Run's BackgroundRunner is
+              writing Results/overlays, which a mid-flight cascade would race, and its
+              result count (the confirm's collateral) isn't final yet. */}
+          {terminal && (
+            <DeleteRunButton runId={detail.run.id} resultCount={resultCount} />
+          )}
+        </div>
       </div>
     </>
+  );
+}
+
+/** Delete this Run and everything under it, after a confirmation that states the collateral
+ * (ADR-0016). On success the run history/board/meta are invalidated and we route back to the
+ * run list, since this detail page no longer has a Run to show. */
+function DeleteRunButton({
+  runId,
+  resultCount,
+}: {
+  runId: number;
+  resultCount: number;
+}) {
+  const navigate = useNavigate();
+  const deleteRun = useDeleteRun();
+
+  return (
+    <ConfirmDeleteDialog
+      trigger={
+        <Button variant="destructive" size="sm">
+          Delete run
+        </Button>
+      }
+      title={`Delete run #${runId}?`}
+      description={
+        <>
+          This permanently deletes run #{runId} and its {resultCount} result
+          {resultCount === 1 ? "" : "s"}, removing it from the leaderboard and run
+          history.
+        </>
+      }
+      confirmLabel="Delete run"
+      pending={deleteRun.isPending}
+      error={deleteRun.error}
+      onConfirm={() =>
+        deleteRun.mutateAsync(runId).then(() => navigate("/runs"))
+      }
+    />
   );
 }
 

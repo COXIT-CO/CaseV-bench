@@ -87,6 +87,15 @@ class RunResultOut(BaseModel):
     model: str
 
 
+class RunDeletedOut(BaseModel):
+    """The collateral ``DELETE /api/runs/{id}`` removed (ADR-0016): the Run itself plus its
+    Results. Returned as the delete's receipt; the same ``(runs, results)`` shape is what a
+    multi-Run cascade (Drawing/Prompt deletes, tickets 08/09) reports back."""
+
+    runs: int
+    results: int
+
+
 class RunRef(BaseModel):
     """The run header + live progress the detail page renders."""
 
@@ -246,6 +255,21 @@ def run_detail(
         ),
         results=[RunResultOut(id=r.id, model=r.model) for r in run.results],
     )
+
+
+@router.delete("/runs/{run_id}", response_model=RunDeletedOut)
+def delete_run(
+    run_id: int,
+    service: RunService = Depends(get_run_service),
+) -> RunDeletedOut:
+    """Permanently delete a Run and everything under it — Results, Predictions, Scores, and
+    cached overlay files — so it leaves the Leaderboard and run history (ADR-0016). Returns
+    the collateral counts the confirm dialog showed; a missing Run is a ``404``."""
+    try:
+        counts = service.delete_run(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return RunDeletedOut(runs=counts.runs, results=counts.results)
 
 
 @router.get("/runs/{run_id}/status", response_model=RunStatusResponse)
