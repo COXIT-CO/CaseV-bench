@@ -4,7 +4,9 @@ __pycache__/
 
 data/output/
 data/overlays/
-src/logs/
 *.sqlite
 *.sqlite-journal
 .DS_Store
+
+# Local Docker data-root mount (the runbook's stand-in for the Railway Volume).
+.localdata/
