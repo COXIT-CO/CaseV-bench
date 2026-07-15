@@ -1,10 +1,11 @@
 """Drawing & Page tables — the uploaded PDF and its ingested pages (spec: Drawings
 & ingestion; glossary: Drawing, Page).
 
-A ``Drawing`` is one uploaded PDF. Each ``Page`` caches the reference to its
-rendered + downsampled image (produced once at ingest) and stores that image's
-pixel dimensions, needed later to normalize imported location boxes (ticket 10).
-Kept DB-agnostic per ADR 0007/0008.
+A ``Drawing`` is one uploaded PDF or plain image (ticket 11). Each ``Page`` caches
+the reference to its rendered + downsampled image (produced once at ingest) and
+stores the *full-resolution* raster's pixel dimensions — not the downsample's —
+since imported location boxes are annotated against that native raster and are
+normalized by these dims (ticket 10). Kept DB-agnostic per ADR 0007/0008.
 """
 
 from datetime import datetime, timezone
@@ -38,7 +39,8 @@ class Page(SQLModel, table=True):
     page_number: int
     # Path to the cached rendered + downsampled page image on disk.
     image_path: str
-    # Pixel dimensions of the cached image (used to normalize location boxes later).
+    # Full-resolution (pre-downsample) pixel dimensions, the frame location boxes are
+    # annotated against and normalized by later (ticket 10) — not the downsample's dims.
     width_px: int
     height_px: int
 

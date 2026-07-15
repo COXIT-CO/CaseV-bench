@@ -10,6 +10,7 @@ from pathlib import Path
 import pymupdf
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlmodel import Session
 
 from api.app import create_app
@@ -83,6 +84,18 @@ def sample_pdf(tmp_path) -> Path:
         doc.new_page(width=792, height=612)  # US Letter landscape
         doc.save(pdf_path)
     return pdf_path
+
+
+@pytest.fixture
+def sample_image(tmp_path) -> Path:
+    """A single landscape PNG larger than the downsample long edge, drawn on the fly.
+
+    Non-square so tests can assert the native pixel dimensions are persisted, and big
+    enough (2000×1500) that ingest actually downsamples it rather than upscaling.
+    """
+    image_path = tmp_path / "sample.png"
+    Image.new("RGB", (2000, 1500), color="white").save(image_path)
+    return image_path
 
 
 @pytest.fixture

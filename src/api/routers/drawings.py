@@ -1,5 +1,5 @@
-"""Library — Drawings (spec §A.6): the list, PDF upload, the detail with rendered Pages,
-and the cached page-image PNG re-mounted under ``/api`` for the SPA. Ingestion reuses
+"""Library — Drawings (spec §A.6): the list, PDF-or-image upload, the detail with rendered
+Pages, and the cached page-image PNG re-mounted under ``/api`` for the SPA. Ingestion reuses
 ``DrawingService`` unchanged; only the web layer differs. Ground-truth entry hangs off the
 detail (see ``ground_truth`` router)."""
 
@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 from api.deps import get_drawing_service, get_session
 from api.routers.common import DrawingRef
 from core.models.drawing import Drawing, Page
-from core.services.drawing import DrawingService
+from core.services.drawing import SUPPORTED_SUFFIXES, DrawingService
 
 router = APIRouter(prefix="/api", tags=["drawings"])
 
@@ -81,11 +81,23 @@ async def upload_drawing(
     file: UploadFile,
     service: DrawingService = Depends(get_drawing_service),
 ) -> DrawingSummary:
-    """Ingest an uploaded PDF (multipart) via ``DrawingService`` and return the created
-    Drawing (spec §A.6). Upload stays ``multipart/form-data``; the file is written to a
-    temp PDF the service renders, then removed."""
-    name = Path(file.filename or "drawing").stem or "drawing"
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+    """Ingest an uploaded PDF or plain image (PNG/JPG/WebP) via ``DrawingService`` and return
+    the created Drawing (spec §A.6, ticket 11). One unified control accepts either kind; the
+    service branches on file type. Upload stays ``multipart/form-data``; the file is written
+    to a temp file preserving its extension (so the service can tell an image from a PDF),
+    then removed. An unsupported type is a ``415`` before anything touches the DB."""
+    filename = Path(file.filename or "drawing")
+    suffix = filename.suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                "Unsupported file type — upload a PDF or an image "
+                "(PNG, JPG, or WebP)."
+            ),
+        )
+    name = filename.stem or "drawing"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await file.read())
         tmp_path = Path(tmp.name)
     try:

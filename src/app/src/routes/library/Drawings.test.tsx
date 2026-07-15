@@ -74,12 +74,31 @@ describe("Drawings list", () => {
     const file = new File(["%PDF-1.4"], "uploaded.pdf", {
       type: "application/pdf",
     });
-    await userEvent.upload(screen.getByLabelText("PDF file"), file);
+    await userEvent.upload(screen.getByLabelText("PDF or image file"), file);
     await userEvent.click(screen.getByRole("button", { name: "Upload" }));
 
     await waitFor(() => expect(api.uploadDrawing).toHaveBeenCalledWith(file));
     expect(await screen.findByText("detail page")).toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("/library/drawings/9");
+  });
+
+  it("uploads an image through the same control and routes to its detail", async () => {
+    vi.mocked(api.drawings).mockResolvedValue({ drawings: [] });
+    vi.mocked(api.uploadDrawing).mockResolvedValue({
+      id: 12,
+      name: "photo",
+      page_count: 1,
+    });
+    renderDrawings();
+
+    await screen.findByText("No drawings yet");
+    const file = new File(["fake-png-bytes"], "photo.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText("PDF or image file"), file);
+    await userEvent.click(screen.getByRole("button", { name: "Upload" }));
+
+    await waitFor(() => expect(api.uploadDrawing).toHaveBeenCalledWith(file));
+    expect(await screen.findByText("detail page")).toBeInTheDocument();
+    expect(screen.getByTestId("url")).toHaveTextContent("/library/drawings/12");
   });
 
   it("keeps upload disabled until a file is chosen", async () => {
@@ -100,7 +119,7 @@ describe("Drawings list", () => {
 
     await screen.findByText("No drawings yet");
     const file = new File(["x"], "bad.pdf", { type: "application/pdf" });
-    await userEvent.upload(screen.getByLabelText("PDF file"), file);
+    await userEvent.upload(screen.getByLabelText("PDF or image file"), file);
     await userEvent.click(screen.getByRole("button", { name: "Upload" }));
 
     expect(await screen.findByText("Could not read the PDF")).toBeInTheDocument();
