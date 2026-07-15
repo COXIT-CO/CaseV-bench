@@ -1,11 +1,17 @@
 import * as React from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import { useAppendPromptVersion, usePromptHistory } from "@/hooks/queries";
+import {
+  useAppendPromptVersion,
+  useDeletePromptFamily,
+  useDeletePromptVersion,
+  usePromptHistory,
+} from "@/hooks/queries";
 import { formatDate } from "@/lib/format";
-import type { PromptVersion, Task } from "@/types";
+import type { PromptHistoryResponse, PromptVersion, Task } from "@/types";
 
 // A prompt family's immutable version history + the tuning loop (ADR 0011, spec §A.5/§B.2):
 // every version listed newest-first, a side-by-side compare/read of any two versions (the
@@ -56,8 +62,9 @@ export function PromptHistory() {
 
   return (
     <Shell family={family}>
-      <Header task={task} family={family} count={data.versions.length} />
+      <Header task={task} family={family} detail={data} />
       <CompareVersions versions={data.versions} />
+      <VersionList task={task} family={family} versions={data.versions} />
       <EditForm task={task} family={family} latest={data.versions[0]} />
     </Shell>
   );
@@ -86,25 +93,77 @@ function Shell({
 function Header({
   task,
   family,
-  count,
+  detail,
 }: {
   task: Task;
   family: string;
-  count: number;
+  detail: PromptHistoryResponse;
 }) {
+  const count = detail.versions.length;
   return (
-    <header className="mb-6">
-      <h1 className="text-xl font-semibold tracking-tight">
-        {family}{" "}
-        <span className="align-middle text-sm font-normal capitalize text-muted-foreground">
-          {task}
-        </span>
-      </h1>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {count} immutable version{count === 1 ? "" : "s"} — pick two to compare, or append
-        a new one below.
-      </p>
+    <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {family}{" "}
+          <span className="align-middle text-sm font-normal capitalize text-muted-foreground">
+            {task}
+          </span>
+        </h1>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          {count} immutable version{count === 1 ? "" : "s"} — pick two to compare, or
+          append a new one below.
+        </p>
+      </div>
+      <DeleteFamilyButton
+        task={task}
+        family={family}
+        runCount={detail.run_count}
+        resultCount={detail.result_count}
+      />
     </header>
+  );
+}
+
+/** Delete this whole family and every Run pinning any of its versions, after a confirmation
+ * that states the collateral (ADR-0016). On success the list/board/runs/meta are invalidated
+ * and we route back to the Prompts list, since this history page no longer has a family. */
+function DeleteFamilyButton({
+  task,
+  family,
+  runCount,
+  resultCount,
+}: {
+  task: Task;
+  family: string;
+  runCount: number;
+  resultCount: number;
+}) {
+  const navigate = useNavigate();
+  const deleteFamily = useDeletePromptFamily();
+
+  return (
+    <ConfirmDeleteDialog
+      trigger={
+        <Button variant="destructive" size="sm">
+          Delete family
+        </Button>
+      }
+      title={`Delete prompt family “${family}”?`}
+      description={
+        <>
+          This permanently deletes “{family}” and all its versions, and the {runCount} run
+          {runCount === 1 ? "" : "s"} / {resultCount} result
+          {resultCount === 1 ? "" : "s"} that pinned any of them — removing them from the
+          leaderboard.
+        </>
+      }
+      confirmLabel="Delete family"
+      pending={deleteFamily.isPending}
+      error={deleteFamily.error}
+      onConfirm={() =>
+        deleteFamily.mutateAsync({ task, family }).then(() => navigate("/prompts"))
+      }
+    />
   );
 }
 
@@ -194,6 +253,99 @@ function VersionPane({
         {version.text}
       </pre>
     </div>
+  );
+}
+
+/** The version roster: every immutable version listed newest-first, each deletable on its own
+ * (ADR-0016, ticket 09). A mid-lineage delete leaves a cosmetic numbering gap (v1, v3) — the
+ * remaining history is otherwise untouched. Each row states how many Runs pinned that version,
+ * the collateral its delete cascades. */
+function VersionList({
+  task,
+  family,
+  versions,
+}: {
+  task: Task;
+  family: string;
+  versions: PromptVersion[];
+}) {
+  return (
+    <div className="mb-8" role="region" aria-label="Versions">
+      <h2 className="mb-2.5 text-sm font-semibold">Versions</h2>
+      <div className="flex flex-col gap-2">
+        {versions.map((version) => (
+          <div
+            key={version.version}
+            className="flex items-center justify-between gap-4 rounded-lg border bg-card px-3.5 py-3"
+          >
+            <div className="flex items-baseline gap-3">
+              <span className="font-mono text-[13px] font-medium">
+                v{version.version}
+              </span>
+              <span className="text-[11.5px] text-muted-foreground">
+                {formatDate(version.created_at)}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] text-muted-foreground">
+                {version.run_count} run{version.run_count === 1 ? "" : "s"} pinned
+              </span>
+              <DeleteVersionButton
+                task={task}
+                family={family}
+                version={version}
+                isLastVersion={versions.length === 1}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Delete one version and the Runs that pinned it, after a confirmation that states the
+ * collateral (ADR-0016). On success the history refetches in place; but deleting a family's
+ * only version leaves nothing to show, so we route back to the Prompts list in that case. */
+function DeleteVersionButton({
+  task,
+  family,
+  version,
+  isLastVersion,
+}: {
+  task: Task;
+  family: string;
+  version: PromptVersion;
+  isLastVersion: boolean;
+}) {
+  const navigate = useNavigate();
+  const deleteVersion = useDeletePromptVersion(task, family);
+
+  return (
+    <ConfirmDeleteDialog
+      trigger={
+        <Button variant="destructive" size="sm">
+          Delete v{version.version}
+        </Button>
+      }
+      title={`Delete “${family}” v${version.version}?`}
+      description={
+        <>
+          This permanently deletes version {version.version} of “{family}” and the{" "}
+          {version.run_count} run{version.run_count === 1 ? "" : "s"} /{" "}
+          {version.result_count} result{version.result_count === 1 ? "" : "s"} that pinned
+          it — removing them from the leaderboard.
+        </>
+      }
+      confirmLabel={`Delete v${version.version}`}
+      pending={deleteVersion.isPending}
+      error={deleteVersion.error}
+      onConfirm={() =>
+        deleteVersion.mutateAsync(version.version).then(() => {
+          if (isLastVersion) navigate("/prompts");
+        })
+      }
+    />
   );
 }
 

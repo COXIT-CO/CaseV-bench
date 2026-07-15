@@ -12,6 +12,7 @@ import type {
   LocationImportResponse,
   ModelsResponse,
   PromptCreateRequest,
+  PromptDeleted,
   PromptHistoryResponse,
   PromptsResponse,
   PromptVersionRef,
@@ -206,6 +207,20 @@ export const api = {
     postJson<PromptVersionRef>(
       `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions`,
       { text },
+    ),
+
+  /** Permanently delete one immutable version, cascading the Runs that pinned it; returns the
+   * collateral counts removed as the delete's receipt (ADR-0016, ticket 09). */
+  deletePromptVersion: (task: string, family: string, version: number) =>
+    deleteJson<PromptDeleted>(
+      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions/${version}`,
+    ),
+
+  /** Permanently delete a whole family — every version and every Run pinning any of them;
+   * returns the collateral counts removed as the delete's receipt (ADR-0016, ticket 09). */
+  deletePromptFamily: (task: string, family: string) =>
+    deleteJson<PromptDeleted>(
+      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}`,
     ),
 
   /** The Library catalog of Drawings with page counts, newest-first (spec §A.6). */

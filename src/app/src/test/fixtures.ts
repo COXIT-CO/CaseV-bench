@@ -319,33 +319,46 @@ export const PROMPTS: PromptsResponse = {
   ],
 };
 
-/** A counting family's history with two immutable versions, newest-first. */
+/** A counting family's history with two immutable versions, newest-first. The delete
+ * collateral (ADR-0016): v2 is pinned by 2 runs / 5 results, v1 by 1 run / 3 results, so the
+ * family total is 3 runs / 8 results. */
 export const PROMPT_HISTORY: PromptHistoryResponse = {
   task: "counting",
   family: "cabinet-count-v2",
+  run_count: 3,
+  result_count: 8,
   versions: [
     {
       version: 2,
       text: "Count only base cabinets, ignore wall cabinets.",
       created_at: "2026-06-18T12:00:00Z",
+      run_count: 2,
+      result_count: 5,
     },
     {
       version: 1,
       text: "Count every cabinet in the drawing.",
       created_at: "2026-06-17T09:00:00Z",
+      run_count: 1,
+      result_count: 3,
     },
   ],
 };
 
-/** A single-version family — compare falls back to reading v1 against itself. */
+/** A single-version family — compare falls back to reading v1 against itself. No runs pin it,
+ * so deleting it (its sole version) removes an empty-collateral family. */
 export const PROMPT_HISTORY_SINGLE: PromptHistoryResponse = {
   task: "location",
   family: "default",
+  run_count: 0,
+  result_count: 0,
   versions: [
     {
       version: 1,
       text: "Return bounding boxes for every fixture.",
       created_at: "2026-06-10T09:00:00Z",
+      run_count: 0,
+      result_count: 0,
     },
   ],
 };
