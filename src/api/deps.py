@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from core.adapters.openrouter import OpenRouterAdapter, get_openrouter_adapter
 from core.services.drawing import DrawingService
+from core.services.model_catalog import ModelCatalogService
 from core.services.prompt import PromptService
 from core.services.run import RunService
 
@@ -44,3 +45,11 @@ def get_prompt_service(session: Session = Depends(get_session)) -> PromptService
     routes' cascade cleans up (ADR-0016); override in tests to point it at a temp root.
     """
     return PromptService(session)
+
+
+def get_model_catalog_service(
+    session: Session = Depends(get_session),
+) -> ModelCatalogService:
+    """The Model-catalog service bound to the request session, backing the Library → Models
+    CRUD (ticket 10)."""
+    return ModelCatalogService(session)

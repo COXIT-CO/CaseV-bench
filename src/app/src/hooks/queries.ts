@@ -247,9 +247,41 @@ export function useDeleteDrawing() {
   });
 }
 
-/** The curated model catalog for the Library view (spec §A.6). */
+/** The user-editable model catalog for the Library view (spec §A.6, ticket 10). */
 export function useModels() {
   return useQuery({ queryKey: ["models"], queryFn: api.models });
+}
+
+/**
+ * Add a model to the catalog, or re-label a known slug (upsert, ticket 10). On success the
+ * catalog view and the launch form's options (the entry becomes a labeled checkbox on every
+ * future launch) are both stale, so each is invalidated.
+ */
+export function useAddModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.addModel,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["models"] });
+      queryClient.invalidateQueries({ queryKey: ["launch-options"] });
+    },
+  });
+}
+
+/**
+ * Remove a model from the catalog by slug (ticket 10). Safe by construction — past Runs store
+ * the slug string, not a reference, so nothing else is touched. On success the catalog view
+ * and the launch form's options (the checkbox drops out) are both stale, so each is invalidated.
+ */
+export function useRemoveModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (slug: string) => api.removeModel(slug),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["models"] });
+      queryClient.invalidateQueries({ queryKey: ["launch-options"] });
+    },
+  });
 }
 
 /** One Drawing's counting-GT totals per taxonomy label, pre-filling the entry form (spec
