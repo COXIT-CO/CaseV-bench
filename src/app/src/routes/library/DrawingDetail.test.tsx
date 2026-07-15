@@ -55,6 +55,22 @@ describe("DrawingDetail", () => {
     expect(image).toHaveAttribute("src", "/api/drawings/3/pages/1/image");
   });
 
+  it("links the GT-only overlay on pages that carry ground truth, and only those", async () => {
+    vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
+    renderDetail();
+
+    // Page 1 has ground truth → its GT-only overlay is linkable; page 2 has none, so the
+    // link is absent there (ticket 12).
+    const gtLinks = (await screen.findAllByRole("link")).filter((a) =>
+      a.getAttribute("href")?.includes("/ground-truth-overlay"),
+    );
+    expect(gtLinks).toHaveLength(1);
+    expect(gtLinks[0]).toHaveAttribute(
+      "href",
+      "/api/drawings/3/pages/1/ground-truth-overlay",
+    );
+  });
+
   it("mounts the ground-truth entry points (counting form + COCO import)", async () => {
     vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
     renderDetail();

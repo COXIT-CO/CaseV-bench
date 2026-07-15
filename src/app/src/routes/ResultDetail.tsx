@@ -23,7 +23,9 @@ import type {
 // The Result drill-down (ADR 0011, spec §A.3): why a Result scored as it did. A header with
 // the Configuration refs, the Score block (counting or location shape), and the per-page
 // Predictions — plus, for location, a red-prediction-over-green-GT overlay compare grid.
-// The unscored state (no ground truth) shows a prominent CTA toward ground-truth entry.
+// The unscored state (no ground truth) shows a prominent CTA toward ground-truth entry; an
+// unscored location Result also shows a prediction-only overlay grid (its boxes on the page)
+// so the model's output is inspectable before any ground truth exists (ticket 12).
 
 export function ResultDetail() {
   const { id } = useParams();
@@ -66,9 +68,12 @@ export function ResultDetail() {
       ) : (
         <UnscoredCta drawingId={data.drawing_id} />
       )}
-      {data.scored && data.task === "location" && (
-        <OverlayGrid result={data} />
-      )}
+      {data.task === "location" &&
+        (data.scored ? (
+          <OverlayGrid result={data} />
+        ) : (
+          <PredictionOverlayGrid result={data} />
+        ))}
       <PredictionsSection predictions={data.predictions} />
     </Shell>
   );
@@ -372,6 +377,71 @@ function OverlayCard({
         <span className="font-mono">{pred.box_count} boxes</span>
       </div>
     </a>
+  );
+}
+
+/** For an unscored location Result (no ground truth to compare against yet): the model's own
+ * prediction overlays — its labeled boxes (red) on each page, served from the cached
+ * prediction-overlay route (ticket 12). Distinct from the compare grid, which needs GT. */
+function PredictionOverlayGrid({ result }: { result: ResultDetailResponse }) {
+  return (
+    <div className="mb-6">
+      <div className="mb-2.5 flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Predicted boxes</h2>
+        <div className="flex items-center gap-3.5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-danger" />
+            Prediction
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5">
+        {result.predictions.map((pred) => (
+          <PredictionOverlayCard
+            key={pred.page_number}
+            resultId={result.result_id}
+            pred={pred}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** One page's prediction-only overlay. A failed (parse-error) page never cached an overlay,
+ * so it shows a placeholder rather than a broken image. */
+function PredictionOverlayCard({
+  resultId,
+  pred,
+}: {
+  resultId: number;
+  pred: ResultPrediction;
+}) {
+  const src = `/api/results/${resultId}/pages/${pred.page_number}/overlay`;
+  const failed = pred.status === "error";
+  const body = failed ? (
+    <div className="flex aspect-square items-center justify-center bg-muted">
+      <span className="rounded bg-black/40 px-2 py-1 text-[11px] font-semibold text-white">
+        prediction failed
+      </span>
+    </div>
+  ) : (
+    <a href={src} target="_blank" rel="noreferrer" className="block hover:opacity-90">
+      <img
+        src={src}
+        alt={`predicted boxes for page ${pred.page_number}`}
+        className="block w-full"
+      />
+    </a>
+  );
+  return (
+    <div className="overflow-hidden rounded-lg border bg-card">
+      {body}
+      <div className="flex justify-between px-2.5 py-2 text-xs text-muted-foreground">
+        <span>Page {pred.page_number}</span>
+        <span className="font-mono">{pred.box_count} boxes</span>
+      </div>
+    </div>
   );
 }
 

@@ -14,7 +14,11 @@ from sqlmodel import Session, select
 from api.deps import get_drawing_service, get_session
 from api.routers.common import DrawingRef
 from core.models.drawing import Drawing, Page
+from core.models.location_ground_truth import LocationGroundTruth
+from core.models.results import LabeledBox
 from core.services.drawing import SUPPORTED_SUFFIXES, DrawingService
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.utils import render_ground_truth_overlay
 
 router = APIRouter(prefix="/api", tags=["drawings"])
 
@@ -34,12 +38,16 @@ class DrawingsResponse(BaseModel):
 
 class DrawingPageOut(BaseModel):
     """One rendered Page on the Drawing detail: its number, the full-resolution pixel dims
-    (COCO boxes are annotated against these), and the URL of its cached image PNG."""
+    (COCO boxes are annotated against these), and the URL of its cached image PNG. When the
+    Page carries location ground truth, ``ground_truth_overlay_url`` points at the GT-only
+    overlay so ground truth can be inspected from Library independent of any Run (ticket 12);
+    it is ``null`` (and there is nothing to view) otherwise."""
 
     page_number: int
     width_px: int
     height_px: int
     image_url: str
+    ground_truth_overlay_url: str | None
 
 
 class DrawingDetailResponse(BaseModel):
@@ -123,6 +131,9 @@ def drawing_detail(
     if drawing is None:
         raise HTTPException(status_code=404, detail="Drawing not found")
     collateral = service.collateral_counts(drawing_id)
+    # Which Pages carry location ground truth, so the detail can surface the GT-only overlay
+    # only where there is something to draw (ticket 12).
+    pages_with_gt = set(LocationGroundTruthService(session).boxes_by_page(drawing_id))
     return DrawingDetailResponse(
         drawing=DrawingRef(id=drawing.id, name=drawing.name),
         pages=[
@@ -131,6 +142,12 @@ def drawing_detail(
                 width_px=page.width_px,
                 height_px=page.height_px,
                 image_url=f"/api/drawings/{drawing_id}/pages/{page.page_number}/image",
+                ground_truth_overlay_url=(
+                    f"/api/drawings/{drawing_id}/pages/{page.page_number}"
+                    "/ground-truth-overlay"
+                    if page.id in pages_with_gt
+                    else None
+                ),
             )
             for page in drawing.pages
         ],
@@ -171,3 +188,33 @@ def drawing_page_image(
     if page is None or not Path(page.image_path).exists():
         raise HTTPException(status_code=404, detail="Page image not found")
     return FileResponse(page.image_path, media_type="image/png")
+
+
+@router.get("/drawings/{drawing_id}/pages/{page_number}/ground-truth-overlay")
+def drawing_ground_truth_overlay(
+    drawing_id: int,
+    page_number: int,
+    session: Session = Depends(get_session),
+) -> Response:
+    """The GT-only overlay PNG for one (Drawing, Page): the Page's LocationGroundTruth boxes
+    (green) drawn on the page image, so ground truth can be inspected on its own from Library
+    — independent of any Run or prediction (ticket 12). Rendered on demand from current GT so
+    a later import shows up without a cache. A page with no ground truth (nothing to overlay)
+    is a ``404``, matching the pages the detail links."""
+    page = session.exec(
+        select(Page).where(
+            Page.drawing_id == drawing_id, Page.page_number == page_number
+        )
+    ).first()
+    if page is None or not Path(page.image_path).exists():
+        raise HTTPException(status_code=404, detail="Page image not found")
+    gt_boxes = [
+        LabeledBox(row.label, row.x_min, row.y_min, row.x_max, row.y_max)
+        for row in session.exec(
+            select(LocationGroundTruth).where(LocationGroundTruth.page_id == page.id)
+        ).all()
+    ]
+    if not gt_boxes:
+        raise HTTPException(status_code=404, detail="No ground truth for this page")
+    png = render_ground_truth_overlay(Path(page.image_path), gt_boxes)
+    return Response(content=png, media_type="image/png")

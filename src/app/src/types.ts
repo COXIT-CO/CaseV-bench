@@ -346,12 +346,16 @@ export interface DrawingsResponse {
 }
 
 /** One rendered Page on the Drawing detail (src/web/api.py::DrawingPageOut): its number, the
- * full-resolution pixel dims, and the URL of its cached image PNG (under `/api`). */
+ * full-resolution pixel dims, and the URL of its cached image PNG (under `/api`). When the
+ * Page carries location ground truth, `ground_truth_overlay_url` points at the GT-only
+ * overlay so ground truth is inspectable from Library independent of any Run (ticket 12);
+ * it is `null` (nothing to view) otherwise. */
 export interface DrawingPage {
   page_number: number;
   width_px: number;
   height_px: number;
   image_url: string;
+  ground_truth_overlay_url: string | null;
 }
 
 /** `GET /api/drawings/{id}` — the Drawing plus its rendered Pages (spec §A.6). The detail is

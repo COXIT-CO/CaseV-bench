@@ -120,3 +120,16 @@ def render_compare_overlay(
     buffer = BytesIO()
     overlay.save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def render_ground_truth_overlay(
+    image_path: Path, gt_boxes: Iterable[LabeledBox]
+) -> bytes:
+    """PNG bytes of just the ground-truth boxes (green) drawn on the page image, so ground
+    truth can be inspected on its own from a Drawing in Library — independent of any Run or
+    prediction (ticket 12). Reuses the shared box-drawing (one green group) so it can't
+    drift from the compare overlay's ground-truth rendering."""
+    overlay = _build_overlay(image_path, [(gt_boxes, GROUND_TRUTH_COLOR)])
+    buffer = BytesIO()
+    overlay.save(buffer, format="PNG")
+    return buffer.getvalue()
