@@ -231,6 +231,26 @@ export const UNSCORED_RESULT: ResultDetailResponse = {
   location_score: null,
 };
 
+/** An unscored location Result: no ground truth yet, but the model's predicted boxes are
+ * still inspectable via the prediction-only overlay (ticket 12). */
+export const UNSCORED_LOCATION_RESULT: ResultDetailResponse = {
+  ...LOCATION_RESULT,
+  result_id: 44,
+  scored: false,
+  location_score: null,
+  predictions: [
+    {
+      page_number: 1,
+      status: "ok",
+      raw_content: '{"detections": []}',
+      parsed_json: '{"detections": []}',
+      parse_error: null,
+      has_gt: false,
+      box_count: 5,
+    },
+  ],
+};
+
 /** A run history with one running and one done Run. */
 export const RUN_HISTORY: RunHistoryResponse = {
   runs: [
@@ -383,12 +403,16 @@ export const DRAWING_DETAIL: DrawingDetailResponse = {
       width_px: 1700,
       height_px: 2200,
       image_url: "/api/drawings/3/pages/1/image",
+      // Page 1 carries location ground truth → its GT-only overlay is linkable.
+      ground_truth_overlay_url: "/api/drawings/3/pages/1/ground-truth-overlay",
     },
     {
       page_number: 2,
       width_px: 2200,
       height_px: 1700,
       image_url: "/api/drawings/3/pages/2/image",
+      // Page 2 has no ground truth → no overlay to link.
+      ground_truth_overlay_url: null,
     },
   ],
 };

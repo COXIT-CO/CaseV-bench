@@ -7,6 +7,7 @@ import { renderWithProviders } from "@/test/render";
 import {
   COUNTING_RESULT,
   LOCATION_RESULT,
+  UNSCORED_LOCATION_RESULT,
   UNSCORED_RESULT,
 } from "@/test/fixtures";
 
@@ -117,6 +118,26 @@ describe("ResultDetail", () => {
     // No score headline is shown, but the predictions are still inspectable.
     expect(screen.queryByText("Total abs. error")).not.toBeInTheDocument();
     expect(screen.getByText("Per-page predictions")).toBeInTheDocument();
+  });
+
+  it("shows prediction-only overlays for an unscored location Result", async () => {
+    vi.mocked(api.result).mockResolvedValue(UNSCORED_LOCATION_RESULT);
+    renderDetail("/results/44");
+
+    // The unscored CTA is still shown, but so are the model's own predicted boxes — via the
+    // prediction-overlay route, not the compare route (there is no ground truth to compare).
+    await screen.findByText("No ground truth for this drawing yet");
+    expect(screen.getByText("Predicted boxes")).toBeInTheDocument();
+    expect(screen.queryByText("Ground truth vs. prediction")).not.toBeInTheDocument();
+
+    const link = screen
+      .getAllByRole("link")
+      .find((a) =>
+        a.getAttribute("href")?.includes("/api/results/44/pages/1/overlay"),
+      );
+    expect(link).toBeDefined();
+    // …and it points at the prediction overlay, never the compare overlay.
+    expect(link?.getAttribute("href")).not.toContain("compare-overlay");
   });
 
   it("surfaces an API error through the shared error block", async () => {

@@ -159,27 +159,49 @@ function PageGrid({ pages }: { pages: DrawingPage[] }) {
       <h2 className="mb-2.5 text-sm font-semibold">Pages</h2>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5">
         {pages.map((page) => (
-          <a
-            key={page.page_number}
-            href={page.image_url}
-            target="_blank"
-            rel="noreferrer"
-            className="block overflow-hidden rounded-lg border bg-card hover:border-primary"
-          >
-            <img
-              src={page.image_url}
-              alt={`Page ${page.page_number}`}
-              className="block w-full"
-            />
-            <div className="flex justify-between px-2.5 py-2 text-xs text-muted-foreground">
-              <span>Page {page.page_number}</span>
-              <span className="font-mono">
-                {page.width_px}×{page.height_px} px
-              </span>
-            </div>
-          </a>
+          <PageCard key={page.page_number} page={page} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** One rendered Page: click the image to open it full-size, and — when the Page carries
+ * location ground truth — a "View ground truth" link to the GT-only overlay, so ground
+ * truth is inspectable from Library independent of any Run (ticket 12). The image is its
+ * own anchor and the GT link a sibling so the two never nest. */
+function PageCard({ page }: { page: DrawingPage }) {
+  return (
+    <div className="overflow-hidden rounded-lg border bg-card">
+      <a
+        href={page.image_url}
+        target="_blank"
+        rel="noreferrer"
+        className="block hover:opacity-90"
+      >
+        <img
+          src={page.image_url}
+          alt={`Page ${page.page_number}`}
+          className="block w-full"
+        />
+      </a>
+      <div className="flex items-center justify-between px-2.5 py-2 text-xs text-muted-foreground">
+        <span>Page {page.page_number}</span>
+        <span className="font-mono">
+          {page.width_px}×{page.height_px} px
+        </span>
+      </div>
+      {page.ground_truth_overlay_url && (
+        <a
+          href={page.ground_truth_overlay_url}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 border-t px-2.5 py-2 text-xs font-medium text-primary hover:underline"
+        >
+          <span className="h-2.5 w-2.5 rounded-sm bg-success" />
+          View ground truth ↗
+        </a>
+      )}
     </div>
   );
 }
