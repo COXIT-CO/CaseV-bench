@@ -30,6 +30,17 @@ build-backend = "poetry.core.masonry.api"
 pythonpath = ["src"]
 testpaths = ["tests"]
 
+# Pin black's target versions to the range `requires-python` supports (3.11–3.14). Without
+# this, black infers the target set from the running interpreter and can reach for the newest
+# grammar it knows — under Python 3.14 that means py315, which triggers a "cannot parse code
+# formatted for Python 3.15" safety-check warning on every run. Worse, passing a *single*
+# newer target (e.g. `--target-version py314`) opts into version-only syntax: PEP 758 lets
+# 3.14 write `except A, B:` without parentheses, so black would strip them — output that is a
+# SyntaxError on 3.11–3.13. Listing the whole supported set forces black to emit code valid on
+# all of them (parens kept) and makes local + CI formatting deterministic (ADR-0017).
+[tool.black]
+target-version = ["py311", "py312", "py313", "py314"]
+
 # Keep isort's multi-line import formatting compatible with black, so the two CI checks
 # (isort --check + black --check, ADR-0017) never disagree on a wrapped import.
 [tool.isort]
