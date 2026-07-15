@@ -11,7 +11,12 @@ vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
   return {
     ...actual,
-    api: { promptHistory: vi.fn(), appendPromptVersion: vi.fn() },
+    api: {
+      promptHistory: vi.fn(),
+      appendPromptVersion: vi.fn(),
+      deletePromptVersion: vi.fn(),
+      deletePromptFamily: vi.fn(),
+    },
   };
 });
 import { api } from "@/api";
@@ -30,6 +35,8 @@ describe("PromptHistory", () => {
   beforeEach(() => {
     vi.mocked(api.promptHistory).mockReset();
     vi.mocked(api.appendPromptVersion).mockReset();
+    vi.mocked(api.deletePromptVersion).mockReset();
+    vi.mocked(api.deletePromptFamily).mockReset();
   });
 
   it("defaults the compare panes to the two newest versions", async () => {
@@ -133,5 +140,81 @@ describe("PromptHistory", () => {
     expect(await screen.findByText("Prompt not found")).toBeInTheDocument();
     // The bad-task guard short-circuits before any fetch.
     expect(api.promptHistory).not.toHaveBeenCalled();
+  });
+
+  it("deletes the whole family after a confirmation stating the family collateral", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY);
+    vi.mocked(api.deletePromptFamily).mockResolvedValue({ runs: 3, results: 8 });
+    renderHistory();
+
+    await user.click(await screen.findByRole("button", { name: "Delete family" }));
+
+    // The confirm states the family total (3 runs / 8 results) and the irreversible warning.
+    expect(
+      await screen.findByText(/3 runs \/ 8 results that pinned any of them/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("This cannot be undone.")).toBeInTheDocument();
+
+    // Confirm — the dialog's own destructive button, not the header trigger.
+    const confirm = screen
+      .getAllByRole("button", { name: "Delete family" })
+      .at(-1)!;
+    await user.click(confirm);
+
+    await waitFor(() =>
+      expect(api.deletePromptFamily).toHaveBeenCalledWith(
+        "counting",
+        "cabinet-count-v2",
+      ),
+    );
+    // On success we route back to the Prompts list.
+    expect(await screen.findByText("prompts list")).toBeInTheDocument();
+  });
+
+  it("deletes a single mid-lineage version and stays on the still-populated family", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY);
+    vi.mocked(api.deletePromptVersion).mockResolvedValue({ runs: 2, results: 5 });
+    renderHistory();
+
+    await user.click(await screen.findByRole("button", { name: "Delete v2" }));
+
+    // The confirm states this version's own collateral (2 runs / 5 results).
+    expect(
+      await screen.findByText(/2 runs \/ 5 results that pinned it/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "Delete v2" }).at(-1)!);
+
+    await waitFor(() =>
+      expect(api.deletePromptVersion).toHaveBeenCalledWith(
+        "counting",
+        "cabinet-count-v2",
+        2,
+      ),
+    );
+    // The family still has other versions, so we stay put (no route to the list).
+    expect(screen.queryByText("prompts list")).not.toBeInTheDocument();
+  });
+
+  it("routes to the list when the deleted version was the family's last", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY_SINGLE);
+    vi.mocked(api.deletePromptVersion).mockResolvedValue({ runs: 0, results: 0 });
+    renderHistory("/prompts/location/default");
+
+    await user.click(await screen.findByRole("button", { name: "Delete v1" }));
+    await user.click(screen.getAllByRole("button", { name: "Delete v1" }).at(-1)!);
+
+    await waitFor(() =>
+      expect(api.deletePromptVersion).toHaveBeenCalledWith(
+        "location",
+        "default",
+        1,
+      ),
+    );
+    // Deleting the only version leaves nothing to show, so we route back to the list.
+    expect(await screen.findByText("prompts list")).toBeInTheDocument();
   });
 });

@@ -286,18 +286,36 @@ export interface PromptsResponse {
 }
 
 /** One immutable version in a family's history; `text` rides along so compare/read needs
- * no extra fetch (src/web/api.py::PromptVersionOut). */
+ * no extra fetch (src/web/api.py::PromptVersionOut). `run_count`/`result_count` are this
+ * version's delete collateral — the Runs + Results that pinned it — so the per-version
+ * delete confirm can state the blast radius up front (ADR-0016, ticket 09). */
 export interface PromptVersion {
   version: number;
   text: string;
   created_at: string;
+  run_count: number;
+  result_count: number;
 }
 
-/** `GET /api/prompts/{task}/{family}` — the family's versions newest-first (spec §A.5). */
+/** `GET /api/prompts/{task}/{family}` — the family's versions newest-first (spec §A.5). The
+ * family-level `run_count`/`result_count` are the whole-family delete's collateral (the Runs
+ * + Results pinning any version), so the "delete family" confirm states the blast radius up
+ * front (ADR-0016, ticket 09). */
 export interface PromptHistoryResponse {
   task: Task;
   family: string;
   versions: PromptVersion[];
+  run_count: number;
+  result_count: number;
+}
+
+/** `DELETE /api/prompts/{task}/{family}` or `…/versions/{version}` → the collateral the
+ * cascade removed (ADR-0016, ticket 09): the Runs + Results that pinned the deleted
+ * version(s) — the delete's receipt, the same `(runs, results)` shape the Run and Drawing
+ * deletes return. */
+export interface PromptDeleted {
+  runs: number;
+  results: number;
 }
 
 /** `POST /api/prompts` body: author a new family's v1 for a Task. */

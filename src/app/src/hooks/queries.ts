@@ -151,6 +151,49 @@ export function useAppendPromptVersion(task: string, family: string) {
   });
 }
 
+/**
+ * Delete one immutable version and cascade the Runs that pinned it (ADR-0016, ticket 09). On
+ * success the family's history, the grouped list (its latest version / count moved, or the
+ * family vanished if that was its last version), the run history, the Leaderboard (the pinned
+ * Runs' Results leave the board), and the shell's meta counts are all stale, so each is
+ * invalidated. The caller decides where to route (stay, or back to the list if the family is
+ * now empty).
+ */
+export function useDeletePromptVersion(task: string, family: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (version: number) =>
+      api.deletePromptVersion(task, family, version),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prompt-history", task, family] });
+      queryClient.invalidateQueries({ queryKey: ["prompts"] });
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+}
+
+/**
+ * Delete a whole prompt family — every version and every Run pinning any of them (ADR-0016,
+ * ticket 09). On success the grouped list, the run history, the Leaderboard, and the shell's
+ * meta counts are all stale, so each is invalidated; the caller routes back to the Prompts
+ * list, since the family's history page no longer has a family to show.
+ */
+export function useDeletePromptFamily() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ task, family }: { task: string; family: string }) =>
+      api.deletePromptFamily(task, family),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prompts"] });
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+}
+
 /** The Library list of Drawings with page counts (spec §A.6). */
 export function useDrawings() {
   return useQuery({ queryKey: ["drawings"], queryFn: api.drawings });
