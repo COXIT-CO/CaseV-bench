@@ -228,8 +228,9 @@ export const api = {
   /** The Library catalog of Drawings with page counts, newest-first (spec §A.6). */
   drawings: () => getJson<DrawingsResponse>("/api/drawings"),
 
-  /** Upload a PDF (multipart); ingests via `DrawingService` and returns the created
-   * Drawing so the SPA can route to its detail (spec §A.6). */
+  /** Upload a PDF or image (multipart); ingests via `DrawingService` — an image becomes a
+   * single-page Drawing (ticket 11) — and returns the created Drawing so the SPA can route
+   * to its detail (spec §A.6). */
   uploadDrawing: (file: File) => {
     const form = new FormData();
     form.append("file", file);

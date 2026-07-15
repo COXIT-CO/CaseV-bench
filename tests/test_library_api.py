@@ -120,6 +120,34 @@ def test_upload_ingests_pdf_and_returns_created_drawing(
     assert created in listed
 
 
+def test_upload_ingests_image_as_single_page_drawing(
+    client, fast_drawing_service, sample_image
+):
+    # One unified upload control accepts an image just like a PDF and yields a one-page
+    # Drawing (ticket 11).
+    with sample_image.open("rb") as image:
+        response = client.post(
+            "/api/drawings",
+            files={"file": ("sample.png", image, "image/png")},
+        )
+
+    assert response.status_code == 201
+    created = response.json()
+    assert created["name"] == "sample"
+    assert created["page_count"] == 1
+    assert created in client.get("/api/drawings").json()["drawings"]
+
+
+def test_upload_rejects_unsupported_file_type(client, fast_drawing_service):
+    response = client.post(
+        "/api/drawings",
+        files={"file": ("notes.txt", b"not a drawing", "text/plain")},
+    )
+
+    assert response.status_code == 415
+    assert client.get("/api/drawings").json()["drawings"] == []
+
+
 def test_detail_returns_pages_with_pixel_dims_and_image_urls(
     client, ingested_drawing_id
 ):

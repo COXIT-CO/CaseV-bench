@@ -4,11 +4,13 @@ against a temp SQLite DB persists the expected Drawing + Pages with dimensions.
 
 from pathlib import Path
 
+from PIL import Image
 from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
 from core.services.drawing import DrawingService
 from core.services.pdf_processing import PDFProcessingService
+from core.utils import DEFAULT_DOWNSAMPLE_PX
 
 
 def _fast_service(session, tmp_path) -> DrawingService:
@@ -42,6 +44,32 @@ def test_ingest_creates_drawing_and_pages_with_dimensions(
     # The two fixture pages have distinct orientations, so their cached images do too.
     assert pages[0].width_px < pages[0].height_px  # portrait
     assert pages[1].width_px > pages[1].height_px  # landscape
+
+
+def test_ingest_image_creates_single_page_drawing_with_dimensions(
+    session, sample_image, tmp_path
+):
+    # A plain image skips PDF rendering and becomes a one-Page Drawing that behaves like a
+    # one-page PDF (ticket 11). Its native pixel dims are stored (so location GT import can
+    # normalize boxes), and it is still downsampled to the standard long edge.
+    service = _fast_service(session, tmp_path)
+
+    drawing = service.ingest(sample_image, name="photo")
+
+    assert drawing.id is not None
+    pages = session.exec(select(Page)).all()
+    assert len(pages) == 1
+    page = pages[0]
+    assert page.drawing_id == drawing.id
+    assert page.page_number == 1
+    # Native dimensions of the uploaded image (2000×1500), not the downsample.
+    assert (page.width_px, page.height_px) == (2000, 1500)
+
+    cached = Path(page.image_path)
+    assert cached.exists()
+    with Image.open(cached) as image:
+        # Downsampled to the standard long edge, preserving aspect ratio.
+        assert max(image.size) == DEFAULT_DOWNSAMPLE_PX
 
 
 def test_ingest_renders_and_downsamples_each_page_once(session, sample_pdf, tmp_path):

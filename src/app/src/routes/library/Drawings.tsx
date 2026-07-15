@@ -8,8 +8,9 @@ import type { DrawingSummary } from "@/types";
 
 // The Library Drawings list + upload (ADR 0011, spec §A.6/§B.2): the lower-frequency
 // management area under the secondary Library menu. Each Drawing links to its detail
-// (page thumbnails + the ground-truth entry point, ticket 07); uploading a PDF ingests it
-// through `POST /api/drawings` and routes to the new Drawing so the developer can go
+// (page thumbnails + the ground-truth entry point, ticket 07); one unified control uploads a
+// PDF or a plain image (PNG/JPG/WebP, ticket 11) through `POST /api/drawings` — an image
+// becomes a single-page Drawing — and routes to the new Drawing so the developer can go
 // straight to entering ground truth.
 
 export function Drawings() {
@@ -20,8 +21,8 @@ export function Drawings() {
       <header className="mb-5">
         <h1 className="text-xl font-semibold tracking-tight">Drawings</h1>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          Upload a PDF, then open it to review its rendered pages and enter ground truth so
-          runs against it can be scored.
+          Upload a PDF or an image, then open it to review its rendered pages and enter
+          ground truth so runs against it can be scored.
         </p>
       </header>
 
@@ -45,7 +46,7 @@ function DrawingList({ drawings }: { drawings: DrawingSummary[] }) {
     return (
       <EmptyState
         title="No drawings yet"
-        description="Upload a PDF with the form to add your first drawing."
+        description="Upload a PDF or image with the form to add your first drawing."
       />
     );
   }
@@ -67,8 +68,10 @@ function DrawingList({ drawings }: { drawings: DrawingSummary[] }) {
   );
 }
 
-/** The upload form: pick a PDF, ingest it, and route to the created Drawing's detail. The
- * ingest renders every page, so the pending state is held until the server responds. */
+/** The upload form: pick a PDF or image, ingest it, and route to the created Drawing's
+ * detail. One control accepts either kind — an image becomes a single-page Drawing (ticket
+ * 11). The ingest renders every page, so the pending state is held until the server
+ * responds. */
 function UploadCard() {
   const navigate = useNavigate();
   const [file, setFile] = React.useState<File | null>(null);
@@ -96,12 +99,12 @@ function UploadCard() {
           htmlFor="drawing-file"
           className="mb-1.5 block text-xs font-semibold text-muted-foreground"
         >
-          PDF file
+          PDF or image file
         </label>
         <input
           id="drawing-file"
           type="file"
-          accept="application/pdf"
+          accept="application/pdf,image/png,image/jpeg,image/webp"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           className="w-full rounded-md border bg-card px-2.5 py-2 text-[13px] file:mr-3 file:rounded file:border-0 file:bg-muted file:px-2.5 file:py-1 file:text-[12px] file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
