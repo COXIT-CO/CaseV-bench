@@ -44,6 +44,41 @@ class ModelCatalogService:
             ).all()
         )
 
+    def add(self, slug: str, label: str) -> ModelCatalogEntry:
+        """Add a catalog entry, or re-label it if the slug already exists — an upsert on the
+        natural key (ticket 10). Adding a known slug therefore never errors or duplicates a
+        row; it just updates the label. Both fields are trimmed and required (empty → error).
+        No OpenRouter validation: a bad slug simply fails per-model at run time (ticket 10).
+        """
+        slug = slug.strip()
+        label = label.strip()
+        if not slug:
+            raise ValueError("model slug is required")
+        if not label:
+            raise ValueError("model label is required")
+        entry = self.session.get(ModelCatalogEntry, slug)
+        if entry is None:
+            entry = ModelCatalogEntry(slug=slug, label=label)
+            self.session.add(entry)
+        else:
+            entry.label = label
+        self.session.commit()
+        self.session.refresh(entry)
+        return entry
+
+    def remove(self, slug: str) -> ModelCatalogEntry:
+        """Remove a catalog entry by slug, returning it as the delete's receipt. Removing an
+        entry never touches past Runs — a Run stores the chosen slug string, not a reference
+        to this table (ADR 0016, ticket 10). An unknown slug raises ``ValueError``."""
+        entry = self.session.get(ModelCatalogEntry, slug)
+        if entry is None:
+            raise ValueError(f"no model catalog entry with slug {slug!r}")
+        # A detached copy so the caller can still read it after the row is gone.
+        removed = ModelCatalogEntry(slug=entry.slug, label=entry.label)
+        self.session.delete(entry)
+        self.session.commit()
+        return removed
+
     @staticmethod
     def resolve_selection(
         selected_slugs: list[str], free_text: str | None = None

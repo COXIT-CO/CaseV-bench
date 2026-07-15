@@ -1,5 +1,6 @@
 import type {
   ApiMeta,
+  CatalogEntry,
   CountingGroundTruthResponse,
   CountingGtSaveRequest,
   DrawingDeleted,
@@ -11,6 +12,7 @@ import type {
   LeaderboardResponse,
   LocationImportResponse,
   ModelsResponse,
+  ModelUpsertRequest,
   PromptCreateRequest,
   PromptDeleted,
   PromptHistoryResponse,
@@ -245,8 +247,18 @@ export const api = {
   deleteDrawing: (id: number) =>
     deleteJson<DrawingDeleted>(`/api/drawings/${id}`),
 
-  /** The curated model catalog for the Library view (spec §A.6). */
+  /** The user-editable model catalog for the Library view (spec §A.6, ticket 10). */
   models: () => getJson<ModelsResponse>("/api/models"),
+
+  /** Add a model to the catalog (or re-label a known slug — upsert); returns the stored
+   * entry (ticket 10). No OpenRouter validation: a bad slug just fails per-model at run time. */
+  addModel: (body: ModelUpsertRequest) =>
+    postJson<CatalogEntry>("/api/models", body),
+
+  /** Remove a model from the catalog by slug; returns the removed entry as the receipt. Safe
+   * by construction — past Runs store the slug string, not a reference (ticket 10). The slug's
+   * embedded `/` is preserved by the `:path` route, so it must not be URL-encoded. */
+  removeModel: (slug: string) => deleteJson<CatalogEntry>(`/api/models/${slug}`),
 
   /** Pre-fill: one Drawing's counting-GT totals per taxonomy label (spec §A.6). */
   countingGroundTruth: (id: number) =>

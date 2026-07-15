@@ -373,10 +373,18 @@ export interface DrawingDeleted {
   results: number;
 }
 
-/** `GET /api/models` — the curated model catalog (spec §A.6). Selection stays inline at Run
- * launch; this is catalog *viewing* only (ADR 0011). */
+/** `GET /api/models` — the user-editable model catalog (spec §A.6, ticket 10). Selection
+ * stays inline at Run launch; this endpoint views and edits the catalog (ADR 0011 amended by
+ * ticket 10). */
 export interface ModelsResponse {
   catalog: CatalogEntry[];
+}
+
+/** `POST /api/models` body: add a model (slug + label) to the catalog; re-posting a known
+ * slug re-labels it (upsert, ticket 10). The response is the stored `CatalogEntry`. */
+export interface ModelUpsertRequest {
+  slug: string;
+  label: string;
 }
 
 /** One taxonomy label's counting total in the GT form (src/web/api.py::CountingGtLabel):

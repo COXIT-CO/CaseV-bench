@@ -200,3 +200,52 @@ def test_models_returns_curated_catalog(client):
     for entry in body["catalog"]:
         assert set(entry) == {"slug", "label"}
         assert entry["label"]
+
+
+PIXTRAL = "mistralai/pixtral-12b"
+
+
+def test_add_model_appears_in_catalog_and_launch_options(client):
+    resp = client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
+    assert resp.status_code == 201
+    assert resp.json() == {"slug": PIXTRAL, "label": "Pixtral 12B"}
+
+    # A newly added entry is offered on every future launch (ticket 10): it shows in both
+    # the catalog view and the launch-form option set.
+    catalog = client.get("/api/models").json()["catalog"]
+    assert {"slug": PIXTRAL, "label": "Pixtral 12B"} in catalog
+    launch_catalog = client.get("/api/runs/launch-options").json()["catalog"]
+    assert {"slug": PIXTRAL, "label": "Pixtral 12B"} in launch_catalog
+
+
+def test_add_existing_slug_upserts_label(client):
+    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
+    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral (renamed)"})
+
+    catalog = client.get("/api/models").json()["catalog"]
+    matching = [e for e in catalog if e["slug"] == PIXTRAL]
+    assert matching == [{"slug": PIXTRAL, "label": "Pixtral (renamed)"}]  # no dupe
+
+
+def test_add_model_rejects_blank_label(client):
+    resp = client.post("/api/models", json={"slug": PIXTRAL, "label": "   "})
+    assert resp.status_code == 400
+
+
+def test_remove_model_drops_it_from_catalog(client):
+    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
+
+    resp = client.request("DELETE", f"/api/models/{PIXTRAL}")
+    assert resp.status_code == 200
+    assert resp.json() == {"slug": PIXTRAL, "label": "Pixtral 12B"}
+
+    slugs = {e["slug"] for e in client.get("/api/models").json()["catalog"]}
+    assert PIXTRAL not in slugs
+    launch_slugs = {
+        e["slug"] for e in client.get("/api/runs/launch-options").json()["catalog"]
+    }
+    assert PIXTRAL not in launch_slugs
+
+
+def test_remove_unknown_model_is_404(client):
+    assert client.request("DELETE", "/api/models/nope/not-a-model").status_code == 404
