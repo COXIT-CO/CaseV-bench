@@ -2,143 +2,499 @@
   "project_id": "prj2",
   "objects": [
     {
+      "id": "elv-001",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 2320,
+        "y": 157,
+        "width": 507,
+        "height": 459
+      }
+    },
+    {
+      "id": "elv-002",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 1612,
+        "y": 159,
+        "width": 562,
+        "height": 457
+      }
+    },
+    {
+      "id": "elv-003",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 1186,
+        "y": 165,
+        "width": 266,
+        "height": 451
+      }
+    },
+    {
+      "id": "elv-004",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 739,
+        "y": 178,
+        "width": 265,
+        "height": 438
+      }
+    },
+    {
+      "id": "elv-005",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 227,
+        "y": 179,
+        "width": 322,
+        "height": 436
+      }
+    },
+    {
       "id": "cab-001",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 285, "y": 1505, "width": 108.0, "height": 90.0 }
+      "bbox": {
+        "x": 2455,
+        "y": 230,
+        "width": 108,
+        "height": 91
+      }
     },
     {
       "id": "cab-002",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 393, "y": 1505, "width": 108.0, "height": 90.0 }
+      "bbox": {
+        "x": 2563,
+        "y": 230,
+        "width": 109,
+        "height": 91
+      }
     },
     {
       "id": "cab-003",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 501, "y": 1505, "width": 144.0, "height": 90.0 }
+      "bbox": {
+        "x": 1707,
+        "y": 233,
+        "width": 108,
+        "height": 90
+      }
     },
     {
       "id": "cab-004",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 285, "y": 1654, "width": 108.0, "height": 102.0 }
+      "bbox": {
+        "x": 1815,
+        "y": 233,
+        "width": 108,
+        "height": 90
+      }
     },
     {
       "id": "cab-005",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 393, "y": 1654, "width": 108.0, "height": 102.0 }
+      "bbox": {
+        "x": 1923,
+        "y": 233,
+        "width": 72,
+        "height": 90
+      }
     },
     {
       "id": "cab-006",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 501, "y": 1654, "width": 144.0, "height": 102.0 }
+      "bbox": {
+        "x": 2008,
+        "y": 233,
+        "width": 144,
+        "height": 90
+      }
     },
     {
       "id": "cab-007",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 722, "y": 1653, "width": 96.0, "height": 103.0 }
+      "bbox": {
+        "x": 927,
+        "y": 288,
+        "width": 53,
+        "height": 215
+      }
+    },
+    {
+      "id": "ctp-001",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 2008,
+        "y": 363,
+        "width": 146,
+        "height": 17
+      }
     },
     {
       "id": "cab-008",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 818, "y": 1653, "width": 96.0, "height": 103.0 }
+      "bbox": {
+        "x": 2011,
+        "y": 380,
+        "width": 72,
+        "height": 103
+      }
     },
     {
       "id": "cab-009",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 917, "y": 1649, "width": 160.0, "height": 107.0 }
+      "bbox": {
+        "x": 2083,
+        "y": 380,
+        "width": 71,
+        "height": 103
+      }
+    },
+    {
+      "id": "ctp-002",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 2333,
+        "y": 380,
+        "width": 446,
+        "height": 17
+      }
+    },
+    {
+      "id": "ctp-003",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 1668,
+        "y": 383,
+        "width": 328,
+        "height": 17
+      }
     },
     {
       "id": "cab-010",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 917, "y": 1505, "width": 90.0, "height": 144.0 }
+      "bbox": {
+        "x": 2515,
+        "y": 397,
+        "width": 54,
+        "height": 85
+      }
     },
     {
       "id": "cab-011",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 1007, "y": 1505, "width": 90.0, "height": 144.0 }
+      "bbox": {
+        "x": 1889,
+        "y": 400,
+        "width": 54,
+        "height": 83
+      }
     },
     {
       "id": "cab-012",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 722, "y": 1505, "width": 96.0, "height": 90.0 }
+      "bbox": {
+        "x": 1943,
+        "y": 400,
+        "width": 53,
+        "height": 83
+      }
+    },
+    {
+      "id": "ctp-004",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 1206,
+        "y": 435,
+        "width": 126,
+        "height": 5
+      }
     },
     {
       "id": "cab-013",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 818, "y": 1505, "width": 96.0, "height": 90.0 }
+      "bbox": {
+        "x": 1206,
+        "y": 440,
+        "width": 126,
+        "height": 52
+      }
+    },
+    {
+      "id": "ctp-005",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 380,
+        "y": 448,
+        "width": 143,
+        "height": 4
+      }
     },
     {
       "id": "cab-014",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 2515, "y": 397, "width": 54.0, "height": 85.0 }
+      "bbox": {
+        "x": 380,
+        "y": 452,
+        "width": 143,
+        "height": 52
+      }
+    },
+    {
+      "id": "elv-006",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 267,
+        "y": 797,
+        "width": 696,
+        "height": 452
+      }
+    },
+    {
+      "id": "ctp-006",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 571,
+        "y": 1021,
+        "width": 343,
+        "height": 17
+      }
+    },
+    {
+      "id": "elv-007",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 249,
+        "y": 1431,
+        "width": 871,
+        "height": 453
+      }
     },
     {
       "id": "cab-015",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 2455, "y": 230, "width": 108.0, "height": 90.0 }
+      "bbox": {
+        "x": 285,
+        "y": 1505,
+        "width": 108,
+        "height": 90
+      }
     },
     {
       "id": "cab-016",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 2563, "y": 230, "width": 108.0, "height": 90.0 }
+      "bbox": {
+        "x": 393,
+        "y": 1505,
+        "width": 108,
+        "height": 90
+      }
     },
     {
       "id": "cab-017",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 2008, "y": 233, "width": 144.0, "height": 90.0 }
+      "bbox": {
+        "x": 501,
+        "y": 1505,
+        "width": 144,
+        "height": 90
+      }
     },
     {
       "id": "cab-018",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 2011, "y": 380, "width": 143.0, "height": 102.0 }
+      "bbox": {
+        "x": 722,
+        "y": 1505,
+        "width": 96,
+        "height": 90
+      }
     },
     {
       "id": "cab-019",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 1889, "y": 400, "width": 54.0, "height": 83.0 }
+      "bbox": {
+        "x": 818,
+        "y": 1505,
+        "width": 96,
+        "height": 90
+      }
     },
     {
       "id": "cab-020",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 1943, "y": 400, "width": 53.0, "height": 83.0 }
+      "bbox": {
+        "x": 917,
+        "y": 1505,
+        "width": 90,
+        "height": 143
+      }
     },
     {
       "id": "cab-021",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 1923, "y": 233, "width": 72.0, "height": 90.0 }
+      "bbox": {
+        "x": 1007,
+        "y": 1505,
+        "width": 90,
+        "height": 143
+      }
+    },
+    {
+      "id": "ctp-007",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 285,
+        "y": 1637,
+        "width": 632,
+        "height": 17
+      }
     },
     {
       "id": "cab-022",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 1815, "y": 233, "width": 108.0, "height": 90.0 }
+      "bbox": {
+        "x": 917,
+        "y": 1648,
+        "width": 180,
+        "height": 108
+      }
     },
     {
       "id": "cab-023",
       "category": "cabinet",
       "page": 1,
-      "bbox": { "x": 1707, "y": 233, "width": 108.0, "height": 90.0 }
+      "bbox": {
+        "x": 285,
+        "y": 1654,
+        "width": 109,
+        "height": 102
+      }
+    },
+    {
+      "id": "cab-024",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 394,
+        "y": 1654,
+        "width": 108,
+        "height": 102
+      }
+    },
+    {
+      "id": "cab-025",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 502,
+        "y": 1654,
+        "width": 144,
+        "height": 102
+      }
+    },
+    {
+      "id": "cab-026",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 722,
+        "y": 1654,
+        "width": 96,
+        "height": 102
+      }
+    },
+    {
+      "id": "cab-027",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 818,
+        "y": 1654,
+        "width": 96,
+        "height": 102
+      }
+    },
+    {
+      "id": "eca-001",
+      "category": "elevation_callout",
+      "page": 1,
+      "bbox": {
+        "x": 1652,
+        "y": 1661,
+        "width": 69,
+        "height": 63
+      }
+    },
+    {
+      "id": "eca-002",
+      "category": "elevation_callout",
+      "page": 1,
+      "bbox": {
+        "x": 1479,
+        "y": 1693,
+        "width": 68,
+        "height": 48
+      }
+    },
+    {
+      "id": "elv-008",
+      "category": "elevation",
+      "page": 2,
+      "bbox": {
+        "x": 1344,
+        "y": 159,
+        "width": 1171,
+        "height": 603
+      }
+    },
+    {
+      "id": "elv-009",
+      "category": "elevation",
+      "page": 2,
+      "bbox": {
+        "x": 1224,
+        "y": 865,
+        "width": 1413,
+        "height": 1006
+      }
     }
   ]
 }
-
