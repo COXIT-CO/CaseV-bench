@@ -6,7 +6,9 @@ status endpoint that stops at a terminal state. The adapter is stubbed via the `
 fixture, so the background run finishes without hitting the network."""
 
 import time
+from pathlib import Path
 
+from conftest import seed_page_images
 from sqlmodel import Session, select
 
 from core.models.drawing import Drawing, Page
@@ -19,16 +21,20 @@ COUNT_JSON = (
 
 
 def _seed_drawing(engine, name: str = "sample") -> int:
+    # The page points at a real native raster (under the engine's temp data dir) so the
+    # background run's render-on-demand has an image to hand the stubbed Model.
+    data_dir = Path(engine.url.database).parent
     with Session(engine) as session:
         drawing = Drawing(name=name)
         session.add(drawing)
         session.commit()
         session.refresh(drawing)
+        (image,) = seed_page_images(data_dir / "drawings" / str(drawing.id), n_pages=1)
         session.add(
             Page(
                 drawing_id=drawing.id,
                 page_number=1,
-                image_path="/tmp/page_1.png",
+                image_path=str(image),
                 width_px=100,
                 height_px=100,
             )
@@ -146,13 +152,49 @@ def test_create_run_defaults_knobs_when_advanced_untouched(
 
     run_id = _launch(client, engine, drawing_id, models=[SONNET]).json()["id"]
     knobs = client.get(f"/api/runs/{run_id}").json()["knobs"]
+    assert knobs["dpi"] == 300
+    assert knobs["downsample_px"] == 1568
     assert knobs["max_tokens"] == 4096
     assert knobs["temperature"] == 0.0
+
+
+def test_create_run_snapshots_dpi_and_downsample(client, engine, stub_adapter):
+    # The Advanced section's DPI + downsample are snapshotted on the Run (ticket 05); they make
+    # the per-run render effective rather than reusing the fixed ingest downsample.
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {SONNET: COUNT_JSON}
+
+    resp = _launch(
+        client, engine, drawing_id, models=[SONNET], dpi=600, downsample_px=2000
+    )
+    assert resp.status_code == 201
+    knobs = client.get(f"/api/runs/{resp.json()['id']}").json()["knobs"]
+    assert knobs["dpi"] == 600
+    assert knobs["downsample_px"] == 2000
+
+
+def test_create_run_downsample_off_is_full_resolution(client, engine, stub_adapter):
+    # downsample: null selects full resolution (no downsample), snapshotted as None.
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {SONNET: COUNT_JSON}
+
+    resp = _launch(client, engine, drawing_id, models=[SONNET], downsample_px=None)
+    assert resp.status_code == 201
+    assert (
+        client.get(f"/api/runs/{resp.json()['id']}").json()["knobs"]["downsample_px"]
+        is None
+    )
 
 
 def test_create_run_rejects_nonpositive_max_tokens(client, engine):
     drawing_id = _seed_drawing(engine)
     resp = _launch(client, engine, drawing_id, models=[SONNET], max_tokens=0)
+    assert resp.status_code == 422
+
+
+def test_create_run_rejects_nonpositive_dpi(client, engine):
+    drawing_id = _seed_drawing(engine)
+    resp = _launch(client, engine, drawing_id, models=[SONNET], dpi=0)
     assert resp.status_code == 422
 
 

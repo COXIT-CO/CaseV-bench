@@ -22,6 +22,7 @@ from core.models.prompt import Task
 from core.models.run import Prediction, Result, Run
 from core.models.score import Score
 from core.services.drawing import DrawingService
+from core.services.pdf_processing import page_image_filename
 from core.services.prompt import PromptService
 from core.services.run import RunService
 
@@ -50,7 +51,7 @@ def _seed_drawing(session, cache_root: Path, name: str, n_pages: int = 2) -> Dra
     page_dir = cache_root / str(drawing.id)
     page_dir.mkdir(parents=True, exist_ok=True)
     for page_number in range(1, n_pages + 1):
-        image_path = page_dir / f"page_{page_number}.png"
+        image_path = page_dir / page_image_filename(page_number)
         Image.new("RGB", (100, 100), "white").save(image_path)
         page = Page(
             drawing_id=drawing.id,
@@ -103,6 +104,9 @@ def test_delete_drawing_cascades_rows_files_and_returns_counts(
     ).all()
     overlay_dirs = [overlay_root / str(rid) for rid in result_ids]
     page_image_dir = cache_root / str(drawing.id)
+    # The Run rendered its pages on demand, caching a per-(dpi, downsample) variant under the
+    # drawing dir (ticket 05); the delete-cascade must sweep these render caches too.
+    render_caches = [d for d in page_image_dir.glob("render_*") if d.is_dir()]
     # A Score attaches to a Result and must go with the cascade.
     session.add(Score(result_id=result_ids[0], per_label_json="[]"))
     session.commit()
@@ -113,6 +117,7 @@ def test_delete_drawing_cascades_rows_files_and_returns_counts(
     assert len(prediction_ids) == 4
     assert all(d.is_dir() and any(d.iterdir()) for d in overlay_dirs)
     assert page_image_dir.is_dir() and any(page_image_dir.iterdir())
+    assert render_caches and all(any(c.iterdir()) for c in render_caches)
 
     counts = DrawingService(
         session, cache_root=cache_root, overlay_root=overlay_root
@@ -149,8 +154,10 @@ def test_delete_drawing_cascades_rows_files_and_returns_counts(
     assert (
         session.exec(select(Score).where(Score.result_id.in_(result_ids))).all() == []
     )
-    # On-disk artifacts — the page images and the overlay dirs — are cleaned up.
+    # On-disk artifacts — the page images, the per-run render caches, and the overlay dirs —
+    # are all cleaned up.
     assert not page_image_dir.exists()
+    assert not any(c.exists() for c in render_caches)
     assert not any(d.exists() for d in overlay_dirs)
 
 

@@ -7,7 +7,7 @@ at a temp dir so no repo data is written."""
 import json
 import time
 
-from PIL import Image
+from conftest import seed_page_images
 from sqlmodel import Session, select
 
 from api.deps import get_run_service
@@ -32,8 +32,7 @@ def _seed_drawing(engine, tmp_path) -> int:
         session.add(drawing)
         session.commit()
         session.refresh(drawing)
-        image_path = tmp_path / "page_1.png"
-        Image.new("RGB", (100, 100), "white").save(image_path)
+        (image_path,) = seed_page_images(tmp_path / str(drawing.id), n_pages=1)
         session.add(
             Page(
                 drawing_id=drawing.id,

@@ -5,7 +5,9 @@ with no GT shows its Results as unscored (``scored:false``, ``rank:null``), dist
 zero score."""
 
 import time
+from pathlib import Path
 
+from conftest import seed_page_images
 from sqlmodel import Session, select
 
 from core.models.drawing import Drawing, Page
@@ -24,16 +26,18 @@ GT = {"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}
 
 
 def _seed_drawing(engine) -> int:
+    data_dir = Path(engine.url.database).parent
     with Session(engine) as session:
         drawing = Drawing(name="sample")
         session.add(drawing)
         session.commit()
         session.refresh(drawing)
+        (image,) = seed_page_images(data_dir / "drawings" / str(drawing.id), n_pages=1)
         session.add(
             Page(
                 drawing_id=drawing.id,
                 page_number=1,
-                image_path="/tmp/page_1.png",
+                image_path=str(image),
                 width_px=100,
                 height_px=100,
             )

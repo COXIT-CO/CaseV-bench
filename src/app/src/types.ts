@@ -188,13 +188,16 @@ export interface LaunchOptionsResponse {
 }
 
 /** `POST /api/runs` body: curated slugs + a free-text escape hatch, resolved server-side,
- * plus the Advanced knobs (ticket 04). `max_tokens` is pre-filled; `temperature` is a number
- * or `null` for the provider default, which the server omits from the request payload. */
+ * plus the Advanced knobs (tickets 04/05). `dpi`/`downsample_px`/`max_tokens` are pre-filled;
+ * `temperature` is a number or `null` for the provider default (omitted from the payload), and
+ * `downsample_px` is a number or `null` for full resolution (no downsample). */
 export interface RunCreateRequest {
   prompt_id: number;
   drawing_id: number;
   models: string[];
   free_text: string;
+  dpi: number;
+  downsample_px: number | null;
   max_tokens: number;
   temperature: number | null;
 }
@@ -242,11 +245,12 @@ export interface DrawingRef {
   name: string;
 }
 
-/** The read-only per-run knobs snapshot a Run recorded (spec: Runs 18).
- * `temperature` is null when the Run used the provider default (ADR 0018/0019). */
+/** The read-only per-run knobs snapshot a Run recorded (spec: Runs 18). `temperature` is null
+ * when the Run used the provider default; `downsample_px` is null when the Run sent
+ * full-resolution images, no downsample (ADR 0018/0019). */
 export interface RunKnobs {
   dpi: number;
-  downsample_px: number;
+  downsample_px: number | null;
   max_tokens: number;
   temperature: number | null;
 }

@@ -40,7 +40,7 @@ from core.models.prompt import Prompt, Task
 from core.models.results import CountResult, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.deletion import RunCascadeCounts, cascade_delete_runs
-from core.services.pdf_processing import DEFAULT_DPI
+from core.services.pdf_processing import DEFAULT_DPI, render_run_page
 from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, salvage_json
 
 # The default temperature a Run pins for reproducibility; a Run may instead set None to
@@ -88,18 +88,21 @@ class RunKnobs:
     ``Run`` columns so the snapshot copies by ``asdict``."""
 
     dpi: int = DEFAULT_DPI
-    downsample_px: int = DEFAULT_DOWNSAMPLE_PX
+    downsample_px: int | None = DEFAULT_DOWNSAMPLE_PX
     max_tokens: int = DEFAULT_MAX_TOKENS
     temperature: float | None = DEFAULT_TEMPERATURE
 
 
 class _PageRef(NamedTuple):
-    """A page's fields a worker needs, snapshotted up front so background threads
-    never touch a shared (session-bound) ORM object."""
+    """A page's fields a worker needs, snapshotted up front so background threads never touch
+    a shared (session-bound) ORM object. ``drawing_dir`` (the Page image's directory) and the
+    Drawing's ``source_path`` are what render-on-demand needs to produce the ``(dpi,
+    downsample)`` variant handed to the Model (ADR 0018)."""
 
     id: int
     page_number: int
-    image_path: str
+    drawing_dir: str
+    source_path: str | None
 
 
 class RunService:
@@ -233,7 +236,12 @@ class BackgroundRunner:
             prompt_text = session.get(Prompt, run.prompt_id).text
             drawing = session.get(Drawing, run.drawing_id)
             pages = [
-                _PageRef(page.id, page.page_number, page.image_path)
+                _PageRef(
+                    page.id,
+                    page.page_number,
+                    str(Path(page.image_path).parent),
+                    drawing.source_path,
+                )
                 for page in drawing.pages
             ]
             results = [(result.id, result.model) for result in run.results]
@@ -312,10 +320,24 @@ class _Interpretation:
     error: str | None = None
 
 
+def _render_page(page: _PageRef, knobs: RunKnobs) -> Path:
+    """The image handed to the Model for this page: rendered on demand at the Run's ``(dpi,
+    downsample_px)`` from the retained PDF (or the native raster for an image Drawing), cached
+    under the drawing dir (ADR 0018). This is what makes DPI/downsample genuinely effective —
+    the Model no longer sees the fixed ingest downsample."""
+    return render_run_page(
+        Path(page.drawing_dir),
+        page.page_number,
+        page.source_path,
+        knobs.dpi,
+        knobs.downsample_px,
+    )
+
+
 def _predict(
     adapter: OpenRouterAdapter,
     model: str,
-    page: _PageRef,
+    image_path: Path,
     prompt_text: str,
     knobs: RunKnobs,
     interpret: Callable[[str], _Interpretation],
@@ -336,7 +358,7 @@ def _predict(
     for _ in range(2):
         try:
             response = adapter.send_image_prompt(
-                Path(page.image_path),
+                image_path,
                 model,
                 prompt_text,
                 max_tokens=knobs.max_tokens,
@@ -449,8 +471,9 @@ def predict_counting(
     scores ``ok``; a malformed one stays an ``error`` (its best-effort salvage kept visible).
     Returns an unsaved ``Prediction`` — persistence is the caller's, kept out of this routine
     so it stays a pure, session-free seam."""
+    image_path = _render_page(page, knobs)
     raw_content, interp = _predict(
-        adapter, model, page, prompt_text, knobs, _interpret_counting
+        adapter, model, image_path, prompt_text, knobs, _interpret_counting
     )
     return _prediction(page, result_id, raw_content, interp)
 
@@ -471,13 +494,15 @@ def predict_location(
     boxes survived a prediction-overlay PNG is rendered on the page image via the shared
     ``draw_overlay`` (ticket 09) and its path stored, so the salvage is visible in the
     drill-down. Returns an unsaved ``Prediction`` — DB persistence is the caller's."""
+    image_path = _render_page(page, knobs)
     raw_content, interp = _predict(
-        adapter, model, page, prompt_text, knobs, _interpret_location
+        adapter, model, image_path, prompt_text, knobs, _interpret_location
     )
 
     overlay_path: str | None = None
     if interp.detections:
         path = overlay_root / str(result_id) / f"page_{page.page_number:04d}.png"
-        draw_overlay(Path(page.image_path), interp.detections, path)
+        # Draw on the same image the Model saw so the boxes land on the rendered variant.
+        draw_overlay(image_path, interp.detections, path)
         overlay_path = str(path)
     return _prediction(page, result_id, raw_content, interp, overlay_path)

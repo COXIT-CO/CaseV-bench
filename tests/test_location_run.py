@@ -11,7 +11,7 @@ record behavior as counting — without aborting the Run or rendering an overlay
 import json
 from pathlib import Path
 
-from PIL import Image
+from conftest import seed_page_images
 from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
@@ -39,20 +39,19 @@ BOXES_JSON = json.dumps(
 
 
 def _seed_drawing(session, tmp_path: Path, n_pages: int) -> Drawing:
-    """Seed a Drawing whose Pages point at real (small) PNGs so overlay rendering,
-    which opens the page image, has something to draw on."""
+    """Seed a Drawing whose Pages point at real native rasters so render-on-demand has an
+    image to hand the Model and overlay rendering has something to draw on."""
     drawing = Drawing(name="sample")
     session.add(drawing)
     session.commit()
     session.refresh(drawing)
-    for page_number in range(1, n_pages + 1):
-        image_path = tmp_path / f"page_{page_number}.png"
-        Image.new("RGB", (100, 100), "white").save(image_path)
+    images = seed_page_images(tmp_path / str(drawing.id), n_pages)
+    for page_number, image in enumerate(images, start=1):
         session.add(
             Page(
                 drawing_id=drawing.id,
                 page_number=page_number,
-                image_path=str(image_path),
+                image_path=str(image),
                 width_px=100,
                 height_px=100,
             )

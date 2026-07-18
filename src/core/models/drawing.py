@@ -22,6 +22,10 @@ class Drawing(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     name: str
+    # Path to the retained source upload (a PDF), so a Run can re-render its Pages on demand
+    # at the chosen DPI (ADR 0018). ``None`` for an image-ingested Drawing — it has no PDF, so
+    # DPI is ignored and its Pages render from the stored native raster instead.
+    source_path: str | None = None
     created_at: datetime = Field(default_factory=_utcnow)
 
     pages: list["Page"] = Relationship(

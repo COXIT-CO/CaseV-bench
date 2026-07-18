@@ -21,7 +21,9 @@ from core.models.drawing import Drawing
 from core.models.prompt import Prompt
 from core.models.run import Run
 from core.services.model_catalog import ModelCatalogService
+from core.services.pdf_processing import DEFAULT_DPI
 from core.services.run import DEFAULT_TEMPERATURE, RunKnobs, RunService
+from core.utils import DEFAULT_DOWNSAMPLE_PX
 
 router = APIRouter(prefix="/api", tags=["runs"])
 
@@ -69,14 +71,17 @@ class LaunchOptionsResponse(BaseModel):
 class RunCreateRequest(BaseModel):
     """The launch body. The server resolves ``models`` (curated) + ``free_text`` into the
     final slug list as the source of truth, and runs against the prompt's own Task. The
-    Advanced knobs default to the common one-click launch: ``max_tokens`` pre-filled and
-    ``temperature`` at ``0.0``. ``temperature: null`` selects the provider default, omitted
-    from the request payload (ticket 04, ADR 0018/0019)."""
+    Advanced knobs default to the common one-click launch: ``dpi``/``downsample_px``/
+    ``max_tokens`` pre-filled and ``temperature`` at ``0.0``. ``temperature: null`` selects the
+    provider default (omitted from the payload); ``downsample_px: null`` sends full-resolution
+    images (no downsample) (tickets 04/05, ADR 0018/0019)."""
 
     prompt_id: int
     drawing_id: int
     models: list[str] = []
     free_text: str = ""
+    dpi: int = Field(default=DEFAULT_DPI, gt=0)
+    downsample_px: int | None = Field(default=DEFAULT_DOWNSAMPLE_PX, gt=0)
     max_tokens: int = Field(default=DEFAULT_MAX_TOKENS, gt=0)
     temperature: float | None = DEFAULT_TEMPERATURE
 
@@ -216,7 +221,10 @@ def create_run(
     # background runner's request path read the same values (ticket 04; the runner shares
     # this service's knobs so the two can't drift — RunService.background_runner).
     service.knobs = RunKnobs(
-        max_tokens=payload.max_tokens, temperature=payload.temperature
+        dpi=payload.dpi,
+        downsample_px=payload.downsample_px,
+        max_tokens=payload.max_tokens,
+        temperature=payload.temperature,
     )
     try:
         run = service.create_run(
