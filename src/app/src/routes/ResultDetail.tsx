@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
+import { KnobsSnapshot } from "@/components/KnobsSnapshot";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,7 @@ export function ResultDetail() {
   return (
     <Shell>
       <Header result={data} />
+      <KnobsSnapshot knobs={data.knobs} />
       {data.scored ? (
         <ScoreBlock result={data} />
       ) : (

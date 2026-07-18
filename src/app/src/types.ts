@@ -135,6 +135,7 @@ export interface ResultDetailResponse {
   drawing_name: string;
   scored: boolean;
   label_count: number;
+  knobs: RunKnobs;
   counting_score: CountingScore | null;
   location_score: LocationScore | null;
   predictions: ResultPrediction[];
@@ -186,12 +187,16 @@ export interface LaunchOptionsResponse {
   catalog: CatalogEntry[];
 }
 
-/** `POST /api/runs` body: curated slugs + a free-text escape hatch, resolved server-side. */
+/** `POST /api/runs` body: curated slugs + a free-text escape hatch, resolved server-side,
+ * plus the Advanced knobs (ticket 04). `max_tokens` is pre-filled; `temperature` is a number
+ * or `null` for the provider default, which the server omits from the request payload. */
 export interface RunCreateRequest {
   prompt_id: number;
   drawing_id: number;
   models: string[];
   free_text: string;
+  max_tokens: number;
+  temperature: number | null;
 }
 
 /** `DELETE /api/runs/{id}` → the collateral the cascade removed (ADR-0016): the Run itself

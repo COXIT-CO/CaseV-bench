@@ -98,6 +98,80 @@ def test_create_run_returns_queued_run_and_detail_carries_knobs(
     assert [r["model"] for r in detail["results"]] == [SONNET]
 
 
+def test_create_run_snapshots_and_sends_advanced_knobs(client, engine, stub_adapter):
+    # The Advanced section's max_tokens + explicit temperature are snapshotted on the Run
+    # and reach the Model on the request (ticket 04).
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {SONNET: COUNT_JSON}
+
+    resp = _launch(
+        client, engine, drawing_id, models=[SONNET], max_tokens=8192, temperature=0.7
+    )
+    assert resp.status_code == 201
+    run_id = resp.json()["id"]
+    _poll_status(client, run_id)
+
+    knobs = client.get(f"/api/runs/{run_id}").json()["knobs"]
+    assert knobs["max_tokens"] == 8192
+    assert knobs["temperature"] == 0.7
+
+    call = stub_adapter.calls[-1]
+    assert call["max_tokens"] == 8192
+    assert call["temperature"] == 0.7
+
+
+def test_create_run_provider_default_temperature_is_omitted(
+    client, engine, stub_adapter
+):
+    # "Provider default" for temperature arrives as null, snapshots as None, and is omitted
+    # from the request so a reasoning Model that rejects an explicit temperature still runs.
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {SONNET: COUNT_JSON}
+
+    resp = _launch(client, engine, drawing_id, models=[SONNET], temperature=None)
+    assert resp.status_code == 201
+    run_id = resp.json()["id"]
+    _poll_status(client, run_id)
+
+    assert client.get(f"/api/runs/{run_id}").json()["knobs"]["temperature"] is None
+    assert stub_adapter.calls[-1]["temperature"] is None
+
+
+def test_create_run_defaults_knobs_when_advanced_untouched(
+    client, engine, stub_adapter
+):
+    # The common one-click launch (no Advanced fields) keeps the pre-filled defaults.
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {SONNET: COUNT_JSON}
+
+    run_id = _launch(client, engine, drawing_id, models=[SONNET]).json()["id"]
+    knobs = client.get(f"/api/runs/{run_id}").json()["knobs"]
+    assert knobs["max_tokens"] == 4096
+    assert knobs["temperature"] == 0.0
+
+
+def test_create_run_rejects_nonpositive_max_tokens(client, engine):
+    drawing_id = _seed_drawing(engine)
+    resp = _launch(client, engine, drawing_id, models=[SONNET], max_tokens=0)
+    assert resp.status_code == 422
+
+
+def test_leaderboard_does_not_split_rows_by_knob(client, engine, stub_adapter):
+    # Two Runs of the same (prompt, model) differing only in a knob each keep their own
+    # Result row under that (prompt, model) — the knob is not a ranking axis (ADR 0018).
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {SONNET: COUNT_JSON}
+    _launch(client, engine, drawing_id, models=[SONNET], max_tokens=4096)
+    _launch(client, engine, drawing_id, models=[SONNET], max_tokens=8192)
+
+    rows = client.get("/api/leaderboard?task=counting").json()["rows"]
+    sonnet_rows = [r for r in rows if r["model"] == SONNET]
+    assert len(sonnet_rows) == 2
+    assert {(r["prompt_family"], r["prompt_version"]) for r in sonnet_rows} == {
+        ("default", 1)
+    }
+
+
 def test_create_run_resolves_free_text_slugs_server_side(client, engine):
     drawing_id = _seed_drawing(engine)
     # No curated selection: the free-text escape hatch is resolved as the source of truth.

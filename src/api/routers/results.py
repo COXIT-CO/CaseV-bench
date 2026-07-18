@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from api.deps import get_session
+from api.routers.common import KnobsOut
 from core.models.drawing import Drawing
 from core.models.prompt import Prompt, Task
 from core.models.results import OBJECT_LABELS, LocationResult
@@ -91,6 +92,7 @@ class ResultDetailResponse(BaseModel):
     drawing_name: str
     scored: bool
     label_count: int
+    knobs: KnobsOut
     counting_score: CountingScoreOut | None = None
     location_score: LocationScoreOut | None = None
     predictions: list[PredictionOut]
@@ -164,6 +166,12 @@ def result_detail(
         drawing_name=drawing.name,
         scored=score is not None,
         label_count=len(OBJECT_LABELS),
+        knobs=KnobsOut(
+            dpi=run.dpi,
+            downsample_px=run.downsample_px,
+            max_tokens=run.max_tokens,
+            temperature=run.temperature,
+        ),
         counting_score=counting_score,
         location_score=location_score,
         predictions=[_prediction_out(pred, run.task) for pred in result.predictions],

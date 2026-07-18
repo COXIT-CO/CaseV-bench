@@ -30,3 +30,14 @@ class CatalogEntryOut(BaseModel):
 
     slug: str
     label: str
+
+
+class KnobsOut(BaseModel):
+    """The read-only per-run knobs snapshot a Run recorded (spec: Runs 18), embedded in both
+    the Run detail and the Result drill-down. ``temperature`` is null when the Run used the
+    provider default (ADR 0018/0019)."""
+
+    dpi: int
+    downsample_px: int
+    max_tokens: int
+    temperature: float | None
