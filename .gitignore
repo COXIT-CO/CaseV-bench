@@ -2,10 +2,19 @@ __pycache__/
 *.pyc
 *.env
 
+# Generated filesystem state under the data root (ADR-0014) — the DB, ingested page images,
+# overlay PNGs, and PDF render scratch. All derive from CASEV_DATA_ROOT and are recreated on
+# demand; only the committed input fixtures under data/input/ are tracked.
+data/drawings/
 data/output/
 data/overlays/
 *.sqlite
 *.sqlite-journal
+*.sqlite.bak
+
+# Stray root npm lockfile — the real frontend lockfile lives at src/app/package-lock.json.
+/package-lock.json
+
 .DS_Store
 
 # Local Docker data-root mount (the runbook's stand-in for the Railway Volume).
