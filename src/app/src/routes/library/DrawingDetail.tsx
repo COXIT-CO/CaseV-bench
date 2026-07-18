@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
+import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { GroundTruthEntry } from "@/routes/library/GroundTruthEntry";
@@ -144,8 +145,15 @@ function DeleteDrawingButton({
 }
 
 /** The rendered Page thumbnails with pixel dimensions; empty → the ingest produced no
- * pages (a degenerate PDF). */
+ * pages (a degenerate PDF). Clicking a thumbnail opens the in-app lightbox (ticket 08),
+ * navigable across every Page in the Drawing. */
 function PageGrid({ pages }: { pages: DrawingPage[] }) {
+  const images: LightboxImage[] = pages.map((page) => ({
+    src: page.image_url,
+    label: `Page ${page.page_number}`,
+  }));
+  const [openIndex, setOpenIndex] = React.useState<number | null>(null);
+
   if (pages.length === 0) {
     return (
       <EmptyState
@@ -158,30 +166,46 @@ function PageGrid({ pages }: { pages: DrawingPage[] }) {
     <div>
       <h2 className="mb-2.5 text-sm font-semibold">Pages</h2>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5">
-        {pages.map((page) => (
-          <PageCard key={page.page_number} page={page} />
+        {pages.map((page, i) => (
+          <PageCard
+            key={page.page_number}
+            page={page}
+            onOpen={() => setOpenIndex(i)}
+          />
         ))}
       </div>
+      <ImageLightbox
+        images={images}
+        index={openIndex}
+        onIndexChange={setOpenIndex}
+        onClose={() => setOpenIndex(null)}
+      />
     </div>
   );
 }
 
-/** One rendered Page: click the image to open it full-size. */
-function PageCard({ page }: { page: DrawingPage }) {
+/** One rendered Page: click the thumbnail to open it in the in-app lightbox (ticket 08)
+ * rather than a new browser tab. */
+function PageCard({
+  page,
+  onOpen,
+}: {
+  page: DrawingPage;
+  onOpen: () => void;
+}) {
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
-      <a
-        href={page.image_url}
-        target="_blank"
-        rel="noreferrer"
-        className="block hover:opacity-90"
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full cursor-zoom-in hover:opacity-90"
       >
         <img
           src={page.image_url}
           alt={`Page ${page.page_number}`}
           className="block w-full"
         />
-      </a>
+      </button>
       <div className="flex items-center justify-between px-2.5 py-2 text-xs text-muted-foreground">
         <span>Page {page.page_number}</span>
         <span className="font-mono">

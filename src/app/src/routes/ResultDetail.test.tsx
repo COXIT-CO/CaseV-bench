@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +8,7 @@ import { renderWithProviders } from "@/test/render";
 import {
   COUNTING_RESULT,
   LOCATION_RESULT,
+  SALVAGED_LOCATION_RESULT,
   UNSCORED_LOCATION_RESULT,
   UNSCORED_RESULT,
 } from "@/test/fixtures";
@@ -94,14 +96,19 @@ describe("ResultDetail", () => {
     expect(screen.queryByText("Ground truth vs. prediction")).not.toBeInTheDocument();
     expect(screen.queryByText("no ground truth")).not.toBeInTheDocument();
 
-    // Each overlay links the prediction-overlay PNG under /api, never the compare route.
-    const links = screen.getAllByRole("link");
-    const overlayLink = links.find((a) =>
-      a.getAttribute("href")?.includes("/api/results/90/pages/1/overlay"),
+    // Each overlay shows the prediction-overlay PNG under /api, never the compare route.
+    const overlay = screen.getByAltText("predicted boxes for page 1");
+    expect(overlay).toHaveAttribute(
+      "src",
+      "/api/results/90/pages/1/overlay",
     );
-    expect(overlayLink).toBeDefined();
+    // The overlays open the in-app lightbox — they are no longer anchors that navigate away
+    // (ticket 08), and never point at the removed compare route.
+    expect(overlay.closest("a")).toBeNull();
     expect(
-      links.some((a) => a.getAttribute("href")?.includes("compare-overlay")),
+      screen
+        .queryAllByRole("link")
+        .some((a) => a.getAttribute("href")?.includes("compare-overlay")),
     ).toBe(false);
   });
 
@@ -130,14 +137,64 @@ describe("ResultDetail", () => {
     expect(screen.getByText("Predicted boxes")).toBeInTheDocument();
     expect(screen.queryByText("Ground truth vs. prediction")).not.toBeInTheDocument();
 
-    const link = screen
-      .getAllByRole("link")
-      .find((a) =>
-        a.getAttribute("href")?.includes("/api/results/44/pages/1/overlay"),
-      );
-    expect(link).toBeDefined();
-    // …and it points at the prediction overlay, never the compare overlay.
-    expect(link?.getAttribute("href")).not.toContain("compare-overlay");
+    const overlay = screen.getByAltText("predicted boxes for page 1");
+    expect(overlay).toHaveAttribute(
+      "src",
+      "/api/results/44/pages/1/overlay",
+    );
+    // …the prediction overlay, opened in-app (not an anchor) and never the compare overlay.
+    expect(overlay.closest("a")).toBeNull();
+  });
+
+  it("renders a salvaged error page's boxes, JSON, and overlay — not a bare failure", async () => {
+    vi.mocked(api.result).mockResolvedValue(SALVAGED_LOCATION_RESULT);
+    renderDetail("/results/91");
+
+    await screen.findByText("Predicted boxes");
+    // The salvaged page keeps its error note but also shows the recovered JSON…
+    expect(
+      screen.getByText(/response was truncated; salvaged intact array elements/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Salvaged output")).toBeInTheDocument();
+    // …and it is marked "salvaged" rather than a bare "prediction failed" placeholder.
+    expect(screen.getByText("salvaged")).toBeInTheDocument();
+    expect(screen.queryByText("prediction failed")).not.toBeInTheDocument();
+
+    // The salvaged page still shows its rendered overlay (drawn from the boxes that parsed).
+    expect(screen.getByAltText("predicted boxes for page 1")).toHaveAttribute(
+      "src",
+      "/api/results/91/pages/1/overlay",
+    );
+  });
+
+  it("opens the overlay lightbox on a card click, pages the set, and closes on Esc", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.result).mockResolvedValue(LOCATION_RESULT);
+    renderDetail("/results/90");
+
+    await screen.findByText("Predicted boxes");
+    // No dialog until a card is clicked, and the overlays are buttons, not new-tab anchors.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Clicking page 1's overlay opens the viewer at that image with a counter over the set.
+    await user.click(screen.getByAltText("predicted boxes for page 1"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("1 / 2")).toBeInTheDocument();
+    expect(within(dialog).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/results/90/pages/1/overlay",
+    );
+
+    // Next moves across the Result's overlays with the counter following.
+    await user.click(within(dialog).getByRole("button", { name: /next image/i }));
+    expect(within(dialog).getByText("2 / 2")).toBeInTheDocument();
+    expect(within(dialog).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/results/90/pages/2/overlay",
+    );
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("surfaces an API error through the shared error block", async () => {
