@@ -21,13 +21,15 @@ response is parsed, retried once before a failure is recorded; a model failure n
 aborts the Run (spec: Runs 20, 21).
 """
 
+import json
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
+from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
@@ -39,7 +41,7 @@ from core.models.results import CountResult, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.deletion import RunCascadeCounts, cascade_delete_runs
 from core.services.pdf_processing import DEFAULT_DPI
-from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, parse_json
+from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, salvage_json
 
 # The default temperature a Run pins for reproducibility; a Run may instead set None to
 # run under the provider default, which is omitted from the request payload (ADR 0018/0019).
@@ -296,26 +298,41 @@ class BackgroundRunner:
                     session.commit()
 
 
-def _predict_json(
+@dataclass(frozen=True)
+class _Interpretation:
+    """One attempt's parse+validate outcome (ADR 0019). ``clean`` — the whole response was
+    recovered and validated — gates a scored ``ok``; anything else stays an ``error`` that
+    still stores ``parsed_json`` (best-effort salvage, for display) and, for location, the
+    ``detections`` to draw. ``error`` is the failure/salvage message; None only when clean.
+    """
+
+    clean: bool
+    parsed_json: str | None = None
+    detections: list[LocationDetection] = field(default_factory=list)
+    error: str | None = None
+
+
+def _predict(
     adapter: OpenRouterAdapter,
     model: str,
     page: _PageRef,
     prompt_text: str,
     knobs: RunKnobs,
-    parse: Callable[[str], object],
-) -> tuple[str | None, object | None, str | None]:
-    """Send the page image + prompt and ``parse`` the response, retried once before
-    giving up (spec: Runs 20). A failing OpenRouter call is caught like a parse failure
-    rather than propagated, so one model's error doesn't abort the Run (spec: Runs 21).
+    interpret: Callable[[str], _Interpretation],
+) -> tuple[str | None, _Interpretation]:
+    """Send the page image + prompt and ``interpret`` the response, retried once whenever
+    the first parse isn't cleanly ``ok`` (spec: Runs 20; ADR 0019). A failing OpenRouter
+    call is caught like a parse failure rather than propagated, so one model's error doesn't
+    abort the Run (spec: Runs 21). ``interpret`` never raises — a malformed body becomes a
+    non-clean ``_Interpretation`` whose salvage is shown for display.
 
-    Returns ``(raw_content, parsed, error)``: on success ``error`` is None and ``parsed``
-    is ``parse``'s output; on failure ``parsed`` is None and ``error`` holds the message
-    (with ``raw_content`` from the last attempt for inspection). The single external I/O
-    boundary, kept session-free so the predict routines stay a pure test seam."""
+    Returns ``(raw_content, interpretation)`` from the clean attempt, else from the last
+    attempt (retaining that attempt's ``raw_content`` for inspection). The single external
+    I/O boundary, kept session-free so the predict routines stay a pure test seam."""
     raw_content: str | None = None
-    error: str | None = None
+    interp = _Interpretation(clean=False, error="model produced no response")
 
-    # Initial attempt plus a single retry.
+    # Initial attempt plus a single retry; a clean parse short-circuits the retry.
     for _ in range(2):
         try:
             response = adapter.send_image_prompt(
@@ -325,41 +342,92 @@ def _predict_json(
                 max_tokens=knobs.max_tokens,
                 temperature=knobs.temperature,
             )
-            raw_content = response["choices"][0]["message"]["content"]
-            return raw_content, parse(raw_content), None
+            raw = response["choices"][0]["message"]["content"]
         except Exception as exc:
-            error = str(exc)
+            interp = _Interpretation(clean=False, error=str(exc))
+            continue
+        raw_content = raw
+        interp = interpret(raw)
+        if interp.clean:
+            break
 
-    return raw_content, None, error
+    return raw_content, interp
 
 
-def _failure(
-    page: _PageRef, result_id: int, raw_content: str | None, error: str | None
-) -> Prediction:
-    return Prediction(
-        result_id=result_id,
-        page_id=page.id,
-        page_number=page.page_number,
-        status=PredictionStatus.error,
-        raw_content=raw_content,
-        parse_error=error,
+def _interpret_counting(raw: str) -> _Interpretation:
+    """Recover per-page counts from a model response (ADR 0019). A clean, fully-valid
+    ``CountResult`` scores ``ok``; a recovered-but-invalid structure (wrong shape, missing
+    label) is kept visible in ``parsed_json`` but stays a non-clean ``error``."""
+    salvaged = salvage_json(raw)
+    if salvaged.value is None:
+        return _Interpretation(clean=False, error=salvaged.error)
+    try:
+        counts = CountResult(**salvaged.value)
+    except (TypeError, ValidationError) as exc:
+        # Keep the parsed structure visible even though it didn't validate.
+        return _Interpretation(
+            clean=False,
+            parsed_json=json.dumps(salvaged.value),
+            error=salvaged.error or f"counts did not match the schema: {exc}",
+        )
+    return _Interpretation(
+        clean=salvaged.complete,
+        parsed_json=counts.model_dump_json(),
+        error=salvaged.error,
     )
 
 
-def _success(
+def _interpret_location(raw: str) -> _Interpretation:
+    """Recover labeled boxes from a model response, validating **element-by-element** so a
+    truncated/partly-corrupt array still yields the boxes that parsed (ADR 0019). Clean only
+    when the whole array was recovered and every box validated; otherwise a non-clean
+    ``error`` carrying the surviving boxes for the salvage overlay + drill-down."""
+    salvaged = salvage_json(raw)
+    if not isinstance(salvaged.value, list):
+        error = salvaged.error or "location response was not a JSON array"
+        return _Interpretation(clean=False, error=error)
+
+    detections: list[LocationDetection] = []
+    dropped = False
+    for item in salvaged.value:
+        try:
+            detections.append(LocationDetection(**item))
+        except (TypeError, ValidationError):
+            dropped = True
+    if not detections:
+        error = salvaged.error or "no valid boxes in response"
+        return _Interpretation(clean=False, error=error)
+
+    parsed_json = LocationResult(detections=detections).model_dump_json()
+    if salvaged.complete and not dropped:
+        return _Interpretation(
+            clean=True, parsed_json=parsed_json, detections=detections
+        )
+    error = salvaged.error or "some boxes were invalid and dropped"
+    return _Interpretation(
+        clean=False, parsed_json=parsed_json, detections=detections, error=error
+    )
+
+
+def _prediction(
     page: _PageRef,
     result_id: int,
     raw_content: str | None,
-    parsed_json: str,
+    interp: _Interpretation,
     overlay_path: str | None = None,
 ) -> Prediction:
+    """Build the (unsaved) ``Prediction`` from an interpretation: a scored ``ok`` when clean,
+    else an unscored ``error`` that still retains the salvaged ``parsed_json``/overlay for
+    display. ``raw_content`` is retained either way (spec: Runs 19, 20)."""
+    status = PredictionStatus.ok if interp.clean else PredictionStatus.error
     return Prediction(
         result_id=result_id,
         page_id=page.id,
         page_number=page.page_number,
-        status=PredictionStatus.ok,
+        status=status,
         raw_content=raw_content,
-        parsed_json=parsed_json,
+        parsed_json=interp.parsed_json,
+        parse_error=None if interp.clean else interp.error,
         overlay_path=overlay_path,
     )
 
@@ -372,16 +440,15 @@ def predict_counting(
     prompt_text: str,
     knobs: RunKnobs,
 ) -> Prediction:
-    """One page's counting Prediction: parse the model's JSON into the per-page counts,
-    retried once before recording a failure (spec: Runs 20, 21). Returns an
-    unsaved ``Prediction`` — persistence is the caller's, kept out of this routine so it
-    stays a pure, session-free seam."""
-    raw_content, counts, error = _predict_json(
-        adapter, model, page, prompt_text, knobs, lambda c: CountResult(**parse_json(c))
+    """One page's counting Prediction: recover the per-page counts from the model's JSON,
+    retried once before recording an outcome (spec: Runs 20, 21; ADR 0019). A clean parse
+    scores ``ok``; a malformed one stays an ``error`` (its best-effort salvage kept visible).
+    Returns an unsaved ``Prediction`` — persistence is the caller's, kept out of this routine
+    so it stays a pure, session-free seam."""
+    raw_content, interp = _predict(
+        adapter, model, page, prompt_text, knobs, _interpret_counting
     )
-    if error is not None:
-        return _failure(page, result_id, raw_content, error)
-    return _success(page, result_id, raw_content, counts.model_dump_json())
+    return _prediction(page, result_id, raw_content, interp)
 
 
 def predict_location(
@@ -393,28 +460,20 @@ def predict_location(
     knobs: RunKnobs,
     overlay_root: Path,
 ) -> Prediction:
-    """One page's location Prediction: parse the model's JSON list of labeled boxes,
-    retried once before recording a failure (spec: Runs 20, 21). On success the detected
-    boxes are stored as a ``LocationResult`` and a prediction-overlay PNG is rendered on
-    the page image via the shared ``draw_overlay`` (ticket 09), its path stored on the
-    Prediction. Returns an unsaved ``Prediction`` — DB persistence is the caller's."""
-    raw_content, detections, error = _predict_json(
-        adapter,
-        model,
-        page,
-        prompt_text,
-        knobs,
-        lambda c: [LocationDetection(**box) for box in parse_json(c)],
+    """One page's location Prediction: recover the model's JSON list of labeled boxes,
+    retried once before recording an outcome (spec: Runs 20, 21; ADR 0019). A clean parse
+    stores the boxes as a ``LocationResult`` and scores ``ok``; a truncated/partly-corrupt
+    response stays an ``error`` but still stores its salvaged boxes. Either way, whenever any
+    boxes survived a prediction-overlay PNG is rendered on the page image via the shared
+    ``draw_overlay`` (ticket 09) and its path stored, so the salvage is visible in the
+    drill-down. Returns an unsaved ``Prediction`` — DB persistence is the caller's."""
+    raw_content, interp = _predict(
+        adapter, model, page, prompt_text, knobs, _interpret_location
     )
-    if error is not None:
-        return _failure(page, result_id, raw_content, error)
 
-    overlay_path = overlay_root / str(result_id) / f"page_{page.page_number:04d}.png"
-    draw_overlay(Path(page.image_path), detections, overlay_path)
-    return _success(
-        page,
-        result_id,
-        raw_content,
-        LocationResult(detections=detections).model_dump_json(),
-        str(overlay_path),
-    )
+    overlay_path: str | None = None
+    if interp.detections:
+        path = overlay_root / str(result_id) / f"page_{page.page_number:04d}.png"
+        draw_overlay(Path(page.image_path), interp.detections, path)
+        overlay_path = str(path)
+    return _prediction(page, result_id, raw_content, interp, overlay_path)

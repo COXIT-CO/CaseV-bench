@@ -289,6 +289,60 @@ def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp
     assert "has_gt" not in preds[1]
 
 
+def test_salvaged_location_error_surfaces_boxes_and_json(client, engine, tmp_path):
+    """A salvaged-but-not-clean location Prediction stays ``error`` yet the drill-down still
+    reports its stored boxes and parsed JSON (ADR 0019, ticket 03) — not a bare failure.
+    """
+    with Session(engine) as session:
+        drawing = Drawing(name="kitchen")
+        session.add(drawing)
+        session.commit()
+        session.refresh(drawing)
+        page = Page(
+            drawing_id=drawing.id,
+            page_number=1,
+            image_path="/tmp/page.png",
+            width_px=100,
+            height_px=100,
+        )
+        session.add(page)
+        session.commit()
+        session.refresh(page)
+        prompt = Prompt(
+            task=Task.location, family="boxes", version=1, text="find boxes"
+        )
+        session.add(prompt)
+        session.commit()
+        session.refresh(prompt)
+        run = _done_run(session, Task.location, prompt.id, drawing.id)
+        result = Result(run_id=run.id, model=ACCURATE)
+        session.add(result)
+        session.commit()
+        session.refresh(result)
+        salvaged = LocationResult(detections=[_detection(0.1, 0.1, 0.2, 0.2)])
+        session.add(
+            Prediction(
+                result_id=result.id,
+                page_id=page.id,
+                page_number=1,
+                status=PredictionStatus.error,
+                raw_content='[{"label": "cabinets", ... truncated',
+                parsed_json=salvaged.model_dump_json(),
+                parse_error="response was truncated; salvaged intact array elements",
+            )
+        )
+        session.commit()
+        result_id = result.id
+
+    body = client.get(f"/api/results/{result_id}").json()
+    (pred,) = body["predictions"]
+    assert pred["status"] == "error"
+    # The salvaged box is counted and its JSON passed through for display.
+    assert pred["box_count"] == 1
+    assert pred["parsed_json"] is not None
+    assert pred["parse_error"]
+
+
 def test_location_result_unscored_without_ground_truth(client, engine, tmp_path):
     result_id = _seed_location_result(engine, tmp_path, with_gt=False)
 

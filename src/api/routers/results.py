@@ -13,7 +13,7 @@ from api.deps import get_session
 from core.models.drawing import Drawing
 from core.models.prompt import Prompt, Task
 from core.models.results import OBJECT_LABELS, LocationResult
-from core.models.run import Prediction, PredictionStatus, Result, Run
+from core.models.run import Prediction, Result, Run
 from core.services.scoring import ScoringService
 
 router = APIRouter(prefix="/api", tags=["results"])
@@ -97,14 +97,11 @@ class ResultDetailResponse(BaseModel):
 
 
 def _prediction_out(pred: Prediction, task: Task) -> PredictionOut:
-    """Shape one Prediction for the SPA. The predicted box count is parsed only for a
-    successful location Prediction; counting/failed rows report 0."""
+    """Shape one Prediction for the SPA. The predicted box count is parsed from the stored
+    location boxes whether the Prediction is a scored ``ok`` or a salvaged ``error`` (ADR
+    0019) — both carry ``parsed_json``; counting rows and box-less failures report 0."""
     box_count = 0
-    if (
-        task == Task.location
-        and pred.status == PredictionStatus.ok
-        and pred.parsed_json
-    ):
+    if task == Task.location and pred.parsed_json:
         box_count = len(LocationResult.model_validate_json(pred.parsed_json).detections)
     return PredictionOut(
         page_number=pred.page_number,
