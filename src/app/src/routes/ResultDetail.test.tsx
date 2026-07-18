@@ -82,7 +82,11 @@ describe("ResultDetail", () => {
     ).toBeInTheDocument();
     // The counting columns are never shown for a location Result.
     expect(screen.queryByText("Total abs. error")).not.toBeInTheDocument();
-    const row = screen.getByText("cabinets").closest("tr")!;
+    // "cabinets" now also appears in the overlay legend (ticket 06); scope to the score row.
+    const row = screen
+      .getAllByText("cabinets")
+      .map((el) => el.closest("tr"))
+      .find((tr): tr is HTMLTableRowElement => tr !== null)!;
     expect(within(row).getByText("22")).toBeInTheDocument(); // tp
   });
 
@@ -95,6 +99,19 @@ describe("ResultDetail", () => {
     await screen.findByText("Predicted boxes");
     expect(screen.queryByText("Ground truth vs. prediction")).not.toBeInTheDocument();
     expect(screen.queryByText("no ground truth")).not.toBeInTheDocument();
+
+    // The legend is a per-label colour key (ticket 06), not a single "Prediction" swatch:
+    // every ObjectType is listed, next to its own colour.
+    expect(screen.queryByText("Prediction")).not.toBeInTheDocument();
+    const legend = screen.getByRole("list", { name: "Overlay colour legend" });
+    for (const label of [
+      "cabinets",
+      "countertops",
+      "elevations",
+      "elevation_callout",
+    ]) {
+      expect(within(legend).getByText(label)).toBeInTheDocument();
+    }
 
     // Each overlay shows the prediction-overlay PNG under /api, never the compare route.
     const overlay = screen.getByAltText("predicted boxes for page 1");

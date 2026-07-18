@@ -11,9 +11,26 @@ from core.models.results import LabeledBox, LocationDetection
 # Long-edge (px) each page image is downsampled to at ingest; snapshotted on a Run.
 DEFAULT_DOWNSAMPLE_PX = 1568
 
-# Colour the model's predicted boxes are drawn in on the prediction overlay (ticket 09).
-# ``red`` reads clearly on a white drawing.
-PREDICTION_COLOR = "red"
+# Fixed, colourblind-distinguishable overlay colour per ObjectType (ADR 0021, ticket 06).
+# Drawn from the Okabe-Ito qualitative palette: each reads clearly on a white drawing and the
+# four stay distinguishable under the common colour-vision deficiencies. Hue now encodes object
+# type — provenance is no longer contended on the overlay, since the GT visuals are dropped.
+LABEL_COLORS: dict[str, str] = {
+    "cabinets": "#D55E00",  # vermillion
+    "countertops": "#0072B2",  # blue
+    "elevations": "#009E73",  # bluish green
+    "elevation_callout": "#CC79A7",  # reddish purple
+}
+
+# Any label outside the fixed taxonomy (e.g. a salvaged box carrying a stray string) still
+# draws, in a neutral dark grey that reads on white, rather than erroring.
+UNKNOWN_LABEL_COLOR = "#555555"
+
+
+def color_for_label(label: str) -> str:
+    """The fixed overlay colour for an **ObjectType**, or a neutral fallback for an unknown
+    label (ADR 0021). Distinct per taxonomy label so a dense page reads by class."""
+    return LABEL_COLORS.get(label, UNKNOWN_LABEL_COLOR)
 
 
 @dataclass(frozen=True)
@@ -214,40 +231,37 @@ def _detections_to_boxes(
     ]
 
 
-def _build_overlay(
-    image_path: Path, groups: list[tuple[Iterable[LabeledBox], str]]
-) -> Image.Image:
-    """Draw one or more color-coded groups of labeled boxes onto a copy of the page image.
+def _build_overlay(image_path: Path, boxes: Iterable[LabeledBox]) -> Image.Image:
+    """Draw the labeled boxes onto a copy of the page image, each in its **ObjectType**'s
+    colour (ADR 0021, ticket 06).
 
-    ``groups`` is a list of ``(boxes, color)``; boxes later in the list are drawn on top.
-    The single place box drawing lives, so the prediction overlay (ticket 09) has one
-    canonical renderer."""
+    The single place box drawing lives, so the prediction overlay has one canonical
+    renderer — the salvaged (ticket 03) and edited (ticket 07) overlays inherit the
+    per-label colouring through it."""
     with Image.open(image_path) as image:
         overlay = image.convert("RGB").copy()
     draw = ImageDraw.Draw(overlay)
     width, height = overlay.size
-    for boxes, color in groups:
-        for box in boxes:
-            x0, y0 = box.x_min * width, box.y_min * height
-            draw.rectangle(
-                (x0, y0, box.x_max * width, box.y_max * height),
-                outline=color,
-                width=3,
-            )
-            # Label the box so the taxonomy class is legible on the overlay, not just
-            # the location — a developer needs to tell a cabinet box from a countertop.
-            draw.text((x0 + 2, max(0, y0 - 12)), box.label, fill=color)
+    for box in boxes:
+        color = color_for_label(box.label)
+        x0, y0 = box.x_min * width, box.y_min * height
+        draw.rectangle(
+            (x0, y0, box.x_max * width, box.y_max * height),
+            outline=color,
+            width=3,
+        )
+        # Label the box in its own colour so the taxonomy class is legible on the overlay,
+        # not just the location — a developer needs to tell a cabinet box from a countertop.
+        draw.text((x0 + 2, max(0, y0 - 12)), box.label, fill=color)
     return overlay
 
 
 def draw_overlay(
     image_path: Path, detections: list[LocationDetection], dest: Path
 ) -> Path:
-    """Render the model's detections (red) on the page image and cache it to ``dest``
-    (ticket 09)."""
-    overlay = _build_overlay(
-        image_path, [(_detections_to_boxes(detections), PREDICTION_COLOR)]
-    )
+    """Render the model's detections — each box coloured by its **ObjectType** (ADR 0021) —
+    on the page image and cache it to ``dest`` (ticket 09)."""
+    overlay = _build_overlay(image_path, _detections_to_boxes(detections))
     dest.parent.mkdir(parents=True, exist_ok=True)
     overlay.save(dest)
     return dest
