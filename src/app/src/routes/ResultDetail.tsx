@@ -1,5 +1,7 @@
+import * as React from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -306,10 +308,31 @@ function LocationScoreBlock({ score }: { score: LocationScore }) {
   );
 }
 
-/** The per-page prediction overlays: the model's labeled boxes (red) on each page, served
- * from the cached prediction-overlay route. The only Location overlay now (ticket 01) —
- * shown for every Location Result, scored or not. */
+/** No overlay was cached only when nothing parsed — an error page with zero boxes. Every
+ * other page (ok, or a salvaged error with boxes) has a viewable overlay PNG (ADR 0019). */
+function hasOverlay(pred: ResultPrediction): boolean {
+  return pred.status === "ok" || pred.box_count > 0;
+}
+
+/** The per-page prediction overlays: the model's labeled boxes on each page, served from the
+ * cached prediction-overlay route. The only Location overlay now (ticket 01) — shown for
+ * every Location Result, scored or not. Clicking a card opens the in-app lightbox (ticket
+ * 08) navigable across every viewable overlay in the Result. */
 function PredictionOverlayGrid({ result }: { result: ResultDetailResponse }) {
+  // The viewable overlays, in page order — the set the lightbox pages through. Failed pages
+  // with no cached overlay are excluded (they show a placeholder, not a clickable image).
+  const viewable = result.predictions.filter(hasOverlay);
+  const images: LightboxImage[] = viewable.map((pred) => ({
+    src: `/api/results/${result.result_id}/pages/${pred.page_number}/overlay`,
+    label: `Page ${pred.page_number}`,
+  }));
+  // A page's lightbox start index (its position in `viewable`), so a card can open the
+  // viewer at itself even though the grid also renders non-viewable (failed) pages.
+  const startIndexByPage = new Map(
+    viewable.map((pred, i) => [pred.page_number, i]),
+  );
+  const [openIndex, setOpenIndex] = React.useState<number | null>(null);
+
   return (
     <div className="mb-6">
       <div className="mb-2.5 flex items-center justify-between">
@@ -327,44 +350,71 @@ function PredictionOverlayGrid({ result }: { result: ResultDetailResponse }) {
             key={pred.page_number}
             resultId={result.result_id}
             pred={pred}
+            // The card's position within the viewable set (its lightbox start index), or -1
+            // when the page has no overlay to open.
+            viewIndex={startIndexByPage.get(pred.page_number) ?? -1}
+            onOpen={setOpenIndex}
           />
         ))}
       </div>
+      <ImageLightbox
+        images={images}
+        index={openIndex}
+        onIndexChange={setOpenIndex}
+        onClose={() => setOpenIndex(null)}
+      />
     </div>
   );
 }
 
-/** One page's prediction-only overlay. A failed (parse-error) page never cached an overlay,
- * so it shows a placeholder rather than a broken image. */
+/** One page's prediction-only overlay. A salvaged error page still cached an overlay from
+ * the boxes that parsed (ADR 0019), so it shows that overlay with a "salvaged" badge; only a
+ * page with no boxes at all falls back to the "prediction failed" placeholder. The overlay
+ * opens in the in-app lightbox rather than a new browser tab (ticket 08). */
 function PredictionOverlayCard({
   resultId,
   pred,
+  viewIndex,
+  onOpen,
 }: {
   resultId: number;
   pred: ResultPrediction;
+  viewIndex: number;
+  onOpen: (index: number) => void;
 }) {
   const src = `/api/results/${resultId}/pages/${pred.page_number}/overlay`;
-  const failed = pred.status === "error";
-  const body = failed ? (
-    <div className="flex aspect-square items-center justify-center bg-muted">
-      <span className="rounded bg-black/40 px-2 py-1 text-[11px] font-semibold text-white">
-        prediction failed
-      </span>
-    </div>
-  ) : (
-    <a href={src} target="_blank" rel="noreferrer" className="block hover:opacity-90">
+  const salvaged = pred.status === "error" && pred.box_count > 0;
+  const body = hasOverlay(pred) ? (
+    <button
+      type="button"
+      onClick={() => onOpen(viewIndex)}
+      className="block w-full cursor-zoom-in hover:opacity-90"
+    >
       <img
         src={src}
         alt={`predicted boxes for page ${pred.page_number}`}
         className="block w-full"
       />
-    </a>
+    </button>
+  ) : (
+    <div className="flex aspect-square items-center justify-center bg-muted">
+      <span className="rounded bg-black/40 px-2 py-1 text-[11px] font-semibold text-white">
+        prediction failed
+      </span>
+    </div>
   );
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
       {body}
       <div className="flex justify-between px-2.5 py-2 text-xs text-muted-foreground">
-        <span>Page {pred.page_number}</span>
+        <span className="flex items-center gap-1.5">
+          Page {pred.page_number}
+          {salvaged && (
+            <span className="rounded bg-danger-subtle px-1.5 py-0.5 text-[10px] font-semibold text-danger">
+              salvaged
+            </span>
+          )}
+        </span>
         <span className="font-mono">{pred.box_count} boxes</span>
       </div>
     </div>
@@ -390,6 +440,9 @@ function PredictionsSection({
 
 function PredictionCard({ pred }: { pred: ResultPrediction }) {
   const failed = pred.status === "error";
+  // A salvaged error still carries best-effort parsed JSON (ADR 0019) — show it alongside
+  // the error note so a developer sees what the model attempted, not just a bare failure.
+  const salvaged = failed && pred.parsed_json !== null;
   return (
     <div className="rounded-lg border bg-card">
       <div className="flex items-center justify-between border-b px-3.5 py-2.5">
@@ -407,12 +460,23 @@ function PredictionCard({ pred }: { pred: ResultPrediction }) {
           {pred.status}
         </span>
       </div>
-      {failed ? (
+      {failed && (
         <p className="px-3.5 py-3 text-[12.5px] text-danger">
           {pred.parse_error ?? "Parse error after retry."}
         </p>
-      ) : (
-        <pre className="overflow-x-auto whitespace-pre-wrap px-3.5 py-3 font-mono text-[11.5px] leading-relaxed">
+      )}
+      {(!failed || salvaged) && (
+        <pre
+          className={cn(
+            "overflow-x-auto whitespace-pre-wrap px-3.5 pb-3 font-mono text-[11.5px] leading-relaxed",
+            failed ? "pt-0" : "pt-3",
+          )}
+        >
+          {failed && (
+            <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Salvaged output
+            </span>
+          )}
           {formatJson(pred.parsed_json)}
         </pre>
       )}

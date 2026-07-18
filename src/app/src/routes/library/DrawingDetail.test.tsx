@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,6 +53,37 @@ describe("DrawingDetail", () => {
 
     const image = screen.getByAltText("Page 1");
     expect(image).toHaveAttribute("src", "/api/drawings/3/pages/1/image");
+    // The thumbnail opens the in-app lightbox — no longer an anchor that navigates away.
+    expect(image.closest("a")).toBeNull();
+  });
+
+  it("opens the page lightbox on a thumbnail click, pages the set, and closes on Esc", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
+    renderDetail();
+
+    await screen.findByAltText("Page 1");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Clicking page 1 opens the viewer at that image, with a counter over the Drawing's pages.
+    await user.click(screen.getByAltText("Page 1"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("1 / 2")).toBeInTheDocument();
+    expect(within(dialog).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/drawings/3/pages/1/image",
+    );
+
+    // Next pages across the Drawing's images with the counter following.
+    await user.click(within(dialog).getByRole("button", { name: /next image/i }));
+    expect(within(dialog).getByText("2 / 2")).toBeInTheDocument();
+    expect(within(dialog).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/drawings/3/pages/2/image",
+    );
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("no longer offers a GT-only overlay view on any page", async () => {

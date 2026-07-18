@@ -246,6 +246,33 @@ export const UNSCORED_LOCATION_RESULT: ResultDetailResponse = {
   ],
 };
 
+/** A location Result with a salvaged error page: the array was truncated, so the Prediction
+ * stays an unscored error but still carries the boxes that parsed and a rendered overlay
+ * (ADR 0019, ticket 03). Its second page is a clean ok page for contrast. */
+export const SALVAGED_LOCATION_RESULT: ResultDetailResponse = {
+  ...LOCATION_RESULT,
+  result_id: 91,
+  predictions: [
+    {
+      page_number: 1,
+      status: "error",
+      raw_content: '[{"label": "cabinets", "bounding_box": {"x_min": 0.1',
+      parsed_json:
+        '{"detections": [{"label": "cabinets", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
+      parse_error: "response was truncated; salvaged intact array elements",
+      box_count: 1,
+    },
+    {
+      page_number: 2,
+      status: "ok",
+      raw_content: '{"detections": []}',
+      parsed_json: '{"detections": []}',
+      parse_error: null,
+      box_count: 6,
+    },
+  ],
+};
+
 /** A run history with one running and one done Run. */
 export const RUN_HISTORY: RunHistoryResponse = {
   runs: [
