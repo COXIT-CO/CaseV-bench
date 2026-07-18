@@ -35,7 +35,6 @@ class StubOpenRouterAdapter:
         image_path: Path,
         model: str,
         prompt: str,
-        prefill_json: bool = False,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float | None = None,
     ) -> dict:
@@ -44,7 +43,6 @@ class StubOpenRouterAdapter:
                 "image_path": image_path,
                 "model": model,
                 "prompt": prompt,
-                "prefill_json": prefill_json,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
             }

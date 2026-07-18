@@ -2,10 +2,11 @@
 outputs (spec: Runs & execution; glossary: Run, Result, Prediction; ADR 0006).
 
 A ``Run`` is one execution of ``(task, prompt version, drawing, N models)``. It
-snapshots the fixed knobs used (DPI, downsample long-edge, max_tokens, prefill,
-temperature) so a result stays reproducible even though those knobs aren't tunable
-(spec: Configuration is ``(prompt version, model)`` only). Each Model's outcome is a
-``Result`` (the comparison unit scores later attach to); each Result holds one
+snapshots the per-run knobs used (DPI, downsample long-edge, max_tokens, temperature)
+so a result stays reproducible; the knobs are recorded and displayed but are not a
+Leaderboard rank axis (Configuration stays ``(prompt version, model)``; ADR 0018).
+``temperature`` is ``None`` when the Run runs under the provider default. Each Model's
+outcome is a ``Result`` (the comparison unit scores later attach to); each Result holds one
 ``Prediction`` per Page — the raw model content plus the parsed output (counting
 counts, or location boxes with a rendered overlay PNG), or a failure record with the
 parse error. Execution runs on a background task (ADR 0006). Kept DB-agnostic per
@@ -55,12 +56,12 @@ class Run(SQLModel, table=True):
     progress: int = 0
     total_units: int = 0
 
-    # Snapshot of the fixed knobs used, so results stay reproducible (spec: Runs 18).
+    # Snapshot of the per-run knobs used, so results stay reproducible (spec: Runs 18).
+    # temperature is None when the Run used the provider default (ADR 0018/0019).
     dpi: int
     downsample_px: int
     max_tokens: int
-    prefill: bool
-    temperature: float
+    temperature: float | None
 
     created_at: datetime = Field(default_factory=_utcnow)
 

@@ -307,7 +307,6 @@ export const RUN_DETAIL: RunDetailResponse = {
     dpi: 200,
     downsample_px: 1600,
     max_tokens: 4096,
-    prefill: true,
     temperature: 0.0,
   },
   results: [

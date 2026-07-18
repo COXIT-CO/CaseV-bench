@@ -61,13 +61,11 @@ def test_cli_run_persists_run_results_predictions(
         run.dpi,
         run.downsample_px,
         run.max_tokens,
-        run.prefill,
         run.temperature,
     ) == (
         knobs.dpi,
         knobs.downsample_px,
         knobs.max_tokens,
-        knobs.prefill,
         knobs.temperature,
     )
 

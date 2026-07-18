@@ -204,7 +204,6 @@ def _done_run(session, task, prompt_id, drawing_id) -> Run:
         dpi=200,
         downsample_px=1568,
         max_tokens=1024,
-        prefill=True,
         temperature=0.0,
     )
     session.add(run)

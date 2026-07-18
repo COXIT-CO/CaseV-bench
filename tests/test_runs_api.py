@@ -93,7 +93,6 @@ def test_create_run_returns_queued_run_and_detail_carries_knobs(
         "dpi",
         "downsample_px",
         "max_tokens",
-        "prefill",
         "temperature",
     }
     assert [r["model"] for r in detail["results"]] == [SONNET]
