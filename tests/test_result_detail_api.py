@@ -1,8 +1,8 @@
 """JSON contract for the Result drill-down (spec §A.3, ticket 03). ``GET /api/results/{id}``
 is the twin of the retired Jinja ``/results/{id}`` page: the header refs, the correct
 score shape (counting **or** location) with per-label detail, and the per-page Predictions
-(raw content + parsed JSON, or a parse-error failure record). The two binary overlay PNGs
-are re-mounted under ``/api`` for the SPA.
+(raw content + parsed JSON, or a parse-error failure record). The prediction overlay PNG is
+re-mounted under ``/api`` for the SPA.
 
 Results are seeded directly so the score is exact without depending on a live model.
 """
@@ -265,7 +265,7 @@ def test_counting_result_unscored_without_ground_truth(client, engine):
     assert len(body["predictions"]) == 2
 
 
-def test_location_result_detail_returns_rates_and_gt_flags(client, engine, tmp_path):
+def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp_path):
     result_id = _seed_location_result(engine, tmp_path, with_gt=True)
 
     body = client.get(f"/api/results/{result_id}").json()
@@ -282,12 +282,12 @@ def test_location_result_detail_returns_rates_and_gt_flags(client, engine, tmp_p
     assert cab["fn"] == 1  # one GT box never covered
     assert score["precision"] == cab["precision"]
 
-    # Per-page GT flags: p1 has GT, p2 does not; both carry their predicted box count.
+    # Each page carries its predicted box count (the GT visuals are gone; ticket 01).
     preds = {p["page_number"]: p for p in body["predictions"]}
-    assert preds[1]["has_gt"] is True
     assert preds[1]["box_count"] == 2
-    assert preds[2]["has_gt"] is False
     assert preds[2]["box_count"] == 1
+    # The dropped compare-overlay flag is no longer part of the payload.
+    assert "has_gt" not in preds[1]
 
 
 def test_location_result_unscored_without_ground_truth(client, engine, tmp_path):
@@ -296,8 +296,8 @@ def test_location_result_unscored_without_ground_truth(client, engine, tmp_path)
     body = client.get(f"/api/results/{result_id}").json()
     assert body["scored"] is False
     assert body["location_score"] is None
-    # Every page is flagged GT-less so the SPA can point at ground-truth entry.
-    assert all(p["has_gt"] is False for p in body["predictions"])
+    # Predictions are still returned so the model's boxes stay inspectable.
+    assert len(body["predictions"]) == 2
 
 
 def test_result_detail_missing_result_404s(client):
@@ -305,13 +305,14 @@ def test_result_detail_missing_result_404s(client):
     assert missing.status_code == 404
 
 
-def test_api_overlay_and_compare_overlay_served_for_spa(client, engine, tmp_path):
+def test_api_prediction_overlay_served_and_compare_overlay_gone(
+    client, engine, tmp_path
+):
     result_id = _seed_location_result(engine, tmp_path, with_gt=True)
 
-    # The GT-vs-prediction compare PNG is reachable under /api for the SPA.
+    # The dropped GT-vs-prediction compare route no longer resolves (ticket 01).
     compare = client.get(f"/api/results/{result_id}/pages/1/compare-overlay")
-    assert compare.status_code == 200
-    assert compare.headers["content-type"] == "image/png"
+    assert compare.status_code == 404
 
     # A page with a prediction but no cached prediction-overlay 404s (no overlay_path set).
     overlay = client.get(f"/api/results/{result_id}/pages/1/overlay")

@@ -84,25 +84,25 @@ describe("ResultDetail", () => {
     expect(within(row).getByText("22")).toBeInTheDocument(); // tp
   });
 
-  it("shows the compare overlay grid with the legend and flags a GT-less page", async () => {
+  it("shows the prediction-only overlay grid for a scored location Result", async () => {
     vi.mocked(api.result).mockResolvedValue(LOCATION_RESULT);
     renderDetail("/results/90");
 
-    await screen.findByText("Ground truth vs. prediction");
-    // The fixed red = prediction, green = ground truth legend.
-    expect(screen.getByText("Prediction")).toBeInTheDocument();
-    expect(screen.getByText("Ground truth")).toBeInTheDocument();
-    // Page 1 has GT; page 2 is flagged as having none.
-    expect(screen.getByText("no ground truth")).toBeInTheDocument();
-    // Each overlay is click-to-enlarge, linking the compare-overlay PNG under /api.
-    const link = screen
-      .getAllByRole("link")
-      .find((a) =>
-        a
-          .getAttribute("href")
-          ?.includes("/api/results/90/pages/1/compare-overlay"),
-      );
-    expect(link).toBeDefined();
+    // The GT visuals are gone (ticket 01): a scored location Result shows the model's own
+    // prediction overlays, not the red-over-green compare grid.
+    await screen.findByText("Predicted boxes");
+    expect(screen.queryByText("Ground truth vs. prediction")).not.toBeInTheDocument();
+    expect(screen.queryByText("no ground truth")).not.toBeInTheDocument();
+
+    // Each overlay links the prediction-overlay PNG under /api, never the compare route.
+    const links = screen.getAllByRole("link");
+    const overlayLink = links.find((a) =>
+      a.getAttribute("href")?.includes("/api/results/90/pages/1/overlay"),
+    );
+    expect(overlayLink).toBeDefined();
+    expect(
+      links.some((a) => a.getAttribute("href")?.includes("compare-overlay")),
+    ).toBe(false);
   });
 
   it("renders the unscored state with a ground-truth CTA and no score block", async () => {
