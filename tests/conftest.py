@@ -16,6 +16,23 @@ from sqlmodel import Session
 from api.app import create_app
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
 from core.db import init_db, make_engine
+from core.services.pdf_processing import page_image_filename
+
+
+def seed_page_images(base_dir: Path, n_pages: int, size=(64, 64)) -> list[Path]:
+    """Write ``n_pages`` small white native-raster PNGs where render-on-demand expects them —
+    ``<base_dir>/page_NNNN.png`` (ticket 05). A Page whose ``image_path`` lives under
+    ``base_dir`` then renders on demand (the runner derives the drawing dir from the image
+    path's parent and reads the native raster from it), so run-path tests exercise a real
+    render instead of a fake ``/tmp`` path. Returns the written paths, newest convention shape,
+    matching real ingestion's per-drawing directory layout."""
+    base_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for page_number in range(1, n_pages + 1):
+        path = base_dir / page_image_filename(page_number)
+        Image.new("RGB", size, "white").save(path)
+        paths.append(path)
+    return paths
 
 
 class StubOpenRouterAdapter:

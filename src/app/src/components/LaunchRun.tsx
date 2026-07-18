@@ -95,7 +95,9 @@ const SELECT_CLASS =
   "w-full rounded-md border bg-card px-2.5 py-2 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // The Advanced knobs' pre-filled defaults — the common one-click launch keeps these, so the
-// form matches the server's `RunKnobs` defaults (ticket 04, ADR 0018).
+// form matches the server's `RunKnobs` defaults (tickets 04/05, ADR 0018).
+const DEFAULT_DPI = 300;
+const DEFAULT_DOWNSAMPLE_PX = 1568;
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
 
@@ -111,7 +113,11 @@ function LaunchRunFields({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [freeText, setFreeText] = React.useState("");
   // The Advanced knobs, pre-filled and collapsed. `providerDefault` sends `temperature: null`
-  // so a reasoning Model that rejects an explicit temperature still runs under this config.
+  // so a reasoning Model that rejects an explicit temperature still runs; `downsample` off
+  // sends `downsample_px: null` (full resolution, no downsample).
+  const [dpi, setDpi] = React.useState(DEFAULT_DPI);
+  const [downsample, setDownsample] = React.useState(true);
+  const [downsamplePx, setDownsamplePx] = React.useState(DEFAULT_DOWNSAMPLE_PX);
   const [maxTokens, setMaxTokens] = React.useState(DEFAULT_MAX_TOKENS);
   const [temperature, setTemperature] = React.useState(DEFAULT_TEMPERATURE);
   const [providerDefault, setProviderDefault] = React.useState(false);
@@ -139,6 +145,9 @@ function LaunchRunFields({
         drawing_id: drawingId,
         models: [...selected],
         free_text: freeText,
+        dpi,
+        // Downsample off → null (full resolution), which the server sends at full res.
+        downsample_px: downsample ? downsamplePx : null,
         max_tokens: maxTokens,
         // "Provider default" → null, which the server omits from the request payload.
         temperature: providerDefault ? null : temperature,
@@ -200,6 +209,12 @@ function LaunchRunFields({
       </Field>
 
       <AdvancedKnobs
+        dpi={dpi}
+        onDpi={setDpi}
+        downsample={downsample}
+        onDownsample={setDownsample}
+        downsamplePx={downsamplePx}
+        onDownsamplePx={setDownsamplePx}
         maxTokens={maxTokens}
         onMaxTokens={setMaxTokens}
         temperature={temperature}
@@ -220,11 +235,19 @@ function LaunchRunFields({
 const KNOB_INPUT_CLASS =
   "w-full rounded-md border bg-card px-2.5 py-2 font-mono text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
-/** The collapsed Advanced section: `max_tokens` and temperature, pre-filled with the common
- * defaults so the one-click launch is unchanged (ticket 04). Temperature is a number, or
- * "provider default" (→ `null`, omitted from the request) for Models that reject an explicit
- * temperature. DPI/downsample land here in a later slice. */
+/** The collapsed Advanced section: DPI, downsample, `max_tokens` and temperature, pre-filled
+ * with the common defaults so the one-click launch is unchanged (tickets 04/05). DPI is
+ * effective per run (ingest retains the source PDF, ADR 0018) and ignored for image drawings.
+ * Downsample is on with a target long-edge px, or off (→ `downsample_px: null`, full
+ * resolution). Temperature is a number, or "provider default" (→ `null`, omitted from the
+ * request) for Models that reject an explicit temperature. */
 function AdvancedKnobs({
+  dpi,
+  onDpi,
+  downsample,
+  onDownsample,
+  downsamplePx,
+  onDownsamplePx,
   maxTokens,
   onMaxTokens,
   temperature,
@@ -232,6 +255,12 @@ function AdvancedKnobs({
   providerDefault,
   onProviderDefault,
 }: {
+  dpi: number;
+  onDpi: (value: number) => void;
+  downsample: boolean;
+  onDownsample: (value: boolean) => void;
+  downsamplePx: number;
+  onDownsamplePx: (value: number) => void;
   maxTokens: number;
   onMaxTokens: (value: number) => void;
   temperature: number;
@@ -245,6 +274,42 @@ function AdvancedKnobs({
         Advanced
       </summary>
       <div className="mt-3 flex flex-col gap-4">
+        <Field label="DPI" htmlFor="launch-dpi">
+          <input
+            id="launch-dpi"
+            type="number"
+            min={1}
+            step={1}
+            value={dpi}
+            onChange={(e) => onDpi(Number(e.target.value))}
+            className={KNOB_INPUT_CLASS}
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Ignored for image drawings (no PDF to re-render).
+          </p>
+        </Field>
+
+        <Field label="downsample (px)" htmlFor="launch-downsample-px">
+          <input
+            id="launch-downsample-px"
+            type="number"
+            min={1}
+            step={1}
+            value={downsample ? downsamplePx : ""}
+            disabled={!downsample}
+            onChange={(e) => onDownsamplePx(Number(e.target.value))}
+            className={KNOB_INPUT_CLASS}
+          />
+          <label className="mt-2 flex items-center gap-2 text-[12px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={!downsample}
+              onChange={(e) => onDownsample(!e.target.checked)}
+            />
+            Full resolution (no downsample)
+          </label>
+        </Field>
+
         <Field label="max_tokens" htmlFor="launch-max-tokens">
           <input
             id="launch-max-tokens"

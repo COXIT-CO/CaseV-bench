@@ -7,6 +7,7 @@ failure Prediction without aborting the Run or affecting other models.
 
 import json
 
+from conftest import seed_page_images
 from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
@@ -23,17 +24,19 @@ COUNT_JSON = (
 )
 
 
-def _seed_drawing(session, n_pages: int) -> Drawing:
+def _seed_drawing(session, tmp_path, n_pages: int) -> Drawing:
     drawing = Drawing(name="sample")
     session.add(drawing)
     session.commit()
     session.refresh(drawing)
-    for page_number in range(1, n_pages + 1):
+    # Pages point at real native rasters so render-on-demand has an image to hand the Model.
+    images = seed_page_images(tmp_path / str(drawing.id), n_pages)
+    for page_number, image in enumerate(images, start=1):
         session.add(
             Page(
                 drawing_id=drawing.id,
                 page_number=page_number,
-                image_path=f"/tmp/page_{page_number}.png",
+                image_path=str(image),
                 width_px=100,
                 height_px=100,
             )
@@ -47,8 +50,8 @@ def _seed_prompt(session):
     return PromptService(session).create(Task.counting, "default", "count them")
 
 
-def test_run_persists_results_and_predictions(session, stub_adapter):
-    drawing = _seed_drawing(session, n_pages=2)
+def test_run_persists_results_and_predictions(session, stub_adapter, tmp_path):
+    drawing = _seed_drawing(session, tmp_path, n_pages=2)
     prompt = _seed_prompt(session)
     stub_adapter.responses = {SONNET: COUNT_JSON, GPT: COUNT_JSON}
 
@@ -81,8 +84,10 @@ def test_run_persists_results_and_predictions(session, stub_adapter):
             assert json.loads(pred.parsed_json)["cabinets"] == 3
 
 
-def test_unparseable_model_records_failure_without_aborting(session, stub_adapter):
-    drawing = _seed_drawing(session, n_pages=1)
+def test_unparseable_model_records_failure_without_aborting(
+    session, stub_adapter, tmp_path
+):
+    drawing = _seed_drawing(session, tmp_path, n_pages=1)
     prompt = _seed_prompt(session)
     stub_adapter.responses = {SONNET: COUNT_JSON, GPT: "not json at all"}
 
@@ -110,10 +115,10 @@ def test_unparseable_model_records_failure_without_aborting(session, stub_adapte
     assert len(gpt_calls) == 2
 
 
-def test_raising_adapter_is_recorded_not_aborting(session, stub_adapter):
+def test_raising_adapter_is_recorded_not_aborting(session, stub_adapter, tmp_path):
     """A model whose OpenRouter call raises (e.g. a network error) is recorded as a
     failure Prediction and does not abort the Run or other models (spec: Runs 21)."""
-    drawing = _seed_drawing(session, n_pages=1)
+    drawing = _seed_drawing(session, tmp_path, n_pages=1)
     prompt = _seed_prompt(session)
     stub_adapter.responses = {SONNET: COUNT_JSON}
 

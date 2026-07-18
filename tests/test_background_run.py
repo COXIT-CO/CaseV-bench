@@ -10,7 +10,9 @@ the terminal state deterministically.
 
 import threading
 import time
+from pathlib import Path
 
+from conftest import seed_page_images
 from sqlmodel import Session, select
 
 from core.models.drawing import Drawing, Page
@@ -29,16 +31,19 @@ COUNT_JSON = (
 
 
 def _seed_drawing(session, n_pages: int) -> Drawing:
+    data_dir = Path(session.get_bind().url.database).parent
     drawing = Drawing(name="sample")
     session.add(drawing)
     session.commit()
     session.refresh(drawing)
-    for page_number in range(1, n_pages + 1):
+    # Real native rasters under the temp data dir so render-on-demand has an image per page.
+    images = seed_page_images(data_dir / "drawings" / str(drawing.id), n_pages)
+    for page_number, image in enumerate(images, start=1):
         session.add(
             Page(
                 drawing_id=drawing.id,
                 page_number=page_number,
-                image_path=f"/tmp/page_{page_number}.png",
+                image_path=str(image),
                 width_px=100,
                 height_px=100,
             )

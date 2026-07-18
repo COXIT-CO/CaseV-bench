@@ -35,9 +35,10 @@ class CatalogEntryOut(BaseModel):
 class KnobsOut(BaseModel):
     """The read-only per-run knobs snapshot a Run recorded (spec: Runs 18), embedded in both
     the Run detail and the Result drill-down. ``temperature`` is null when the Run used the
-    provider default (ADR 0018/0019)."""
+    provider default; ``downsample_px`` is null when the Run sent full-resolution images
+    (ADR 0018/0019)."""
 
     dpi: int
-    downsample_px: int
+    downsample_px: int | None
     max_tokens: int
     temperature: float | None

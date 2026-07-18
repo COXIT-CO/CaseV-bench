@@ -54,6 +54,8 @@ describe("api client", () => {
       drawing_id: 3,
       models: ["anthropic/claude-sonnet-4.5"],
       free_text: "",
+      dpi: 300,
+      downsample_px: 1568,
       max_tokens: 4096,
       temperature: 0,
     };
@@ -85,6 +87,8 @@ describe("api client", () => {
         drawing_id: 3,
         models: [],
         free_text: "",
+        dpi: 300,
+        downsample_px: 1568,
         max_tokens: 4096,
         temperature: 0,
       }),

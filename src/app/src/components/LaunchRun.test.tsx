@@ -54,7 +54,52 @@ describe("Launch form Advanced knobs", () => {
 
     await waitFor(() =>
       expect(api.createRun).toHaveBeenCalledWith(
-        expect.objectContaining({ max_tokens: 4096, temperature: 0 }),
+        expect.objectContaining({
+          dpi: 300,
+          downsample_px: 1568,
+          max_tokens: 4096,
+          temperature: 0,
+        }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("submits the chosen DPI and downsample from the Advanced section", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+
+    const dpi = screen.getByLabelText("DPI");
+    await userEvent.clear(dpi);
+    await userEvent.type(dpi, "600");
+    const downsamplePx = screen.getByLabelText("downsample (px)");
+    await userEvent.clear(downsamplePx);
+    await userEvent.type(downsamplePx, "2000");
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ dpi: 600, downsample_px: 2000 }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("sends downsample_px null when full resolution is chosen", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+    await userEvent.click(
+      screen.getByLabelText("Full resolution (no downsample)"),
+    );
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ downsample_px: null }),
         expect.anything(),
       ),
     );

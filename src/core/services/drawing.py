@@ -8,6 +8,7 @@ that then flows through the identical downsample-and-store loop, so a one-image
 Drawing behaves exactly like a one-page PDF in runs and scoring (ticket 11).
 """
 
+import shutil
 from pathlib import Path
 
 from PIL import Image
@@ -62,6 +63,16 @@ class DrawingService:
         self.session.refresh(drawing)
 
         page_dir = self.cache_root / str(drawing.id)
+        page_dir.mkdir(parents=True, exist_ok=True)
+        # Retain the source PDF alongside the page renders so a Run can re-rasterize its Pages
+        # on demand at the chosen DPI (ADR 0018). It lives under the drawing dir, so the
+        # delete-cascade cleanup sweeps it too. A plain image has no PDF: source_path stays
+        # None and its Pages render from the stored native raster (DPI ignored).
+        if source_path.suffix.lower() == PDF_SUFFIX:
+            retained = page_dir / f"source{PDF_SUFFIX}"
+            shutil.copyfile(source_path, retained)
+            drawing.source_path = str(retained)
+
         rendered = self._render_pages(source_path, page_dir)
 
         for page_number, full_res in enumerate(rendered, start=1):

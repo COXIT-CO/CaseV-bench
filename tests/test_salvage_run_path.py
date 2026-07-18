@@ -9,7 +9,7 @@ drawn). Never asserts internal parser mechanics — only the ``Prediction`` a Ru
 import json
 from pathlib import Path
 
-from PIL import Image
+from conftest import seed_page_images
 
 from core.models.drawing import Drawing, Page
 from core.models.prompt import Task
@@ -35,33 +35,12 @@ CLEAN_COUNT = (
 )
 
 
-def _seed_counting(session):
+def _seed_page(session, tmp_path, task: Task, prompt_text: str):
     drawing = Drawing(name="sample")
     session.add(drawing)
     session.commit()
     session.refresh(drawing)
-    session.add(
-        Page(
-            drawing_id=drawing.id,
-            page_number=1,
-            image_path="/tmp/page_1.png",
-            width_px=100,
-            height_px=100,
-        )
-    )
-    session.commit()
-    session.refresh(drawing)
-    prompt = PromptService(session).create(Task.counting, "default", "count them")
-    return drawing, prompt
-
-
-def _seed_location(session, tmp_path):
-    drawing = Drawing(name="sample")
-    session.add(drawing)
-    session.commit()
-    session.refresh(drawing)
-    image_path = tmp_path / "page_1.png"
-    Image.new("RGB", (100, 100), "white").save(image_path)
+    (image_path,) = seed_page_images(tmp_path / str(drawing.id), n_pages=1)
     session.add(
         Page(
             drawing_id=drawing.id,
@@ -73,8 +52,16 @@ def _seed_location(session, tmp_path):
     )
     session.commit()
     session.refresh(drawing)
-    prompt = PromptService(session).create(Task.location, "default", "find them")
+    prompt = PromptService(session).create(task, "default", prompt_text)
     return drawing, prompt
+
+
+def _seed_counting(session, tmp_path):
+    return _seed_page(session, tmp_path, Task.counting, "count them")
+
+
+def _seed_location(session, tmp_path):
+    return _seed_page(session, tmp_path, Task.location, "find them")
 
 
 def _only_prediction(run):
@@ -83,8 +70,8 @@ def _only_prediction(run):
     return pred
 
 
-def _launch_counting(session, stub_adapter, content):
-    drawing, prompt = _seed_counting(session)
+def _launch_counting(session, stub_adapter, tmp_path, content):
+    drawing, prompt = _seed_counting(session, tmp_path)
     stub_adapter.responses = {MODEL: content}
     run = RunService(session, stub_adapter).launch(
         Task.counting, prompt.id, drawing.id, [MODEL]
@@ -93,20 +80,22 @@ def _launch_counting(session, stub_adapter, content):
     return _only_prediction(run)
 
 
-def test_prose_wrapped_counting_is_scored_ok(session, stub_adapter):
+def test_prose_wrapped_counting_is_scored_ok(session, stub_adapter, tmp_path):
     # Chatty prose around otherwise-valid JSON is tolerated → a scored ok.
     content = f"Sure, here are the counts:\n```json\n{CLEAN_COUNT}\n```\nLet me know!"
-    pred = _launch_counting(session, stub_adapter, content)
+    pred = _launch_counting(session, stub_adapter, tmp_path, content)
     assert pred.status == PredictionStatus.ok
     assert json.loads(pred.parsed_json)["cabinets"] == 3
     assert pred.parse_error is None
 
 
-def test_trailing_comma_and_single_quotes_counting_is_scored_ok(session, stub_adapter):
+def test_trailing_comma_and_single_quotes_counting_is_scored_ok(
+    session, stub_adapter, tmp_path
+):
     content = (
         "{'cabinets': 3, 'countertops': 1, 'elevations': 2, 'elevation_callout': 0,}"
     )
-    pred = _launch_counting(session, stub_adapter, content)
+    pred = _launch_counting(session, stub_adapter, tmp_path, content)
     assert pred.status == PredictionStatus.ok
     assert json.loads(pred.parsed_json)["countertops"] == 1
 
@@ -152,8 +141,8 @@ def test_total_garbage_location_is_error_with_no_boxes(session, stub_adapter, tm
     assert pred.overlay_path is None
 
 
-def test_bad_first_parse_then_clean_retry_is_scored_ok(session, stub_adapter):
-    drawing, prompt = _seed_counting(session)
+def test_bad_first_parse_then_clean_retry_is_scored_ok(session, stub_adapter, tmp_path):
+    drawing, prompt = _seed_counting(session, tmp_path)
     # First attempt is unsalvageable garbage; the single retry returns clean JSON.
     replies = iter(["total nonsense, no json here", CLEAN_COUNT])
 
@@ -204,8 +193,8 @@ def test_salvage_survives_a_raising_retry(session, stub_adapter, tmp_path):
     assert pred.overlay_path is not None
 
 
-def test_clean_first_parse_does_not_retry(session, stub_adapter):
-    drawing, prompt = _seed_counting(session)
+def test_clean_first_parse_does_not_retry(session, stub_adapter, tmp_path):
+    drawing, prompt = _seed_counting(session, tmp_path)
     stub_adapter.responses = {MODEL: CLEAN_COUNT}
     RunService(session, stub_adapter).launch(
         Task.counting, prompt.id, drawing.id, [MODEL]

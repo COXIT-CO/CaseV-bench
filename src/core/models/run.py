@@ -57,9 +57,10 @@ class Run(SQLModel, table=True):
     total_units: int = 0
 
     # Snapshot of the per-run knobs used, so results stay reproducible (spec: Runs 18).
-    # temperature is None when the Run used the provider default (ADR 0018/0019).
+    # temperature is None when the Run used the provider default; downsample_px is None when
+    # the Run sent full-resolution images (no downsample) (ADR 0018/0019).
     dpi: int
-    downsample_px: int
+    downsample_px: int | None
     max_tokens: int
     temperature: float | None
 

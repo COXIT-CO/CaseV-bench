@@ -11,7 +11,7 @@ exist exactly as production writes them, then deleted.
 import json
 from pathlib import Path
 
-from PIL import Image
+from conftest import seed_page_images
 from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
@@ -35,19 +35,19 @@ BOXES_JSON = json.dumps(
 
 
 def _seed_drawing(session, tmp_path: Path, name: str, n_pages: int = 2) -> Drawing:
-    """A Drawing whose Pages point at real PNGs so overlay rendering has an image."""
+    """A Drawing whose Pages point at real native rasters (one dir per drawing) so
+    render-on-demand and overlay rendering both have an image."""
     drawing = Drawing(name=name)
     session.add(drawing)
     session.commit()
     session.refresh(drawing)
-    for page_number in range(1, n_pages + 1):
-        image_path = tmp_path / f"{name}_page_{page_number}.png"
-        Image.new("RGB", (100, 100), "white").save(image_path)
+    images = seed_page_images(tmp_path / str(drawing.id), n_pages)
+    for page_number, image in enumerate(images, start=1):
         session.add(
             Page(
                 drawing_id=drawing.id,
                 page_number=page_number,
-                image_path=str(image_path),
+                image_path=str(image),
                 width_px=100,
                 height_px=100,
             )
