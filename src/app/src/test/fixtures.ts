@@ -141,6 +141,7 @@ export const COUNTING_RESULT: ResultDetailResponse = {
   drawing_name: "prj0001",
   scored: true,
   label_count: 4,
+  knobs: { dpi: 300, downsample_px: 1568, max_tokens: 4096, temperature: 0.0 },
   counting_score: {
     total_absolute_error: 3,
     exact_match_count: 3,
@@ -186,6 +187,7 @@ export const LOCATION_RESULT: ResultDetailResponse = {
   drawing_name: "floorplan",
   scored: true,
   label_count: 4,
+  knobs: { dpi: 600, downsample_px: 2000, max_tokens: 8192, temperature: null },
   counting_score: null,
   location_score: {
     precision: 0.87,

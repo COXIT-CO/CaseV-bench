@@ -6,16 +6,22 @@ on the in-process background runner (ADR 0006); the SPA polls status and stops w
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from api.deps import get_run_service, get_session
-from api.routers.common import CatalogEntryOut, DrawingRef, LeaderboardDrawing
+from api.routers.common import (
+    CatalogEntryOut,
+    DrawingRef,
+    KnobsOut,
+    LeaderboardDrawing,
+)
+from core.adapters.openrouter import DEFAULT_MAX_TOKENS
 from core.models.drawing import Drawing
 from core.models.prompt import Prompt
 from core.models.run import Run
 from core.services.model_catalog import ModelCatalogService
-from core.services.run import RunService
+from core.services.run import DEFAULT_TEMPERATURE, RunKnobs, RunService
 
 router = APIRouter(prefix="/api", tags=["runs"])
 
@@ -62,12 +68,17 @@ class LaunchOptionsResponse(BaseModel):
 
 class RunCreateRequest(BaseModel):
     """The launch body. The server resolves ``models`` (curated) + ``free_text`` into the
-    final slug list as the source of truth, and runs against the prompt's own Task."""
+    final slug list as the source of truth, and runs against the prompt's own Task. The
+    Advanced knobs default to the common one-click launch: ``max_tokens`` pre-filled and
+    ``temperature`` at ``0.0``. ``temperature: null`` selects the provider default, omitted
+    from the request payload (ticket 04, ADR 0018/0019)."""
 
     prompt_id: int
     drawing_id: int
     models: list[str] = []
     free_text: str = ""
+    max_tokens: int = Field(default=DEFAULT_MAX_TOKENS, gt=0)
+    temperature: float | None = DEFAULT_TEMPERATURE
 
 
 class RunCreatedOut(BaseModel):
@@ -109,16 +120,6 @@ class RunRef(BaseModel):
 class PromptRef(BaseModel):
     family: str
     version: int
-
-
-class KnobsOut(BaseModel):
-    """The read-only per-run knobs snapshot a Run recorded (spec: Runs 18). ``temperature``
-    is null when the Run used the provider default (ADR 0018/0019)."""
-
-    dpi: int
-    downsample_px: int
-    max_tokens: int
-    temperature: float | None
 
 
 class RunDetailResponse(BaseModel):
@@ -211,6 +212,12 @@ def create_run(
             status_code=400, detail=f"no prompt with id {payload.prompt_id}"
         )
     slugs = ModelCatalogService.resolve_selection(payload.models, payload.free_text)
+    # The chosen Advanced knobs ride on the service so both create_run's snapshot and the
+    # background runner's request path read the same values (ticket 04; the runner shares
+    # this service's knobs so the two can't drift — RunService.background_runner).
+    service.knobs = RunKnobs(
+        max_tokens=payload.max_tokens, temperature=payload.temperature
+    )
     try:
         run = service.create_run(
             prompt.task, payload.prompt_id, payload.drawing_id, slugs

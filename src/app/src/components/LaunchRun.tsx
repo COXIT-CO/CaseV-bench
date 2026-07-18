@@ -94,6 +94,11 @@ function MissingPrerequisites({ options }: { options: LaunchOptionsResponse }) {
 const SELECT_CLASS =
   "w-full rounded-md border bg-card px-2.5 py-2 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+// The Advanced knobs' pre-filled defaults — the common one-click launch keeps these, so the
+// form matches the server's `RunKnobs` defaults (ticket 04, ADR 0018).
+const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_TEMPERATURE = 0;
+
 function LaunchRunFields({
   options,
   onLaunched,
@@ -105,6 +110,11 @@ function LaunchRunFields({
   const [drawingId, setDrawingId] = React.useState(options.drawings[0].id);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [freeText, setFreeText] = React.useState("");
+  // The Advanced knobs, pre-filled and collapsed. `providerDefault` sends `temperature: null`
+  // so a reasoning Model that rejects an explicit temperature still runs under this config.
+  const [maxTokens, setMaxTokens] = React.useState(DEFAULT_MAX_TOKENS);
+  const [temperature, setTemperature] = React.useState(DEFAULT_TEMPERATURE);
+  const [providerDefault, setProviderDefault] = React.useState(false);
   const createRun = useCreateRun();
 
   function toggle(slug: string) {
@@ -129,6 +139,9 @@ function LaunchRunFields({
         drawing_id: drawingId,
         models: [...selected],
         free_text: freeText,
+        max_tokens: maxTokens,
+        // "Provider default" → null, which the server omits from the request payload.
+        temperature: providerDefault ? null : temperature,
       },
       { onSuccess: (run) => onLaunched(run.id) },
     );
@@ -186,12 +199,86 @@ function LaunchRunFields({
         />
       </Field>
 
+      <AdvancedKnobs
+        maxTokens={maxTokens}
+        onMaxTokens={setMaxTokens}
+        temperature={temperature}
+        onTemperature={setTemperature}
+        providerDefault={providerDefault}
+        onProviderDefault={setProviderDefault}
+      />
+
       {createRun.isError && <ErrorBlock error={createRun.error} />}
 
       <Button type="submit" disabled={!hasModel || createRun.isPending}>
         {createRun.isPending ? "Launching…" : "Launch run"}
       </Button>
     </form>
+  );
+}
+
+const KNOB_INPUT_CLASS =
+  "w-full rounded-md border bg-card px-2.5 py-2 font-mono text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+
+/** The collapsed Advanced section: `max_tokens` and temperature, pre-filled with the common
+ * defaults so the one-click launch is unchanged (ticket 04). Temperature is a number, or
+ * "provider default" (→ `null`, omitted from the request) for Models that reject an explicit
+ * temperature. DPI/downsample land here in a later slice. */
+function AdvancedKnobs({
+  maxTokens,
+  onMaxTokens,
+  temperature,
+  onTemperature,
+  providerDefault,
+  onProviderDefault,
+}: {
+  maxTokens: number;
+  onMaxTokens: (value: number) => void;
+  temperature: number;
+  onTemperature: (value: number) => void;
+  providerDefault: boolean;
+  onProviderDefault: (value: boolean) => void;
+}) {
+  return (
+    <details className="rounded-md border bg-card px-3 py-2">
+      <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+        Advanced
+      </summary>
+      <div className="mt-3 flex flex-col gap-4">
+        <Field label="max_tokens" htmlFor="launch-max-tokens">
+          <input
+            id="launch-max-tokens"
+            type="number"
+            min={1}
+            step={1}
+            value={maxTokens}
+            onChange={(e) => onMaxTokens(Number(e.target.value))}
+            className={KNOB_INPUT_CLASS}
+          />
+        </Field>
+
+        <Field label="temperature" htmlFor="launch-temperature">
+          <input
+            id="launch-temperature"
+            type="number"
+            min={0}
+            step="0.1"
+            value={providerDefault ? "" : temperature}
+            disabled={providerDefault}
+            onChange={(e) => onTemperature(Number(e.target.value))}
+            className={KNOB_INPUT_CLASS}
+          />
+          <label className="mt-2 flex items-center gap-2 text-[12px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={providerDefault}
+              onChange={(e) => onProviderDefault(e.target.checked)}
+            />
+            Use provider default (omit temperature)
+          </label>
+        </Field>
+      </div>
+    </details>
   );
 }
 

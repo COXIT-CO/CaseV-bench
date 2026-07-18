@@ -226,6 +226,14 @@ def test_counting_result_detail_returns_score_and_predictions(client, engine):
     assert body["scored"] is True
     assert body["label_count"] == 4
 
+    # The Result view shows the same per-run knobs snapshot the Run recorded (ticket 04).
+    assert body["knobs"] == {
+        "dpi": 200,
+        "downsample_px": 1568,
+        "max_tokens": 1024,
+        "temperature": 0.0,
+    }
+
     # Counting score shape: aggregates + per-label predicted/gt/abs-error/exact.
     score = body["counting_score"]
     assert body["location_score"] is None

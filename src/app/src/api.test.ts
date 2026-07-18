@@ -54,6 +54,8 @@ describe("api client", () => {
       drawing_id: 3,
       models: ["anthropic/claude-sonnet-4.5"],
       free_text: "",
+      max_tokens: 4096,
+      temperature: 0,
     };
     await expect(api.createRun(body)).resolves.toEqual(created);
     expect(fetch).toHaveBeenCalledWith(
@@ -78,7 +80,14 @@ describe("api client", () => {
     });
 
     await expect(
-      api.createRun({ prompt_id: 9, drawing_id: 3, models: [], free_text: "" }),
+      api.createRun({
+        prompt_id: 9,
+        drawing_id: 3,
+        models: [],
+        free_text: "",
+        max_tokens: 4096,
+        temperature: 0,
+      }),
     ).rejects.toMatchObject({
       status: 400,
       detail: "a Run needs at least one model",
