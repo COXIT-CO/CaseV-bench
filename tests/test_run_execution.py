@@ -59,12 +59,12 @@ def test_run_persists_results_and_predictions(session, stub_adapter):
     assert run.status == RunStatus.done
     assert run.total_units == 4  # 2 models * 2 pages
     assert run.progress == 4
-    # The fixed knobs are snapshotted on the Run and are what the adapter was called with.
+    # The per-run knobs are snapshotted on the Run and are what the adapter was called with.
     assert run.max_tokens == 4096
-    assert run.prefill is True
     assert stub_adapter.calls[0]["max_tokens"] == run.max_tokens
-    assert stub_adapter.calls[0]["prefill_json"] is True
     assert stub_adapter.calls[0]["temperature"] == run.temperature
+    # No prefill argument survives — the request is a single model-agnostic turn (ADR 0019).
+    assert "prefill_json" not in stub_adapter.calls[0]
 
     results = session.exec(select(Result).where(Result.run_id == run.id)).all()
     assert {r.model for r in results} == {SONNET, GPT}

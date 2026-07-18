@@ -33,7 +33,6 @@ def _add_run(engine, drawing_id: int, model: str = SONNET) -> int:
             dpi=200,
             downsample_px=1600,
             max_tokens=4096,
-            prefill=True,
             temperature=0.0,
         )
         session.add(run)

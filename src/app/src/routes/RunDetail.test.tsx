@@ -43,13 +43,13 @@ describe("RunDetail", () => {
     vi.mocked(api.run).mockResolvedValue(RUN_DETAIL);
   });
 
-  it("renders the header, the fixed-knobs snapshot, and per-model rows", async () => {
+  it("renders the header, the per-run knobs snapshot, and per-model rows", async () => {
     vi.mocked(api.runStatus).mockResolvedValue(RUNNING_STATUS);
     renderDetail();
 
     expect(await screen.findByText("Run #812")).toBeInTheDocument();
-    // Fixed-knobs snapshot values are shown as read-only metadata.
-    expect(screen.getByText("Fixed knobs snapshot")).toBeInTheDocument();
+    // Per-run knobs snapshot values are shown as read-only metadata.
+    expect(screen.getByText("Per-run knobs snapshot")).toBeInTheDocument();
     expect(screen.getByText("4096")).toBeInTheDocument();
     expect(screen.getByText("anthropic/claude-sonnet-4.5")).toBeInTheDocument();
   });

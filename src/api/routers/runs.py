@@ -112,13 +112,13 @@ class PromptRef(BaseModel):
 
 
 class KnobsOut(BaseModel):
-    """The read-only fixed-knobs snapshot a Run recorded (spec: Runs 18)."""
+    """The read-only per-run knobs snapshot a Run recorded (spec: Runs 18). ``temperature``
+    is null when the Run used the provider default (ADR 0018/0019)."""
 
     dpi: int
     downsample_px: int
     max_tokens: int
-    prefill: bool
-    temperature: float
+    temperature: float | None
 
 
 class RunDetailResponse(BaseModel):
@@ -250,7 +250,6 @@ def run_detail(
             dpi=run.dpi,
             downsample_px=run.downsample_px,
             max_tokens=run.max_tokens,
-            prefill=run.prefill,
             temperature=run.temperature,
         ),
         results=[RunResultOut(id=r.id, model=r.model) for r in run.results],

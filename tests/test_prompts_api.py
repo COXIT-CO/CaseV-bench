@@ -38,7 +38,6 @@ def _pin_run(engine, prompt_id: int) -> int:
             dpi=200,
             downsample_px=1600,
             max_tokens=4096,
-            prefill=True,
             temperature=0.0,
         )
         session.add(run)

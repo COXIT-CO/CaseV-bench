@@ -237,13 +237,13 @@ export interface DrawingRef {
   name: string;
 }
 
-/** The read-only fixed-knobs snapshot a Run recorded (spec: Runs 18). */
+/** The read-only per-run knobs snapshot a Run recorded (spec: Runs 18).
+ * `temperature` is null when the Run used the provider default (ADR 0018/0019). */
 export interface RunKnobs {
   dpi: number;
   downsample_px: number;
   max_tokens: number;
-  prefill: boolean;
-  temperature: number;
+  temperature: number | null;
 }
 
 /** `GET /api/runs/{id}` — header + fixed-knobs snapshot + result rows (spec §A.4). */

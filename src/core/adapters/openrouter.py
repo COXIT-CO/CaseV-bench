@@ -20,7 +20,6 @@ class OpenRouterAdapter(Protocol):
         image_path: Path,
         model: str,
         prompt: str,
-        prefill_json: bool = False,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float | None = None,
     ) -> dict: ...
@@ -30,13 +29,15 @@ def send_image_prompt(
     image_path: Path,
     model: str,
     prompt: str,
-    prefill_json: bool = False,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     temperature: float | None = None,
 ) -> dict:
     api_key = settings.require_openrouter_api_key()
     image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
 
+    # One model-agnostic request: a single user turn (image + prompt), no assistant
+    # prefill. The "respond with only JSON" instruction lives in the prompt, so reasoning
+    # and older models run identically (ADR 0019).
     messages = [
         {
             "role": "user",
@@ -49,16 +50,14 @@ def send_image_prompt(
             ],
         }
     ]
-    if prefill_json:
-        messages.append({"role": "assistant", "content": "```json"})
 
     payload = {
         "model": model,
         "max_tokens": max_tokens,
         "messages": messages,
     }
-    # A Run pins a fixed temperature for reproducibility; omit to keep the provider
-    # default when a caller passes None.
+    # A Run records its temperature for reproducibility; omit it from the payload to run
+    # under the provider default when a caller passes None (ADR 0019).
     if temperature is not None:
         payload["temperature"] = temperature
 
@@ -80,7 +79,6 @@ class HttpxOpenRouterAdapter:
         image_path: Path,
         model: str,
         prompt: str,
-        prefill_json: bool = False,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float | None = None,
     ) -> dict:
@@ -88,7 +86,6 @@ class HttpxOpenRouterAdapter:
             image_path,
             model,
             prompt,
-            prefill_json=prefill_json,
             max_tokens=max_tokens,
             temperature=temperature,
         )

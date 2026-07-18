@@ -26,7 +26,6 @@ def _seed_run(session, status: RunStatus) -> Run:
         dpi=200,
         downsample_px=1600,
         max_tokens=1024,
-        prefill=True,
         temperature=0.0,
     )
     session.add(run)

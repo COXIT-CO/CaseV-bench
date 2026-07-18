@@ -16,9 +16,9 @@ so tests stub the only external I/O boundary):
 Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — for
 counting the per-page counts parsed from the model's JSON; for location the labeled
 boxes plus a prediction-overlay PNG drawn on the page image (ticket 09) — or a failure
-record. JSON is obtained via the existing prefill + strip-fence approach and retried
-once before a failure is recorded; a model failure never aborts the Run (spec: Runs
-20, 21).
+record. The request is a single model-agnostic user turn (no prefill; ADR 0019) and the
+response is parsed, retried once before a failure is recorded; a model failure never
+aborts the Run (spec: Runs 20, 21).
 """
 
 import threading
@@ -41,7 +41,8 @@ from core.services.deletion import RunCascadeCounts, cascade_delete_runs
 from core.services.pdf_processing import DEFAULT_DPI
 from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, parse_json
 
-# A Run pins a fixed temperature for reproducibility (spec: knobs recorded but fixed).
+# The default temperature a Run pins for reproducibility; a Run may instead set None to
+# run under the provider default, which is omitted from the request payload (ADR 0018/0019).
 DEFAULT_TEMPERATURE = 0.0
 
 # How many models may call OpenRouter at once. Bounded so a 3-model run finishes ~3×
@@ -78,15 +79,16 @@ def reconcile_orphaned_runs(session: Session) -> int:
 
 @dataclass(frozen=True)
 class RunKnobs:
-    """The fixed, non-tunable knobs a Run snapshots (glossary: Configuration is
-    ``(prompt version, model)`` only; everything here is recorded but fixed in v1).
-    Field names match the ``Run`` columns so the snapshot copies by ``asdict``."""
+    """The per-run knobs a Run snapshots — recorded and displayed, but not a Leaderboard
+    rank axis (Configuration stays ``(prompt version, model)``; ADR 0018). ``temperature``
+    of ``None`` means "provider default" and is omitted from the request payload, so one
+    config runs reasoning and older models identically (ADR 0019). Field names match the
+    ``Run`` columns so the snapshot copies by ``asdict``."""
 
     dpi: int = DEFAULT_DPI
     downsample_px: int = DEFAULT_DOWNSAMPLE_PX
     max_tokens: int = DEFAULT_MAX_TOKENS
-    prefill: bool = True
-    temperature: float = DEFAULT_TEMPERATURE
+    temperature: float | None = DEFAULT_TEMPERATURE
 
 
 class _PageRef(NamedTuple):
@@ -320,7 +322,6 @@ def _predict_json(
                 Path(page.image_path),
                 model,
                 prompt_text,
-                prefill_json=knobs.prefill,
                 max_tokens=knobs.max_tokens,
                 temperature=knobs.temperature,
             )
@@ -371,8 +372,8 @@ def predict_counting(
     prompt_text: str,
     knobs: RunKnobs,
 ) -> Prediction:
-    """One page's counting Prediction: prefill + strip-fence parse into the per-page
-    counts, retried once before recording a failure (spec: Runs 20, 21). Returns an
+    """One page's counting Prediction: parse the model's JSON into the per-page counts,
+    retried once before recording a failure (spec: Runs 20, 21). Returns an
     unsaved ``Prediction`` — persistence is the caller's, kept out of this routine so it
     stays a pure, session-free seam."""
     raw_content, counts, error = _predict_json(
