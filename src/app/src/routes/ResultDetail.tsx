@@ -22,10 +22,9 @@ import type {
 
 // The Result drill-down (ADR 0011, spec §A.3): why a Result scored as it did. A header with
 // the Configuration refs, the Score block (counting or location shape), and the per-page
-// Predictions — plus, for location, a red-prediction-over-green-GT overlay compare grid.
-// The unscored state (no ground truth) shows a prominent CTA toward ground-truth entry; an
-// unscored location Result also shows a prediction-only overlay grid (its boxes on the page)
-// so the model's output is inspectable before any ground truth exists (ticket 12).
+// Predictions — plus, for location, the prediction overlay grid (the model's boxes on each
+// page), shown whether or not the Result is scored (ticket 01). The unscored state (no ground
+// truth) additionally shows a prominent CTA toward ground-truth entry.
 
 export function ResultDetail() {
   const { id } = useParams();
@@ -68,12 +67,7 @@ export function ResultDetail() {
       ) : (
         <UnscoredCta drawingId={data.drawing_id} />
       )}
-      {data.task === "location" &&
-        (data.scored ? (
-          <OverlayGrid result={data} />
-        ) : (
-          <PredictionOverlayGrid result={data} />
-        ))}
+      {data.task === "location" && <PredictionOverlayGrid result={data} />}
       <PredictionsSection predictions={data.predictions} />
     </Shell>
   );
@@ -312,77 +306,9 @@ function LocationScoreBlock({ score }: { score: LocationScore }) {
   );
 }
 
-/** The per-page GT-vs-prediction compare overlays: predicted boxes (red) over ground-truth
- * boxes (green), click-to-enlarge, flagging any page with no ground truth. */
-function OverlayGrid({ result }: { result: ResultDetailResponse }) {
-  return (
-    <div className="mb-6">
-      <div className="mb-2.5 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Ground truth vs. prediction</h2>
-        <div className="flex items-center gap-3.5 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-danger" />
-            Prediction
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-success" />
-            Ground truth
-          </span>
-        </div>
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5">
-        {result.predictions.map((pred) => (
-          <OverlayCard
-            key={pred.page_number}
-            resultId={result.result_id}
-            pred={pred}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function OverlayCard({
-  resultId,
-  pred,
-}: {
-  resultId: number;
-  pred: ResultPrediction;
-}) {
-  const src = `/api/results/${resultId}/pages/${pred.page_number}/compare-overlay`;
-  return (
-    <a
-      href={src}
-      target="_blank"
-      rel="noreferrer"
-      className="block overflow-hidden rounded-lg border bg-card hover:border-primary"
-    >
-      <div className="relative">
-        <img
-          src={src}
-          alt={`prediction vs ground truth for page ${pred.page_number}`}
-          className="block w-full"
-        />
-        {!pred.has_gt && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
-            <span className="rounded bg-black/40 px-2 py-1 text-[11px] font-semibold text-white">
-              no ground truth
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="flex justify-between px-2.5 py-2 text-xs text-muted-foreground">
-        <span>Page {pred.page_number}</span>
-        <span className="font-mono">{pred.box_count} boxes</span>
-      </div>
-    </a>
-  );
-}
-
-/** For an unscored location Result (no ground truth to compare against yet): the model's own
- * prediction overlays — its labeled boxes (red) on each page, served from the cached
- * prediction-overlay route (ticket 12). Distinct from the compare grid, which needs GT. */
+/** The per-page prediction overlays: the model's labeled boxes (red) on each page, served
+ * from the cached prediction-overlay route. The only Location overlay now (ticket 01) —
+ * shown for every Location Result, scored or not. */
 function PredictionOverlayGrid({ result }: { result: ResultDetailResponse }) {
   return (
     <div className="mb-6">

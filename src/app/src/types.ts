@@ -107,9 +107,8 @@ export interface LocationScore {
 
 /**
  * One Page's Prediction in the drill-down (src/web/api.py::PredictionOut): the raw model
- * output + parsed JSON on success, or a parse-error failure record. `has_gt` flags whether
- * the page carries location ground truth; `box_count` is the predicted box count (location
- * only, 0 otherwise).
+ * output + parsed JSON on success, or a parse-error failure record. `box_count` is the
+ * predicted box count (location only, 0 otherwise).
  */
 export interface ResultPrediction {
   page_number: number;
@@ -117,7 +116,6 @@ export interface ResultPrediction {
   raw_content: string | null;
   parsed_json: string | null;
   parse_error: string | null;
-  has_gt: boolean;
   box_count: number;
 }
 
@@ -346,16 +344,12 @@ export interface DrawingsResponse {
 }
 
 /** One rendered Page on the Drawing detail (src/web/api.py::DrawingPageOut): its number, the
- * full-resolution pixel dims, and the URL of its cached image PNG (under `/api`). When the
- * Page carries location ground truth, `ground_truth_overlay_url` points at the GT-only
- * overlay so ground truth is inspectable from Library independent of any Run (ticket 12);
- * it is `null` (nothing to view) otherwise. */
+ * full-resolution pixel dims, and the URL of its cached image PNG (under `/api`). */
 export interface DrawingPage {
   page_number: number;
   width_px: number;
   height_px: number;
   image_url: string;
-  ground_truth_overlay_url: string | null;
 }
 
 /** `GET /api/drawings/{id}` — the Drawing plus its rendered Pages (spec §A.6). The detail is

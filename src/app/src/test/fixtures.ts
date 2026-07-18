@@ -161,7 +161,6 @@ export const COUNTING_RESULT: ResultDetailResponse = {
       raw_content: '{"cabinets":24,"countertops":8,"elevations":7,"elevation_callout":12}',
       parsed_json: '{"cabinets": 24, "countertops": 8, "elevations": 7, "elevation_callout": 12}',
       parse_error: null,
-      has_gt: false,
       box_count: 0,
     },
     {
@@ -170,13 +169,12 @@ export const COUNTING_RESULT: ResultDetailResponse = {
       raw_content: "not json",
       parsed_json: null,
       parse_error: "response was not valid JSON",
-      has_gt: false,
       box_count: 0,
     },
   ],
 };
 
-/** A scored location Result: page 1 has GT, page 2 does not. */
+/** A scored location Result with two predicted pages. */
 export const LOCATION_RESULT: ResultDetailResponse = {
   result_id: 90,
   model: "anthropic/claude-sonnet-4.5",
@@ -207,7 +205,6 @@ export const LOCATION_RESULT: ResultDetailResponse = {
       raw_content: '{"detections": []}',
       parsed_json: '{"detections": []}',
       parse_error: null,
-      has_gt: true,
       box_count: 11,
     },
     {
@@ -216,7 +213,6 @@ export const LOCATION_RESULT: ResultDetailResponse = {
       raw_content: '{"detections": []}',
       parsed_json: '{"detections": []}',
       parse_error: null,
-      has_gt: false,
       box_count: 6,
     },
   ],
@@ -245,7 +241,6 @@ export const UNSCORED_LOCATION_RESULT: ResultDetailResponse = {
       raw_content: '{"detections": []}',
       parsed_json: '{"detections": []}',
       parse_error: null,
-      has_gt: false,
       box_count: 5,
     },
   ],
@@ -403,16 +398,12 @@ export const DRAWING_DETAIL: DrawingDetailResponse = {
       width_px: 1700,
       height_px: 2200,
       image_url: "/api/drawings/3/pages/1/image",
-      // Page 1 carries location ground truth → its GT-only overlay is linkable.
-      ground_truth_overlay_url: "/api/drawings/3/pages/1/ground-truth-overlay",
     },
     {
       page_number: 2,
       width_px: 2200,
       height_px: 1700,
       image_url: "/api/drawings/3/pages/2/image",
-      // Page 2 has no ground truth → no overlay to link.
-      ground_truth_overlay_url: null,
     },
   ],
 };

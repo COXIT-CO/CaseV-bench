@@ -166,10 +166,7 @@ function PageGrid({ pages }: { pages: DrawingPage[] }) {
   );
 }
 
-/** One rendered Page: click the image to open it full-size, and — when the Page carries
- * location ground truth — a "View ground truth" link to the GT-only overlay, so ground
- * truth is inspectable from Library independent of any Run (ticket 12). The image is its
- * own anchor and the GT link a sibling so the two never nest. */
+/** One rendered Page: click the image to open it full-size. */
 function PageCard({ page }: { page: DrawingPage }) {
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
@@ -191,17 +188,6 @@ function PageCard({ page }: { page: DrawingPage }) {
           {page.width_px}×{page.height_px} px
         </span>
       </div>
-      {page.ground_truth_overlay_url && (
-        <a
-          href={page.ground_truth_overlay_url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 border-t px-2.5 py-2 text-xs font-medium text-primary hover:underline"
-        >
-          <span className="h-2.5 w-2.5 rounded-sm bg-success" />
-          View ground truth ↗
-        </a>
-      )}
     </div>
   );
 }
