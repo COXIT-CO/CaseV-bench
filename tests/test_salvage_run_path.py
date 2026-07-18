@@ -173,6 +173,37 @@ def test_bad_first_parse_then_clean_retry_is_scored_ok(session, stub_adapter):
     assert json.loads(pred.parsed_json)["cabinets"] == 3
 
 
+def test_salvage_survives_a_raising_retry(session, stub_adapter, tmp_path):
+    """When the first attempt salvages boxes (non-clean) and the retry then raises, the
+    first attempt's salvage is kept — a raised retry never discards it (ADR 0019)."""
+    drawing, prompt = _seed_location(session, tmp_path)
+    truncated = "[" + json.dumps(BOXES[0]) + ', {"label": "countertops", "bounding_box'
+    calls = iter([truncated])
+
+    def send(image_path, model, prompt, **kwargs):
+        # First call salvages one box; the retry raises a transient network error.
+        try:
+            content = next(calls)
+        except StopIteration:
+            raise RuntimeError("boom: openrouter unreachable")
+        return {"choices": [{"message": {"content": content}}]}
+
+    stub_adapter.send_image_prompt = send
+    overlay_root = tmp_path / "overlays"
+
+    run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
+        Task.location, prompt.id, drawing.id, [MODEL]
+    )
+    pred = _only_prediction(run)
+
+    assert pred.status == PredictionStatus.error
+    # The salvaged box from the first attempt is retained, not clobbered by the raised retry.
+    parsed = LocationResult.model_validate_json(pred.parsed_json)
+    assert [d.label for d in parsed.detections] == ["cabinets"]
+    assert pred.raw_content == truncated
+    assert pred.overlay_path is not None
+
+
 def test_clean_first_parse_does_not_retry(session, stub_adapter):
     drawing, prompt = _seed_counting(session)
     stub_adapter.responses = {MODEL: CLEAN_COUNT}
