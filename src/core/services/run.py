@@ -344,7 +344,11 @@ def _predict(
             )
             raw = response["choices"][0]["message"]["content"]
         except Exception as exc:
-            interp = _Interpretation(clean=False, error=str(exc))
+            # A raised retry must not discard a salvage the first attempt already produced:
+            # only record the error when no earlier attempt returned content, so ``interp``
+            # stays paired with ``raw_content`` and the best salvage survives (ADR 0019).
+            if raw_content is None:
+                interp = _Interpretation(clean=False, error=str(exc))
             continue
         raw_content = raw
         interp = interpret(raw)
