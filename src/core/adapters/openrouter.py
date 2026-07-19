@@ -12,6 +12,14 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MAX_TOKENS = 4096
 
 
+class OpenRouterError(RuntimeError):
+    """An OpenRouter call that returned an error status. Its message carries the response
+    body — OpenRouter names the actual cause there (bad param, data-policy exclusion, …) —
+    which ``httpx``'s own ``raise_for_status`` drops, leaving only the status line. Since
+    ``_predict`` records a failed call as ``str(exc)`` (run.py), that body reaches the
+    per-model error shown for the page rather than a bare '400 Bad Request'."""
+
+
 class OpenRouterAdapter(Protocol):
     """The single external-I/O seam. Stub this in tests (spec: Testing Decisions)."""
 
@@ -67,7 +75,13 @@ def send_image_prompt(
         json=payload,
         timeout=120,
     )
-    response.raise_for_status()
+    if response.is_error:
+        # Surface the body: OpenRouter puts the real reason there, and the default
+        # ``raise_for_status`` message would show only the status line.
+        raise OpenRouterError(
+            f"OpenRouter returned {response.status_code} for model {model!r}: "
+            f"{response.text}"
+        )
     return response.json()
 
 

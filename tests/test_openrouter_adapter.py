@@ -71,3 +71,29 @@ def test_send_image_prompt_rejects_prefill_argument(capture):
     # The prefill knob is gone (ADR 0019); the argument must no longer exist.
     with pytest.raises(TypeError):
         capture(prefill_json=True)
+
+
+def test_error_status_surfaces_response_body(monkeypatch, tmp_path):
+    # A 400 must carry OpenRouter's body — the actual reason — not just the status line,
+    # so the per-model error stored via ``str(exc)`` is diagnosable.
+    image_path = tmp_path / "page.png"
+    image_path.write_bytes(b"not-a-real-png")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400, json={"error": {"message": "no allowed providers", "code": 400}}
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(openrouter.httpx, "post", client.post)
+    monkeypatch.setattr(openrouter.settings, "openrouter_api_key", "sk-test")
+
+    with pytest.raises(openrouter.OpenRouterError) as exc_info:
+        openrouter.send_image_prompt(
+            image_path, "anthropic/claude-sonnet-5", "prompt text"
+        )
+
+    message = str(exc_info.value)
+    assert "400" in message
+    assert "anthropic/claude-sonnet-5" in message
+    assert "no allowed providers" in message
