@@ -420,12 +420,16 @@ def _interpret_location(raw: str) -> _Interpretation:
             detections.append(LocationDetection(**item))
         except (TypeError, ValidationError):
             dropped = True
-    if not detections:
+    cleanly_recovered = salvaged.complete and not dropped
+    # A legitimately empty array (cleanly recovered, nothing dropped) means the model found no
+    # objects on the page — a valid answer, not a failure. Emptiness from dropped boxes or an
+    # incomplete recovery is an error.
+    if not detections and not cleanly_recovered:
         error = salvaged.error or "no valid boxes in response"
         return _Interpretation(clean=False, error=error)
 
     parsed_json = LocationResult(detections=detections).model_dump_json()
-    if salvaged.complete and not dropped:
+    if cleanly_recovered:
         return _Interpretation(
             clean=True, parsed_json=parsed_json, detections=detections
         )

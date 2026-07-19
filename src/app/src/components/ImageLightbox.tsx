@@ -156,7 +156,12 @@ export function ImageLightbox({
     >
       <DialogContent
         onKeyDown={onKeyDown}
-        className="h-[92vh] w-[96vw] max-w-[96vw] gap-0 overflow-hidden border-0 bg-black/95 p-0"
+        // A flex column (overriding the base grid via tailwind-merge) so the stage fills the
+        // frame through flex-1/min-h-0 rather than a chain of percentage heights — the latter
+        // is unreliable through a stretched grid item and let a tall image overflow the fixed
+        // height and get clipped at the bottom. Sized a little under the viewport (88vh/90vw)
+        // so the whole image, and a margin around it, always fits.
+        className="flex h-[88vh] w-[90vw] max-w-[90vw] flex-col gap-0 overflow-hidden border-0 bg-black/95 p-0"
       >
         {/* Radix requires a title/description for the dialog to be accessible; the viewer
             is chromeless so both are visually hidden. */}
@@ -168,7 +173,7 @@ export function ImageLightbox({
         </DialogDescription>
 
         {index !== null && current && (
-          <div className="relative flex h-full w-full flex-col">
+          <div className="relative flex min-h-0 w-full flex-1 flex-col">
             {/* Top chrome: the current label, the page counter, and the fit/reset control.
                 The Dialog's own close (×) sits at the top-right. */}
             <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 p-3 text-xs text-white/90">
@@ -192,7 +197,7 @@ export function ImageLightbox({
             {/* The zoom/pan stage. Overflow is hidden so a zoomed image is clipped to the
                 viewport and panned within it. */}
             <div
-              className="flex h-full w-full items-center justify-center overflow-hidden"
+              className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
               onWheel={onWheel}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
