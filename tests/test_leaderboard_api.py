@@ -17,12 +17,10 @@ from core.models.run import Result
 ACCURATE = "anthropic/claude-sonnet-4.5"
 SLOPPY = "openai/gpt-5-mini"
 ACCURATE_JSON = (
-    '{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
+    '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 )
-SLOPPY_JSON = (
-    '{"cabinets": 9, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
-)
-GT = {"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}
+SLOPPY_JSON = '{"cabinet": 9, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
+GT = {"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}
 
 
 def _seed_drawing(engine) -> int:

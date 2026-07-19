@@ -57,8 +57,8 @@ def test_import_creates_normalized_boxes_on_correct_pages(session):
             {"id": 22, "file_name": "page_0002.png", "width": 500, "height": 400},
         ],
         "categories": [
-            {"id": 1, "name": "cabinets"},
-            {"id": 2, "name": "countertops"},
+            {"id": 1, "name": "cabinet"},
+            {"id": 2, "name": "countertop"},
         ],
         "annotations": [
             # page 1: [x, y, w, h] px -> normalized by (1000, 2000)
@@ -77,14 +77,14 @@ def test_import_creates_normalized_boxes_on_correct_pages(session):
     assert len(by_page[1]) == 1 and len(by_page[2]) == 1
 
     box1 = by_page[1][0]
-    assert box1.label == "cabinets"
+    assert box1.label == "cabinet"
     assert box1.x_min == pytest.approx(0.1)
     assert box1.y_min == pytest.approx(0.1)
     assert box1.x_max == pytest.approx(0.4)  # (100 + 300) / 1000
     assert box1.y_max == pytest.approx(0.3)  # (200 + 400) / 2000
 
     box2 = by_page[2][0]
-    assert box2.label == "countertops"
+    assert box2.label == "countertop"
     assert box2.x_min == pytest.approx(0.1)  # 50 / 500
     assert box2.y_min == pytest.approx(0.1)  # 40 / 400
     assert box2.x_max == pytest.approx(0.3)  # (50 + 100) / 500
@@ -99,7 +99,7 @@ def test_normalization_uses_page_dimensions_not_coco_image_dims(session):
         "images": [
             {"id": 1, "file_name": "page_0001.png", "width": 500, "height": 500},
         ],
-        "categories": [{"id": 1, "name": "cabinets"}],
+        "categories": [{"id": 1, "name": "cabinet"}],
         "annotations": [
             {"id": 1, "image_id": 1, "category_id": 1, "bbox": [100, 100, 200, 200]},
         ],
@@ -126,12 +126,12 @@ def test_external_label_names_are_mapped_onto_taxonomy(session):
     }
 
     result = LocationGroundTruthService(session).import_coco(
-        drawing.id, coco, label_map={"Base Cabinet": "cabinets"}
+        drawing.id, coco, label_map={"Base Cabinet": "cabinet"}
     )
 
     assert result.created == 1
     assert result.problems == []
-    assert _boxes_by_page(session, drawing)[1][0].label == "cabinets"
+    assert _boxes_by_page(session, drawing)[1][0].label == "cabinet"
 
 
 def test_unmapped_label_is_reported_not_dropped(session):
@@ -141,7 +141,7 @@ def test_unmapped_label_is_reported_not_dropped(session):
             {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000}
         ],
         "categories": [
-            {"id": 1, "name": "cabinets"},
+            {"id": 1, "name": "cabinet"},
             {"id": 2, "name": "windows"},  # not in the taxonomy or the map
         ],
         "annotations": [
@@ -184,7 +184,7 @@ def test_unknown_page_is_reported_not_dropped(session):
             {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000},
             {"id": 2, "file_name": "page_0009.png", "width": 1000, "height": 1000},
         ],
-        "categories": [{"id": 1, "name": "cabinets"}],
+        "categories": [{"id": 1, "name": "cabinet"}],
         "annotations": [
             {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100]},
             {"id": 2, "image_id": 2, "category_id": 1, "bbox": [0, 0, 100, 100]},
@@ -206,7 +206,7 @@ def test_reimport_replaces_rather_than_duplicates(session):
         "images": [
             {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000}
         ],
-        "categories": [{"id": 1, "name": "cabinets"}],
+        "categories": [{"id": 1, "name": "cabinet"}],
         "annotations": [
             {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100]},
         ],

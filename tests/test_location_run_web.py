@@ -19,7 +19,7 @@ SONNET = "anthropic/claude-sonnet-4.5"
 BOXES_JSON = json.dumps(
     [
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
         }
     ]

@@ -20,15 +20,13 @@ ACCURATE = "anthropic/claude-sonnet-4.5"
 SLOPPY = "openai/gpt-5-mini"
 
 # GT for a 2-page drawing is the summed total; each page below contributes half.
-GT = {"cabinets": 6, "countertops": 2, "elevations": 4, "elevation_callout": 0}
+GT = {"cabinet": 6, "countertop": 2, "elevation": 4, "elevation_callout": 0}
 # Accurate model: exactly half the GT per page → perfect after summing 2 pages.
 ACCURATE_JSON = (
-    '{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
+    '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 )
 # Sloppy model: over-counts, so it has a nonzero total absolute error.
-SLOPPY_JSON = (
-    '{"cabinets": 5, "countertops": 1, "elevations": 2, "elevation_callout": 1}'
-)
+SLOPPY_JSON = '{"cabinet": 5, "countertop": 1, "elevation": 2, "elevation_callout": 1}'
 
 
 def _seed_drawing(session, n_pages: int = 2) -> Drawing:
@@ -127,7 +125,7 @@ def test_score_is_recomputed_when_ground_truth_changes(session, stub_adapter):
     assert accurate_row.total_absolute_error == 0
 
     # Correct the GT so the previously-perfect model now has an error.
-    gt_service.save(drawing.id, {**GT, "cabinets": 8})
+    gt_service.save(drawing.id, {**GT, "cabinet": 8})
     accurate_row = next(
         r
         for r in ScoringService(session).leaderboard(drawing.id)

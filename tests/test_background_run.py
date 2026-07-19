@@ -25,9 +25,7 @@ SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
 GEMINI = "google/gemini-2.5-flash"
 
-COUNT_JSON = (
-    '{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
-)
+COUNT_JSON = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 
 
 def _seed_drawing(session, n_pages: int) -> Drawing:

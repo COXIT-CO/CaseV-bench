@@ -20,8 +20,8 @@ from core.services.prediction_override import (
 )
 from core.services.scoring import ScoringService
 
-CAB = "cabinets"
-COUNTER = "countertops"
+CAB = "cabinet"
+COUNTER = "countertop"
 
 
 def _detection(x_min, y_min, x_max, y_max, label=CAB) -> LocationDetection:
@@ -150,8 +150,8 @@ def _counting_result(engine) -> int:
                 page_id=page.id,
                 page_number=1,
                 status=PredictionStatus.ok,
-                raw_content='{"cabinets": 1, "countertops": 0, "elevations": 0, "elevation_callout": 0}',
-                parsed_json='{"cabinets": 1, "countertops": 0, "elevations": 0, "elevation_callout": 0}',
+                raw_content='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
+                parsed_json='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
             )
         )
         session.commit()
@@ -223,7 +223,7 @@ def test_edit_never_changes_the_score(engine, tmp_path):
     [
         "not json at all",
         '{"detections": [{"label": "walls", "bounding_box": {"x_min": 0, "y_min": 0, "x_max": 1, "y_max": 1}}]}',
-        '{"detections": [{"label": "cabinets", "bounding_box": {"x_min": 0, "y_min": 0, "x_max": 1.5, "y_max": 1}}]}',
+        '{"detections": [{"label": "cabinet", "bounding_box": {"x_min": 0, "y_min": 0, "x_max": 1.5, "y_max": 1}}]}',
     ],
     ids=["invalid-json", "bad-label", "coord-out-of-range"],
 )

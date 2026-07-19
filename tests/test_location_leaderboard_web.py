@@ -22,7 +22,7 @@ SONNET = "anthropic/claude-sonnet-4.5"
 BOXES_JSON = json.dumps(
     [
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
         }
     ]
@@ -64,7 +64,7 @@ def _import_gt(engine, drawing_id) -> None:
                 "images": [
                     {"id": 1, "file_name": "page_0001.png", "width": 100, "height": 100}
                 ],
-                "categories": [{"id": 1, "name": "cabinets"}],
+                "categories": [{"id": 1, "name": "cabinet"}],
                 "annotations": [
                     {"id": 1, "image_id": 1, "category_id": 1, "bbox": [10, 10, 30, 30]}
                 ],

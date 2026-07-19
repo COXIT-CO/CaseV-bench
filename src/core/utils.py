@@ -17,9 +17,9 @@ DEFAULT_DOWNSAMPLE_PX = 1568
 # four stay distinguishable under the common colour-vision deficiencies. Hue now encodes object
 # type — provenance is no longer contended on the overlay, since the GT visuals are dropped.
 LABEL_COLORS: dict[str, str] = {
-    "cabinets": "#D55E00",  # vermillion
-    "countertops": "#0072B2",  # blue
-    "elevations": "#009E73",  # bluish green
+    "cabinet": "#D55E00",  # vermillion
+    "countertop": "#0072B2",  # blue
+    "elevation": "#009E73",  # bluish green
     "elevation_callout": "#CC79A7",  # reddish purple
 }
 

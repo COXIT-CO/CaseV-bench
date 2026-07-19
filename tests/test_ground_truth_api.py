@@ -19,7 +19,7 @@ from core.services.pdf_processing import PDFProcessingService
 COUNTING_URL = "/api/drawings/{id}/counting-ground-truth"
 LOCATION_URL = "/api/drawings/{id}/location-ground-truth"
 
-ALL_LABELS = ("cabinets", "countertops", "elevations", "elevation_callout")
+ALL_LABELS = ("cabinet", "countertop", "elevation", "elevation_callout")
 
 
 @pytest.fixture
@@ -71,15 +71,15 @@ def test_counting_get_unknown_drawing_is_404(client):
 def test_counting_put_upserts_and_returns_saved_totals(client, engine, drawing_id):
     response = client.put(
         COUNTING_URL.format(id=drawing_id),
-        json={"cabinets": 4, "countertops": 2, "elevations": 1, "elevation_callout": 0},
+        json={"cabinet": 4, "countertop": 2, "elevation": 1, "elevation_callout": 0},
     )
 
     assert response.status_code == 200
     values = {label["name"]: label["value"] for label in response.json()["labels"]}
     assert values == {
-        "cabinets": 4,
-        "countertops": 2,
-        "elevations": 1,
+        "cabinet": 4,
+        "countertop": 2,
+        "elevation": 1,
         "elevation_callout": 0,
     }
     # Persisted through the service, so a fresh GET pre-fills the saved totals.
@@ -90,22 +90,22 @@ def test_counting_put_upserts_and_returns_saved_totals(client, engine, drawing_i
 def test_counting_put_edits_existing_totals_in_place(client, drawing_id):
     client.put(
         COUNTING_URL.format(id=drawing_id),
-        json={"cabinets": 7, "countertops": 0, "elevations": 0, "elevation_callout": 0},
+        json={"cabinet": 7, "countertop": 0, "elevation": 0, "elevation_callout": 0},
     )
     client.put(
         COUNTING_URL.format(id=drawing_id),
-        json={"cabinets": 9, "countertops": 1, "elevations": 0, "elevation_callout": 0},
+        json={"cabinet": 9, "countertop": 1, "elevation": 0, "elevation_callout": 0},
     )
 
     prefill = client.get(COUNTING_URL.format(id=drawing_id)).json()
     values = {label["name"]: label["value"] for label in prefill["labels"]}
-    assert values["cabinets"] == 9 and values["countertops"] == 1
+    assert values["cabinet"] == 9 and values["countertop"] == 1
 
 
 def test_counting_put_missing_a_label_is_400(client, drawing_id):
     response = client.put(
         COUNTING_URL.format(id=drawing_id),
-        json={"cabinets": 4, "countertops": 2, "elevations": 1},  # no elevation_callout
+        json={"cabinet": 4, "countertop": 2, "elevation": 1},  # no elevation_callout
     )
     assert response.status_code == 400
 
@@ -114,9 +114,9 @@ def test_counting_put_non_integer_is_400(client, drawing_id):
     response = client.put(
         COUNTING_URL.format(id=drawing_id),
         json={
-            "cabinets": "lots",
-            "countertops": 2,
-            "elevations": 1,
+            "cabinet": "lots",
+            "countertop": 2,
+            "elevation": 1,
             "elevation_callout": 0,
         },
     )
@@ -128,9 +128,9 @@ def test_counting_put_float_is_rejected_not_truncated(client, drawing_id):
     response = client.put(
         COUNTING_URL.format(id=drawing_id),
         json={
-            "cabinets": 2.7,
-            "countertops": 2,
-            "elevations": 1,
+            "cabinet": 2.7,
+            "countertop": 2,
+            "elevation": 1,
             "elevation_callout": 0,
         },
     )
@@ -140,7 +140,7 @@ def test_counting_put_float_is_rejected_not_truncated(client, drawing_id):
 def test_counting_put_unknown_drawing_is_404(client):
     response = client.put(
         COUNTING_URL.format(id=999),
-        json={"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callout": 0},
+        json={"cabinet": 0, "countertop": 0, "elevation": 0, "elevation_callout": 0},
     )
     assert response.status_code == 404
 
@@ -159,7 +159,7 @@ def _coco(page_dims: dict[int, tuple[int, int]]) -> dict:
             {"id": 9, "file_name": "page_0099.png", "width": width, "height": height},
         ],
         "categories": [
-            {"id": 1, "name": "cabinets"},
+            {"id": 1, "name": "cabinet"},
             {"id": 2, "name": "windows"},  # off-taxonomy → unmapped_label
         ],
         "annotations": [
@@ -213,7 +213,7 @@ def test_location_import_accepts_a_label_map(client, drawing_id, page_dims):
     response = client.post(
         LOCATION_URL.format(id=drawing_id),
         files=_upload(coco),
-        data={"label_map": json.dumps({"Base Cabinet": "cabinets"})},
+        data={"label_map": json.dumps({"Base Cabinet": "cabinet"})},
     )
 
     assert response.status_code == 200

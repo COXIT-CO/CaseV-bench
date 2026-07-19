@@ -19,9 +19,7 @@ from core.services.run import RunService
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
 
-COUNT_JSON = (
-    '{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
-)
+COUNT_JSON = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 
 
 def _seed_drawing(session, tmp_path, n_pages: int) -> Drawing:
@@ -81,7 +79,7 @@ def test_run_persists_results_and_predictions(session, stub_adapter, tmp_path):
         for pred in preds:
             assert pred.status == PredictionStatus.ok
             assert pred.raw_content == COUNT_JSON
-            assert json.loads(pred.parsed_json)["cabinets"] == 3
+            assert json.loads(pred.parsed_json)["cabinet"] == 3
 
 
 def test_unparseable_model_records_failure_without_aborting(

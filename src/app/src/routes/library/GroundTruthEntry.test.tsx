@@ -39,7 +39,7 @@ describe("GroundTruthEntry — counting form", () => {
     renderEntry();
 
     // The cabinets input is seeded from the pre-fill (4); an unentered label stays blank.
-    const cabinets = await screen.findByLabelText("cabinets");
+    const cabinets = await screen.findByLabelText("cabinet");
     expect(cabinets).toHaveValue(4);
     expect(screen.getByLabelText("elevation_callout")).toHaveValue(null);
 
@@ -49,9 +49,9 @@ describe("GroundTruthEntry — counting form", () => {
 
     await waitFor(() =>
       expect(api.saveCountingGroundTruth).toHaveBeenCalledWith(3, {
-        cabinets: 4,
-        countertops: 2,
-        elevations: 1,
+        cabinet: 4,
+        countertop: 2,
+        elevation: 1,
         elevation_callout: 0,
       }),
     );
@@ -69,9 +69,9 @@ describe("GroundTruthEntry — counting form", () => {
     expect(save).toBeDisabled();
 
     for (const label of [
-      "cabinets",
-      "countertops",
-      "elevations",
+      "cabinet",
+      "countertop",
+      "elevation",
       "elevation_callout",
     ]) {
       await userEvent.type(screen.getByLabelText(label), "0");
@@ -137,8 +137,8 @@ describe("GroundTruthEntry — COCO import", () => {
     });
     await userEvent.upload(await screen.findByLabelText("COCO JSON file"), file);
     await userEvent.type(
-      screen.getByPlaceholderText('{"Base Cabinet": "cabinets"}'),
-      '{{"Base Cabinet": "cabinets"}',
+      screen.getByPlaceholderText('{"Base Cabinet": "cabinet"}'),
+      '{{"Base Cabinet": "cabinet"}',
     );
     await userEvent.click(screen.getByRole("button", { name: "Import COCO" }));
 
@@ -146,7 +146,7 @@ describe("GroundTruthEntry — COCO import", () => {
       expect(api.importLocationGroundTruth).toHaveBeenCalledWith(
         3,
         file,
-        '{"Base Cabinet": "cabinets"}',
+        '{"Base Cabinet": "cabinet"}',
       ),
     );
   });

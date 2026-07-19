@@ -32,7 +32,7 @@ GPT = "openai/gpt-5-mini"
 BOXES_JSON = json.dumps(
     [
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
         }
     ]
@@ -66,14 +66,14 @@ def _seed_drawing(session, cache_root: Path, name: str, n_pages: int = 2) -> Dra
         session.add(
             LocationGroundTruth(
                 page_id=page.id,
-                label="cabinets",
+                label="cabinet",
                 x_min=0.1,
                 y_min=0.1,
                 x_max=0.4,
                 y_max=0.4,
             )
         )
-    session.add(CountingGroundTruth(drawing_id=drawing.id, label="cabinets", total=3))
+    session.add(CountingGroundTruth(drawing_id=drawing.id, label="cabinet", total=3))
     session.commit()
     session.refresh(drawing)
     return drawing

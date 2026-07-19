@@ -34,7 +34,7 @@ GPT = "openai/gpt-5-mini"
 BOXES_JSON = json.dumps(
     [
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
         }
     ]
@@ -91,7 +91,7 @@ def test_delete_version_cascades_only_its_runs_and_returns_counts(
 ):
     overlay_root = tmp_path / "overlays"
     drawing = _seed_drawing(session, tmp_path, "d")
-    v1, v2 = _versioned_family(session, "cabinets", 2)
+    v1, v2 = _versioned_family(session, "cabinet", 2)
     run_v1 = _launch(session, stub_adapter, overlay_root, v1.id, drawing)
     run_v2 = _launch(session, stub_adapter, overlay_root, v2.id, drawing)
 
@@ -106,7 +106,7 @@ def test_delete_version_cascades_only_its_runs_and_returns_counts(
     assert all(d.is_dir() for d in (*v1_overlays, *v2_overlays))
 
     counts = PromptService(session, overlay_root=overlay_root).delete_version(
-        Task.location, "cabinets", v1.version
+        Task.location, "cabinet", v1.version
     )
 
     # The collateral is exactly the Runs + Results that pinned v1.
