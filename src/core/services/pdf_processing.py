@@ -37,6 +37,15 @@ class PDFProcessingService:
 
         return image_paths
 
+    def native_page_dims(self, pdf_path: Path) -> list[tuple[float, float]]:
+        """Each page's native point dimensions (``page.rect`` width/height, in PDF points) —
+        the 72-DPI frame where 1 px = 1 PDF point. Captured at ingest and stored on the Page
+        so the native location-GT importer normalizes boxes without touching the PDF (ADR
+        0022). DPI-independent by design: it is the source page's own size, not the render's.
+        """
+        with pymupdf.open(pdf_path) as doc:
+            return [(page.rect.width, page.rect.height) for page in doc]
+
 
 def _render_cache_dir(
     drawing_dir: Path, source_path: str | None, dpi: int, downsample_px: int | None
