@@ -163,6 +163,7 @@ export const COUNTING_RESULT: ResultDetailResponse = {
       parsed_json: '{"cabinets": 24, "countertops": 8, "elevations": 7, "elevation_callout": 12}',
       parse_error: null,
       box_count: 0,
+      edited_json: null,
     },
     {
       page_number: 2,
@@ -171,6 +172,7 @@ export const COUNTING_RESULT: ResultDetailResponse = {
       parsed_json: null,
       parse_error: "response was not valid JSON",
       box_count: 0,
+      edited_json: null,
     },
   ],
 };
@@ -208,6 +210,7 @@ export const LOCATION_RESULT: ResultDetailResponse = {
       parsed_json: '{"detections": []}',
       parse_error: null,
       box_count: 11,
+      edited_json: null,
     },
     {
       page_number: 2,
@@ -216,7 +219,24 @@ export const LOCATION_RESULT: ResultDetailResponse = {
       parsed_json: '{"detections": []}',
       parse_error: null,
       box_count: 6,
+      edited_json: null,
     },
+  ],
+};
+
+/** A location Result whose page-1 boxes were manually edited (ADR 0020, ticket 07): page 1
+ * carries an `edited_json` override with a single box (its `box_count` the edited count), page 2
+ * is the untouched model output. Drives the edit/redraw/badge/revert flow. */
+export const EDITED_LOCATION_RESULT: ResultDetailResponse = {
+  ...LOCATION_RESULT,
+  predictions: [
+    {
+      ...LOCATION_RESULT.predictions[0],
+      box_count: 1,
+      edited_json:
+        '{"detections": [{"label": "cabinets", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
+    },
+    LOCATION_RESULT.predictions[1],
   ],
 };
 
@@ -244,6 +264,7 @@ export const UNSCORED_LOCATION_RESULT: ResultDetailResponse = {
       parsed_json: '{"detections": []}',
       parse_error: null,
       box_count: 5,
+      edited_json: null,
     },
   ],
 };
@@ -263,6 +284,7 @@ export const SALVAGED_LOCATION_RESULT: ResultDetailResponse = {
         '{"detections": [{"label": "cabinets", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
       parse_error: "response was truncated; salvaged intact array elements",
       box_count: 1,
+      edited_json: null,
     },
     {
       page_number: 2,
@@ -271,6 +293,7 @@ export const SALVAGED_LOCATION_RESULT: ResultDetailResponse = {
       parsed_json: '{"detections": []}',
       parse_error: null,
       box_count: 6,
+      edited_json: null,
     },
   ],
 };

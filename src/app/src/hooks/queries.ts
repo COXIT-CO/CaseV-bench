@@ -37,6 +37,44 @@ export function useResult(id: number) {
   });
 }
 
+/**
+ * Set a location Prediction's manual JSON override (ADR 0020, ticket 07). On success only this
+ * Result's drill-down is stale, so it is invalidated — the overlay redraws and the "edited"
+ * badge appears. The Leaderboard is deliberately **not** invalidated: the edit never touches the
+ * Score, so the board is unmoved.
+ */
+export function useSetPredictionOverride(resultId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      pageNumber,
+      editedJson,
+    }: {
+      pageNumber: number;
+      editedJson: string;
+    }) => api.setPredictionOverride(resultId, pageNumber, editedJson),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["result", resultId] });
+    },
+  });
+}
+
+/**
+ * Revert a location Prediction to the model's output (ADR 0020, ticket 07). On success this
+ * Result's drill-down is invalidated so the original overlay and JSON return; the Leaderboard
+ * is untouched (the Score never changed).
+ */
+export function useRevertPredictionOverride(resultId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (pageNumber: number) =>
+      api.revertPredictionOverride(resultId, pageNumber),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["result", resultId] });
+    },
+  });
+}
+
 /** The run history list (spec §A.4). */
 export function useRuns() {
   return useQuery({ queryKey: ["runs"], queryFn: api.runs });

@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Iterable
 
@@ -265,3 +266,16 @@ def draw_overlay(
     dest.parent.mkdir(parents=True, exist_ok=True)
     overlay.save(dest)
     return dest
+
+
+def overlay_to_png_bytes(
+    image_path: Path, detections: list[LocationDetection]
+) -> bytes:
+    """Render an overlay through the same canonical renderer as ``draw_overlay`` but return the
+    PNG bytes instead of caching a file (ADR 0020, ticket 07). This is how an **edited**
+    prediction's overlay is produced on demand — nothing extra is written to disk, since the
+    override is a one-off correction rather than a run artefact."""
+    overlay = _build_overlay(image_path, _detections_to_boxes(detections))
+    buffer = BytesIO()
+    overlay.save(buffer, format="PNG")
+    return buffer.getvalue()

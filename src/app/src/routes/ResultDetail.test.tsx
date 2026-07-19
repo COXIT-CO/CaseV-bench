@@ -1,12 +1,14 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ResultDetailResponse } from "@/types";
 import { ResultDetail } from "@/routes/ResultDetail";
 import { renderWithProviders } from "@/test/render";
 import {
   COUNTING_RESULT,
+  EDITED_LOCATION_RESULT,
   LOCATION_RESULT,
   SALVAGED_LOCATION_RESULT,
   UNSCORED_LOCATION_RESULT,
@@ -16,9 +18,16 @@ import {
 // Mock the API so the drill-down resolves to a known payload per Result.
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
-  return { ...actual, api: { result: vi.fn() } };
+  return {
+    ...actual,
+    api: {
+      result: vi.fn(),
+      setPredictionOverride: vi.fn(),
+      revertPredictionOverride: vi.fn(),
+    },
+  };
 });
-import { api } from "@/api";
+import { ApiError, api } from "@/api";
 
 function renderDetail(route = "/results/42") {
   return renderWithProviders(
@@ -34,6 +43,8 @@ function renderDetail(route = "/results/42") {
 describe("ResultDetail", () => {
   beforeEach(() => {
     vi.mocked(api.result).mockReset();
+    vi.mocked(api.setPredictionOverride).mockReset();
+    vi.mocked(api.revertPredictionOverride).mockReset();
   });
 
   it("renders the counting score headline, per-label rows, and header refs", async () => {
@@ -212,6 +223,109 @@ describe("ResultDetail", () => {
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("edits a location prediction's JSON, redraws the overlay, and shows the edited badge", async () => {
+    const user = userEvent.setup();
+    // The drill-down flips to the edited payload once the override is saved, so the
+    // invalidation-driven refetch returns the edited boxes.
+    let current: ResultDetailResponse = LOCATION_RESULT;
+    vi.mocked(api.result).mockImplementation(() => Promise.resolve(current));
+    vi.mocked(api.setPredictionOverride).mockImplementation(async () => {
+      current = EDITED_LOCATION_RESULT;
+      return EDITED_LOCATION_RESULT.predictions[0];
+    });
+    renderDetail("/results/90");
+
+    await screen.findByText("Per-page predictions");
+    // Before editing, page 1's overlay is served from the bare (cached) URL.
+    expect(
+      screen.getByAltText("predicted boxes for page 1").getAttribute("src"),
+    ).toBe("/api/results/90/pages/1/overlay");
+
+    // Open the editor on page 1, replace the JSON, and save.
+    await user.click(screen.getAllByRole("button", { name: "Edit JSON" })[0]);
+    const editor = screen.getByLabelText("Edit prediction JSON for page 1");
+    fireEvent.change(editor, { target: { value: '{"detections": []}' } });
+    await user.click(screen.getByRole("button", { name: /save & redraw/i }));
+
+    // The override is sent for (result 90, page 1) with the edited text.
+    await waitFor(() =>
+      expect(api.setPredictionOverride).toHaveBeenCalledWith(
+        90,
+        1,
+        '{"detections": []}',
+      ),
+    );
+    // After the refetch the page is marked "edited" (on both the overlay card and JSON view)…
+    await waitFor(() =>
+      expect(screen.getAllByText("edited").length).toBeGreaterThan(0),
+    );
+    // …and the overlay is cache-busted so the corrected boxes actually redraw.
+    expect(
+      screen.getByAltText("predicted boxes for page 1").getAttribute("src"),
+    ).toContain("?edited=");
+  });
+
+  it("keeps the editor open and surfaces the precise error on a rejected edit", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.result).mockResolvedValue(LOCATION_RESULT);
+    vi.mocked(api.setPredictionOverride).mockRejectedValue(
+      new ApiError(400, "detections.0.label: Input should be 'cabinets', ..."),
+    );
+    renderDetail("/results/90");
+
+    await screen.findByText("Per-page predictions");
+    await user.click(screen.getAllByRole("button", { name: "Edit JSON" })[0]);
+    fireEvent.change(
+      screen.getByLabelText("Edit prediction JSON for page 1"),
+      { target: { value: '{"detections": [{"label": "walls"}]}' } },
+    );
+    await user.click(screen.getByRole("button", { name: /save & redraw/i }));
+
+    // The precise validation error is shown and the editor stays open (nothing was saved).
+    await screen.findByText(/detections\.0\.label/);
+    expect(
+      screen.getByLabelText("Edit prediction JSON for page 1"),
+    ).toBeInTheDocument();
+    // No "edited" badge — the rejected edit never took effect.
+    expect(screen.queryByText("edited")).not.toBeInTheDocument();
+  });
+
+  it("reverts an edited location prediction back to the model output", async () => {
+    const user = userEvent.setup();
+    let current: ResultDetailResponse = EDITED_LOCATION_RESULT;
+    vi.mocked(api.result).mockImplementation(() => Promise.resolve(current));
+    vi.mocked(api.revertPredictionOverride).mockImplementation(async () => {
+      current = LOCATION_RESULT;
+      return LOCATION_RESULT.predictions[0];
+    });
+    renderDetail("/results/90");
+
+    await screen.findByText("Per-page predictions");
+    // The edited page shows the badge and a revert affordance.
+    expect(screen.getAllByText("edited").length).toBeGreaterThan(0);
+    await user.click(
+      screen.getByRole("button", { name: /revert to model output/i }),
+    );
+
+    await waitFor(() =>
+      expect(api.revertPredictionOverride).toHaveBeenCalledWith(90, 1),
+    );
+    // After the refetch the override is gone — no "edited" badge remains.
+    await waitFor(() =>
+      expect(screen.queryByText("edited")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("never offers JSON editing on a counting result", async () => {
+    vi.mocked(api.result).mockResolvedValue(COUNTING_RESULT);
+    renderDetail();
+
+    await screen.findByText("Per-page predictions");
+    expect(
+      screen.queryByRole("button", { name: "Edit JSON" }),
+    ).not.toBeInTheDocument();
   });
 
   it("surfaces an API error through the shared error block", async () => {

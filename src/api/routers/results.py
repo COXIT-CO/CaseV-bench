@@ -15,6 +15,10 @@ from core.models.drawing import Drawing
 from core.models.prompt import Prompt, Task
 from core.models.results import OBJECT_LABELS, LocationResult
 from core.models.run import Prediction, Result, Run
+from core.services.prediction_override import (
+    PredictionOverrideError,
+    PredictionOverrideService,
+)
 from core.services.scoring import ScoringService
 
 router = APIRouter(prefix="/api", tags=["results"])
@@ -66,7 +70,10 @@ class LocationScoreOut(BaseModel):
 class PredictionOut(BaseModel):
     """One Page's Prediction in the drill-down: the raw model output and parsed JSON on
     success, or a parse-error failure record. ``box_count`` is the number of predicted boxes
-    on the page (location only, 0 otherwise)."""
+    on the page (location only, 0 otherwise) — the **edited** count when an override is set, so
+    the card's box tally matches the redrawn overlay. ``edited_json`` is the developer's manual
+    override (ADR 0020, ticket 07): ``null`` unless the box JSON was edited; scoring ignores it
+    entirely, so an edited result never out-ranks an unedited one."""
 
     page_number: int
     status: str
@@ -74,6 +81,7 @@ class PredictionOut(BaseModel):
     parsed_json: str | None
     parse_error: str | None
     box_count: int
+    edited_json: str | None
 
 
 class ResultDetailResponse(BaseModel):
@@ -101,10 +109,15 @@ class ResultDetailResponse(BaseModel):
 def _prediction_out(pred: Prediction, task: Task) -> PredictionOut:
     """Shape one Prediction for the SPA. The predicted box count is parsed from the stored
     location boxes whether the Prediction is a scored ``ok`` or a salvaged ``error`` (ADR
-    0019) — both carry ``parsed_json``; counting rows and box-less failures report 0."""
+    0019) — both carry ``parsed_json``; counting rows and box-less failures report 0. When a
+    manual override is set (ADR 0020) the count comes from the **edited** boxes, so the box
+    tally matches the redrawn overlay while the Score still uses the untouched original.
+    """
     box_count = 0
-    if task == Task.location and pred.parsed_json:
-        box_count = len(LocationResult.model_validate_json(pred.parsed_json).detections)
+    if task == Task.location:
+        boxes = pred.edited_json or pred.parsed_json
+        if boxes:
+            box_count = len(LocationResult.model_validate_json(boxes).detections)
     return PredictionOut(
         page_number=pred.page_number,
         status=pred.status.value,
@@ -112,6 +125,7 @@ def _prediction_out(pred: Prediction, task: Task) -> PredictionOut:
         parsed_json=pred.parsed_json,
         parse_error=pred.parse_error,
         box_count=box_count,
+        edited_json=pred.edited_json,
     )
 
 
@@ -196,10 +210,75 @@ def result_overlay(
             Prediction.page_number == page_number,
         )
     ).first()
-    if (
-        prediction is None
-        or not prediction.overlay_path
-        or not Path(prediction.overlay_path).exists()
-    ):
+    if prediction is None:
+        raise HTTPException(status_code=404, detail="Overlay not found")
+    # An edited Prediction (ADR 0020, ticket 07) redraws on demand from ``edited_json`` — the
+    # boxes the developer corrected — reusing the shared renderer, caching nothing. Only an
+    # unedited Prediction falls back to the cached run-time overlay PNG.
+    if prediction.edited_json:
+        png = PredictionOverrideService(session).edited_overlay_png(
+            result_id, page_number
+        )
+        return Response(content=png, media_type="image/png")
+    if not prediction.overlay_path or not Path(prediction.overlay_path).exists():
         raise HTTPException(status_code=404, detail="Overlay not found")
     return FileResponse(prediction.overlay_path, media_type="image/png")
+
+
+class PredictionOverrideRequest(BaseModel):
+    """``PUT /api/results/{id}/pages/{n}/prediction`` body (ADR 0020, ticket 07): the developer's
+    corrected box JSON as a string (a ``LocationResult`` — ``{"detections": [...]}``). Carried as
+    a string, not a typed model, so *invalid* JSON is rejected by the override service with a
+    precise ``400`` (and nothing persisted) rather than a generic ``422`` from body parsing.
+    """
+
+    edited_json: str
+
+
+@router.put(
+    "/results/{result_id}/pages/{page_number}/prediction",
+    response_model=PredictionOut,
+)
+def set_prediction_override(
+    result_id: int,
+    page_number: int,
+    payload: PredictionOverrideRequest,
+    session: Session = Depends(get_session),
+) -> PredictionOut:
+    """Set a location Prediction's manual JSON override (ADR 0020, ticket 07): validate the
+    corrected boxes against ``LocationResult`` (taxonomy labels, 0–1 coords) and persist them,
+    leaving the model's original output and its Score untouched. Invalid JSON / a bad label /
+    an out-of-range coordinate is a ``400`` with a precise message and nothing persisted;
+    editing a counting Prediction is a ``400`` (location-only); an unknown (Result, page) is a
+    ``404``. Returns the updated Prediction so the SPA redraws the overlay and shows the badge.
+    """
+    service = PredictionOverrideService(session)
+    try:
+        prediction = service.set_override(result_id, page_number, payload.edited_json)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Prediction not found")
+    except PredictionOverrideError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _prediction_out(prediction, Task.location)
+
+
+@router.delete(
+    "/results/{result_id}/pages/{page_number}/prediction",
+    response_model=PredictionOut,
+)
+def revert_prediction_override(
+    result_id: int,
+    page_number: int,
+    session: Session = Depends(get_session),
+) -> PredictionOut:
+    """Revert a location Prediction to the model's output by clearing its override (ADR 0020,
+    ticket 07); a no-op when unedited. An unknown (Result, page) is a ``404``; a counting
+    Prediction is a ``400`` (location-only). Returns the reverted Prediction."""
+    service = PredictionOverrideService(session)
+    try:
+        prediction = service.revert(result_id, page_number)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Prediction not found")
+    except PredictionOverrideError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _prediction_out(prediction, Task.location)
