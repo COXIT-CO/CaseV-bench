@@ -146,6 +146,8 @@ function CountingForm({
  * (ADR 0003); this only imports its export, needing no configuration (ADR 0022). */
 function LocationImportCard({ drawingId }: { drawingId: number }) {
   const [file, setFile] = React.useState<File | null>(null);
+  // Default-off opt-in: also write the counting GT from the imported boxes (ADR 0025).
+  const [deriveCounting, setDeriveCounting] = React.useState(false);
   const importGt = useImportLocationGroundTruth(drawingId);
 
   const canSubmit = file !== null && !importGt.isPending;
@@ -153,7 +155,7 @@ function LocationImportCard({ drawingId }: { drawingId: number }) {
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (file === null || importGt.isPending) return;
-    importGt.mutate({ file });
+    importGt.mutate({ file, deriveCounting });
   }
 
   return (
@@ -179,6 +181,23 @@ function LocationImportCard({ drawingId }: { drawingId: number }) {
             className={FILE_FIELD_CLASS}
           />
         </div>
+
+        <label
+          htmlFor="derive-counting"
+          className="flex items-start gap-2 text-[12px] text-muted-foreground"
+        >
+          <input
+            id="derive-counting"
+            type="checkbox"
+            checked={deriveCounting}
+            onChange={(event) => setDeriveCounting(event.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary"
+          />
+          <span>
+            Also set counting ground truth from these boxes (overwrites this drawing's counting
+            totals with the per-object-type box tallies).
+          </span>
+        </label>
 
         {importGt.isError && <ErrorBlock error={importGt.error} />}
 

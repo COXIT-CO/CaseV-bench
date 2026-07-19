@@ -115,8 +115,9 @@ describe("GroundTruthEntry — location import", () => {
     await userEvent.upload(await screen.findByLabelText("Location JSON file"), file);
     await userEvent.click(screen.getByRole("button", { name: "Import JSON" }));
 
+    // The derive-counting opt-in is off by default (ADR 0025).
     await waitFor(() =>
-      expect(api.importLocationGroundTruth).toHaveBeenCalledWith(3, file),
+      expect(api.importLocationGroundTruth).toHaveBeenCalledWith(3, file, false),
     );
     // The problem report surfaces the created count and both reported problems.
     expect(await screen.findByText(/Imported 37 boxes\./)).toBeInTheDocument();
@@ -124,5 +125,27 @@ describe("GroundTruthEntry — location import", () => {
     expect(
       screen.getByText(/which drawing 3 does not have/),
     ).toBeInTheDocument();
+  });
+
+  it("passes the derive-counting opt-in when the checkbox is ticked", async () => {
+    vi.mocked(api.importLocationGroundTruth).mockResolvedValue(
+      LOCATION_IMPORT_RESULT,
+    );
+    renderEntry();
+
+    const file = new File(['{"objects":[]}'], "gt.json", {
+      type: "application/json",
+    });
+    await userEvent.upload(await screen.findByLabelText("Location JSON file"), file);
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: /also set counting ground truth from these boxes/i,
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Import JSON" }));
+
+    await waitFor(() =>
+      expect(api.importLocationGroundTruth).toHaveBeenCalledWith(3, file, true),
+    );
   });
 });

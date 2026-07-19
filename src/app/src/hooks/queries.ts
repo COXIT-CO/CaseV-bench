@@ -359,14 +359,23 @@ export function useSaveCountingGroundTruth(id: number) {
 
 /** Import one Drawing's LocationGroundTruth from a native `objects` upload. On success the
  * now-scored board/results are invalidated (spec §A.6); the caller renders the returned
- * problem report. */
+ * problem report. When `deriveCounting` also wrote the counting GT (ADR 0025), the pre-fill
+ * cache for the counting form is invalidated so it reflects the derived totals. */
 export function useImportLocationGroundTruth(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ file }: { file: File }) =>
-      api.importLocationGroundTruth(id, file),
-    onSuccess: () => {
+    mutationFn: ({
+      file,
+      deriveCounting,
+    }: {
+      file: File;
+      deriveCounting: boolean;
+    }) => api.importLocationGroundTruth(id, file, deriveCounting),
+    onSuccess: (_data, { deriveCounting }) => {
       invalidateScored(queryClient);
+      if (deriveCounting) {
+        queryClient.invalidateQueries({ queryKey: ["counting-gt", id] });
+      }
     },
   });
 }

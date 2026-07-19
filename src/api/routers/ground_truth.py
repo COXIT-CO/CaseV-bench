@@ -7,7 +7,7 @@ differs.
 
 import json
 
-from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -125,6 +125,7 @@ def save_counting_ground_truth(
 async def import_location_ground_truth(
     drawing_id: int,
     file: UploadFile,
+    derive_counting: bool = Form(False),
     session: Session = Depends(get_session),
 ) -> LocationImportResponse:
     """Import a native ``objects`` JSON upload as this Drawing's LocationGroundTruth via the
@@ -133,7 +134,11 @@ async def import_location_ground_truth(
     configuration — the label map is the identity and each box states its page. A Drawing with
     no source PDF (image-ingested, so no native page frame to normalize against), a non-JSON
     file, or a non-object body is a ``400``; an unknown Drawing is a ``404``. Re-importing
-    replaces the Drawing's existing boxes."""
+    replaces the Drawing's existing boxes.
+
+    ``derive_counting`` (a default-off form field — ADR 0025) additionally writes the counting
+    GT from the accepted boxes; left unset, the import touches only location GT and any
+    existing counting total is preserved."""
     drawing = session.get(Drawing, drawing_id)
     if drawing is None:
         raise HTTPException(status_code=404, detail="Drawing not found")
@@ -154,7 +159,9 @@ async def import_location_ground_truth(
             status_code=400, detail="Location ground truth JSON must be an object"
         )
 
-    result = LocationGroundTruthService(session).import_objects(drawing_id, document)
+    result = LocationGroundTruthService(session).import_objects(
+        drawing_id, document, derive_counting=derive_counting
+    )
 
     return LocationImportResponse(
         created=result.created,

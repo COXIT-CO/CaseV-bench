@@ -13,6 +13,7 @@ from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
+from core.services.counting_ground_truth import CountingGroundTruthService
 from core.services.location_ground_truth import (
     OUT_OF_FRAME,
     UNKNOWN_PAGE,
@@ -232,3 +233,83 @@ def test_reimport_replaces_rather_than_duplicates(session):
     service.import_objects(drawing.id, document)
 
     assert len(_boxes_by_page(session, drawing)[1]) == 1
+
+
+# --- opt-in counting-GT derivation (ticket 04, ADR 0025) ------------------------------
+
+
+def test_derive_counting_sets_totals_from_box_tallies(session):
+    # With the opt-in flag set, the import tallies accepted boxes per label per Drawing and
+    # writes the counting GT through the counting service — the total for each covered label
+    # equals its box tally. A label with no accepted box is left untouched (not zeroed), so
+    # the derivation never fabricates a "zero of this object" the boxes did not state.
+    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("cabinet", 1, 200, 200, 100, 100),
+            _obj("countertop", 1, 400, 400, 100, 100),
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(
+        drawing.id, document, derive_counting=True
+    )
+
+    assert result.created == 3
+    # Only the covered labels are written — elevation / elevation_callout stay unentered.
+    totals = CountingGroundTruthService(session).get_totals(drawing.id)
+    assert totals == {"cabinet": 2, "countertop": 1}
+
+
+def test_derive_counting_leaves_uncovered_labels_untouched(session):
+    # A label the boxes do not cover is not asserted as zero — a pre-existing total for it
+    # survives the derive, since an objects file need not localize every object type (ADR
+    # 0025: counting may legitimately include objects that were not localized).
+    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    CountingGroundTruthService(session).save(drawing.id, {"elevation": 5})
+    document = {"objects": [_obj("cabinet", 1, 0, 0, 100, 100)]}
+
+    LocationGroundTruthService(session).import_objects(
+        drawing.id, document, derive_counting=True
+    )
+
+    totals = CountingGroundTruthService(session).get_totals(drawing.id)
+    # cabinet derived from the box; elevation preserved rather than zeroed.
+    assert totals == {"cabinet": 1, "elevation": 5}
+
+
+def test_derive_counting_off_leaves_existing_counting_untouched(session):
+    # The flag is off by default; a location import then touches only LocationGroundTruth and
+    # any existing counting total is preserved (ADR 0025 default-off).
+    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    CountingGroundTruthService(session).save(drawing.id, {"cabinet": 9, "elevation": 3})
+    document = {"objects": [_obj("cabinet", 1, 0, 0, 100, 100)]}
+
+    LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    # Unchanged: neither zeroed for the imported label nor cleared for the untouched one.
+    assert CountingGroundTruthService(session).get_totals(drawing.id) == {
+        "cabinet": 9,
+        "elevation": 3,
+    }
+
+
+def test_derive_counting_tallies_only_accepted_boxes(session):
+    # Only boxes that actually landed count toward the totals — an out-of-frame box that was
+    # reported and skipped does not inflate the derived total.
+    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),  # accepted
+            _obj("cabinet", 1, 900, 900, 400, 400),  # out_of_frame, skipped
+            _obj("windows", 1, 0, 0, 100, 100),  # unmapped, skipped
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(
+        drawing.id, document, derive_counting=True
+    )
+
+    assert result.created == 1
+    assert CountingGroundTruthService(session).get_totals(drawing.id)["cabinet"] == 1
