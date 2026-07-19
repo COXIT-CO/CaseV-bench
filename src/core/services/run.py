@@ -504,7 +504,11 @@ def predict_location(
     )
 
     overlay_path: str | None = None
-    if interp.detections:
+    # Render whenever the parse was clean (an ``ok``) or any box survived a salvage — the same
+    # set the UI treats as viewable. A clean but *empty* answer ("no objects here") still gets
+    # the bare page image so the drill-down shows the page, not a broken image; only a total
+    # parse failure (error, no boxes) stays overlay-less and falls back to the placeholder.
+    if interp.clean or interp.detections:
         path = overlay_root / str(result_id) / f"page_{page.page_number:04d}.png"
         # Draw on the same image the Model saw so the boxes land on the rendered variant.
         draw_overlay(image_path, interp.detections, path)
