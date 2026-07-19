@@ -2,7 +2,7 @@ from typing import Literal, NamedTuple, get_args
 
 from pydantic import BaseModel, Field
 
-ObjectLabel = Literal["cabinets", "countertops", "elevations", "elevation_callout"]
+ObjectLabel = Literal["cabinet", "countertop", "elevation", "elevation_callout"]
 
 # The fixed object taxonomy in canonical order (glossary: ObjectType). Derived from
 # ``ObjectLabel`` so the enum stays the single source of truth for the labels.
@@ -10,9 +10,9 @@ OBJECT_LABELS: tuple[ObjectLabel, ...] = get_args(ObjectLabel)
 
 
 class CountResult(BaseModel):
-    cabinets: int
-    countertops: int
-    elevations: int
+    cabinet: int
+    countertop: int
+    elevation: int
     elevation_callout: int
 
 

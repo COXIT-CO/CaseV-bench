@@ -8,9 +8,9 @@ from core.models.drawing import Drawing
 from core.services.counting_ground_truth import CountingGroundTruthService
 
 FULL_TOTALS = {
-    "cabinets": 3,
-    "countertops": 1,
-    "elevations": 2,
+    "cabinet": 3,
+    "countertop": 1,
+    "elevation": 2,
     "elevation_callout": 0,
 }
 
@@ -42,10 +42,10 @@ def test_saving_again_updates_in_place(session):
     service = CountingGroundTruthService(session)
 
     service.save(drawing.id, FULL_TOTALS)
-    service.save(drawing.id, {**FULL_TOTALS, "cabinets": 9})
+    service.save(drawing.id, {**FULL_TOTALS, "cabinet": 9})
 
     totals = service.get_totals(drawing.id)
-    assert totals["cabinets"] == 9
+    assert totals["cabinet"] == 9
     # One row per label — the edit updated, it did not append a duplicate.
     assert len(totals) == len(FULL_TOTALS)
 
@@ -55,11 +55,11 @@ def test_totals_are_isolated_per_drawing(session):
     second = _make_drawing(session, "second")
     service = CountingGroundTruthService(session)
 
-    service.save(first.id, {**FULL_TOTALS, "cabinets": 5})
-    service.save(second.id, {**FULL_TOTALS, "cabinets": 2})
+    service.save(first.id, {**FULL_TOTALS, "cabinet": 5})
+    service.save(second.id, {**FULL_TOTALS, "cabinet": 2})
 
-    assert service.get_totals(first.id)["cabinets"] == 5
-    assert service.get_totals(second.id)["cabinets"] == 2
+    assert service.get_totals(first.id)["cabinet"] == 5
+    assert service.get_totals(second.id)["cabinet"] == 2
 
 
 def test_label_outside_taxonomy_is_rejected(session):

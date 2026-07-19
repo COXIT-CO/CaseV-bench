@@ -10,8 +10,8 @@ across every page and label, so a perfect prediction scores 1.0 whatever the lab
 
 from core.services.scoring import LocationBox, score_location
 
-CAB = "cabinets"
-CTR = "countertops"
+CAB = "cabinet"
+CTR = "countertop"
 
 
 def _box(label, x_min, y_min, x_max, y_max):

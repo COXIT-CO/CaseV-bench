@@ -69,7 +69,7 @@ def test_draw_overlay_colours_each_box_by_its_label(tmp_path):
     # x≈55; both span y 0.1–0.9, so a pixel at (edge, 50) lands on each box's outline.
     draw_overlay(
         page,
-        [_detection("cabinets", 0.05), _detection("countertops", 0.55)],
+        [_detection("cabinet", 0.05), _detection("countertop", 0.55)],
         dest,
     )
 
@@ -78,5 +78,5 @@ def test_draw_overlay_colours_each_box_by_its_label(tmp_path):
         # Each box's outline carries *its own* label's colour, at its own location — so a bug
         # that swapped the two colours (or shared one across boxes) would fail here, not just
         # a check that both colours appear somewhere on the page.
-        assert rgb.getpixel((5, 50)) == _rgb(color_for_label("cabinets"))
-        assert rgb.getpixel((55, 50)) == _rgb(color_for_label("countertops"))
+        assert rgb.getpixel((5, 50)) == _rgb(color_for_label("cabinet"))
+        assert rgb.getpixel((55, 50)) == _rgb(color_for_label("countertop"))

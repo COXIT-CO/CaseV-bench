@@ -26,10 +26,10 @@ def test_adapter_is_overridable_and_returns_canned_response(app, stub_adapter):
     provider = app.dependency_overrides[get_openrouter_adapter]
     assert provider() is stub_adapter
 
-    stub_adapter.responses["some/model"] = '{"cabinets": 3}'
+    stub_adapter.responses["some/model"] = '{"cabinet": 3}'
     result = stub_adapter.send_image_prompt(
         Path("page.png"), "some/model", "count them"
     )
 
-    assert result["choices"][0]["message"]["content"] == '{"cabinets": 3}'
+    assert result["choices"][0]["message"]["content"] == '{"cabinet": 3}'
     assert stub_adapter.calls[0]["model"] == "some/model"

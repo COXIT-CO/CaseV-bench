@@ -22,17 +22,15 @@ MODEL = "anthropic/claude-sonnet-4.5"
 
 BOXES = [
     {
-        "label": "cabinets",
+        "label": "cabinet",
         "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
     },
     {
-        "label": "countertops",
+        "label": "countertop",
         "bounding_box": {"x_min": 0.5, "y_min": 0.5, "x_max": 0.6, "y_max": 0.7},
     },
 ]
-CLEAN_COUNT = (
-    '{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
-)
+CLEAN_COUNT = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 
 
 def _seed_page(session, tmp_path, task: Task, prompt_text: str):
@@ -85,19 +83,17 @@ def test_prose_wrapped_counting_is_scored_ok(session, stub_adapter, tmp_path):
     content = f"Sure, here are the counts:\n```json\n{CLEAN_COUNT}\n```\nLet me know!"
     pred = _launch_counting(session, stub_adapter, tmp_path, content)
     assert pred.status == PredictionStatus.ok
-    assert json.loads(pred.parsed_json)["cabinets"] == 3
+    assert json.loads(pred.parsed_json)["cabinet"] == 3
     assert pred.parse_error is None
 
 
 def test_trailing_comma_and_single_quotes_counting_is_scored_ok(
     session, stub_adapter, tmp_path
 ):
-    content = (
-        "{'cabinets': 3, 'countertops': 1, 'elevations': 2, 'elevation_callout': 0,}"
-    )
+    content = "{'cabinet': 3, 'countertop': 1, 'elevation': 2, 'elevation_callout': 0,}"
     pred = _launch_counting(session, stub_adapter, tmp_path, content)
     assert pred.status == PredictionStatus.ok
-    assert json.loads(pred.parsed_json)["countertops"] == 1
+    assert json.loads(pred.parsed_json)["countertop"] == 1
 
 
 def test_truncated_location_array_salvages_boxes_and_renders_overlay(
@@ -105,7 +101,7 @@ def test_truncated_location_array_salvages_boxes_and_renders_overlay(
 ):
     drawing, prompt = _seed_location(session, tmp_path)
     # One intact box, then the array is cut off mid-second element.
-    truncated = "[" + json.dumps(BOXES[0]) + ', {"label": "countertops", "bounding_box'
+    truncated = "[" + json.dumps(BOXES[0]) + ', {"label": "countertop", "bounding_box'
     stub_adapter.responses = {MODEL: truncated}
     overlay_root = tmp_path / "overlays"
 
@@ -119,7 +115,7 @@ def test_truncated_location_array_salvages_boxes_and_renders_overlay(
     assert pred.parse_error
     # …but the box that did parse is stored and an overlay is drawn from it.
     parsed = LocationResult.model_validate_json(pred.parsed_json)
-    assert [d.label for d in parsed.detections] == ["cabinets"]
+    assert [d.label for d in parsed.detections] == ["cabinet"]
     assert pred.overlay_path is not None
     assert Path(pred.overlay_path).exists()
     # The raw model output is always retained for inspection.
@@ -159,14 +155,14 @@ def test_bad_first_parse_then_clean_retry_is_scored_ok(session, stub_adapter, tm
 
     assert pred.status == PredictionStatus.ok
     assert pred.parse_error is None
-    assert json.loads(pred.parsed_json)["cabinets"] == 3
+    assert json.loads(pred.parsed_json)["cabinet"] == 3
 
 
 def test_salvage_survives_a_raising_retry(session, stub_adapter, tmp_path):
     """When the first attempt salvages boxes (non-clean) and the retry then raises, the
     first attempt's salvage is kept — a raised retry never discards it (ADR 0019)."""
     drawing, prompt = _seed_location(session, tmp_path)
-    truncated = "[" + json.dumps(BOXES[0]) + ', {"label": "countertops", "bounding_box'
+    truncated = "[" + json.dumps(BOXES[0]) + ', {"label": "countertop", "bounding_box'
     calls = iter([truncated])
 
     def send(image_path, model, prompt, **kwargs):
@@ -188,7 +184,7 @@ def test_salvage_survives_a_raising_retry(session, stub_adapter, tmp_path):
     assert pred.status == PredictionStatus.error
     # The salvaged box from the first attempt is retained, not clobbered by the raised retry.
     parsed = LocationResult.model_validate_json(pred.parsed_json)
-    assert [d.label for d in parsed.detections] == ["cabinets"]
+    assert [d.label for d in parsed.detections] == ["cabinet"]
     assert pred.raw_content == truncated
     assert pred.overlay_path is not None
 

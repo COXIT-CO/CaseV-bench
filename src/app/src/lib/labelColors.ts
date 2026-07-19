@@ -6,8 +6,8 @@
 /** The taxonomy labels paired with their overlay colour, in canonical order — the source for
  * the prediction-overlay legend's per-label colour key. */
 export const LABEL_COLORS: ReadonlyArray<{ label: string; color: string }> = [
-  { label: "cabinets", color: "#D55E00" },
-  { label: "countertops", color: "#0072B2" },
-  { label: "elevations", color: "#009E73" },
+  { label: "cabinet", color: "#D55E00" },
+  { label: "countertop", color: "#0072B2" },
+  { label: "elevation", color: "#009E73" },
   { label: "elevation_callout", color: "#CC79A7" },
 ];

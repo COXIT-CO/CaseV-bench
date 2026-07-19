@@ -56,7 +56,7 @@ describe("ResultDetail", () => {
     expect(screen.getByText("Total abs. error")).toBeInTheDocument();
     expect(screen.getByText("3 / 4")).toBeInTheDocument();
     // A per-label row shows predicted / gt / abs-error.
-    const row = screen.getByText("cabinets").closest("tr")!;
+    const row = screen.getByText("cabinet").closest("tr")!;
     expect(within(row).getByText("24")).toBeInTheDocument();
     expect(within(row).getByText("22")).toBeInTheDocument();
     // Header refs link to the Run and the Drawing.
@@ -73,7 +73,7 @@ describe("ResultDetail", () => {
 
     await screen.findByText("Per-page predictions");
     // The ok page's parsed JSON is pretty-printed in a mono block.
-    expect(screen.getByText(/"cabinets": 24/)).toBeInTheDocument();
+    expect(screen.getByText(/"cabinet": 24/)).toBeInTheDocument();
     // The failed page surfaces its parse error distinctly.
     expect(screen.getByText("response was not valid JSON")).toBeInTheDocument();
     // Every page also exposes its raw model output (the failed page's raw text here).
@@ -93,9 +93,9 @@ describe("ResultDetail", () => {
     ).toBeInTheDocument();
     // The counting columns are never shown for a location Result.
     expect(screen.queryByText("Total abs. error")).not.toBeInTheDocument();
-    // "cabinets" now also appears in the overlay legend (ticket 06); scope to the score row.
+    // "cabinet" now also appears in the overlay legend (ticket 06); scope to the score row.
     const row = screen
-      .getAllByText("cabinets")
+      .getAllByText("cabinet")
       .map((el) => el.closest("tr"))
       .find((tr): tr is HTMLTableRowElement => tr !== null)!;
     expect(within(row).getByText("22")).toBeInTheDocument(); // tp
@@ -116,9 +116,9 @@ describe("ResultDetail", () => {
     expect(screen.queryByText("Prediction")).not.toBeInTheDocument();
     const legend = screen.getByRole("list", { name: "Overlay colour legend" });
     for (const label of [
-      "cabinets",
-      "countertops",
-      "elevations",
+      "cabinet",
+      "countertop",
+      "elevation",
       "elevation_callout",
     ]) {
       expect(within(legend).getByText(label)).toBeInTheDocument();
@@ -271,7 +271,7 @@ describe("ResultDetail", () => {
     const user = userEvent.setup();
     vi.mocked(api.result).mockResolvedValue(LOCATION_RESULT);
     vi.mocked(api.setPredictionOverride).mockRejectedValue(
-      new ApiError(400, "detections.0.label: Input should be 'cabinets', ..."),
+      new ApiError(400, "detections.0.label: Input should be 'cabinet', ..."),
     );
     renderDetail("/results/90");
 

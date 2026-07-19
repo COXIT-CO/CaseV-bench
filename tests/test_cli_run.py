@@ -20,13 +20,11 @@ from core.services.run import RunKnobs
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
-COUNT_JSON = (
-    '{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
-)
+COUNT_JSON = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 BOXES_JSON = json.dumps(
     [
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
         }
     ]
@@ -80,7 +78,7 @@ def test_cli_run_persists_run_results_predictions(
         assert [p.page_number for p in preds] == [1, 2]
         for pred in preds:
             assert pred.status == PredictionStatus.ok
-            assert json.loads(pred.parsed_json)["cabinets"] == 3
+            assert json.loads(pred.parsed_json)["cabinet"] == 3
 
 
 def test_cli_run_defaults_to_latest_prompt_version(
@@ -179,7 +177,7 @@ def test_cli_run_location_persists_predictions_and_overlays(
     for pred in preds:
         assert pred.status == PredictionStatus.ok
         detections = LocationResult.model_validate_json(pred.parsed_json).detections
-        assert detections[0].label == "cabinets"
+        assert detections[0].label == "cabinet"
         # The overlay landed under the injected root, not the repo default data/overlays.
         assert pred.overlay_path
         assert Path(pred.overlay_path).is_relative_to(overlay_root)

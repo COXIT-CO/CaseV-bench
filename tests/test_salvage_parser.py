@@ -16,24 +16,24 @@ import pytest
 from core.utils import salvage_json
 
 CABINET = {
-    "label": "cabinets",
+    "label": "cabinet",
     "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
 }
 COUNTER = {
-    "label": "countertops",
+    "label": "countertop",
     "bounding_box": {"x_min": 0.5, "y_min": 0.5, "x_max": 0.6, "y_max": 0.7},
 }
 
 
 # (name, raw content, expected value, expected complete)
 COMPLETE_CASES = [
-    ("clean object", '{"cabinets": 3}', {"cabinets": 3}, True),
+    ("clean object", '{"cabinet": 3}', {"cabinet": 3}, True),
     ("clean array", json.dumps([CABINET, COUNTER]), [CABINET, COUNTER], True),
-    ("fenced object", '```json\n{"cabinets": 3}\n```', {"cabinets": 3}, True),
+    ("fenced object", '```json\n{"cabinet": 3}\n```', {"cabinet": 3}, True),
     (
         "prose-wrapped object",
-        'Sure! Here is the count:\n{"cabinets": 3}\nHope that helps.',
-        {"cabinets": 3},
+        'Sure! Here is the count:\n{"cabinet": 3}\nHope that helps.',
+        {"cabinet": 3},
         True,
     ),
     (
@@ -42,13 +42,13 @@ COMPLETE_CASES = [
         [CABINET, COUNTER],
         True,
     ),
-    ("trailing comma object", '{"cabinets": 3,}', {"cabinets": 3}, True),
+    ("trailing comma object", '{"cabinet": 3,}', {"cabinet": 3}, True),
     ("trailing comma array", "[1, 2, 3,]", [1, 2, 3], True),
-    ("single-quoted object", "{'cabinets': 3}", {"cabinets": 3}, True),
+    ("single-quoted object", "{'cabinet': 3}", {"cabinet": 3}, True),
     (
         "brace inside string",
-        '{"note": "a {curly} brace", "cabinets": 3}',
-        {"note": "a {curly} brace", "cabinets": 3},
+        '{"note": "a {curly} brace", "cabinet": 3}',
+        {"note": "a {curly} brace", "cabinet": 3},
         True,
     ),
     ("empty array", "[]", [], True),
@@ -78,14 +78,14 @@ def test_truncated_array_yields_intact_elements():
 
 def test_truncated_array_with_trailing_corruption():
     # First element intact, second element malformed (kept out of the salvage).
-    raw = "[" + json.dumps(CABINET) + ', {"label": "countertops", "bounding_box": {x'
+    raw = "[" + json.dumps(CABINET) + ', {"label": "countertop", "bounding_box": {x'
     result = salvage_json(raw)
     assert result.value == [CABINET]
     assert result.complete is False
 
 
 def test_truncated_before_any_complete_element_recovers_nothing():
-    raw = '[{"label": "cabinets", "bounding_box": {"x_min": 0.1'
+    raw = '[{"label": "cabinet", "bounding_box": {"x_min": 0.1'
     result = salvage_json(raw)
     assert result.value is None
     assert result.complete is False

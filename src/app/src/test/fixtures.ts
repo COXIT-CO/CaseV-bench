@@ -19,7 +19,7 @@ import type {
 export const META: ApiMeta = {
   app: "Prompt & Config Lab",
   tasks: ["counting", "location"],
-  labels: ["cabinets", "countertops", "elevations", "elevation_callout"],
+  labels: ["cabinet", "countertop", "elevation", "elevation_callout"],
   drawing_count: 3,
   run_count: 7,
   result_count: 12,
@@ -146,9 +146,9 @@ export const COUNTING_RESULT: ResultDetailResponse = {
     total_absolute_error: 3,
     exact_match_count: 3,
     per_label: [
-      { label: "cabinets", predicted: 24, gt: 22, absolute_error: 2, exact_match: false },
-      { label: "countertops", predicted: 8, gt: 8, absolute_error: 0, exact_match: true },
-      { label: "elevations", predicted: 7, gt: 7, absolute_error: 0, exact_match: true },
+      { label: "cabinet", predicted: 24, gt: 22, absolute_error: 2, exact_match: false },
+      { label: "countertop", predicted: 8, gt: 8, absolute_error: 0, exact_match: true },
+      { label: "elevation", predicted: 7, gt: 7, absolute_error: 0, exact_match: true },
       { label: "elevation_callout", predicted: 12, gt: 12, absolute_error: 0, exact_match: true },
     ],
   },
@@ -159,8 +159,8 @@ export const COUNTING_RESULT: ResultDetailResponse = {
       status: "ok",
       // Raw is the model's verbatim (minified) reply; parsed is the normalized JSON the
       // UI pretty-prints — so the two blocks render distinguishably.
-      raw_content: '{"cabinets":24,"countertops":8,"elevations":7,"elevation_callout":12}',
-      parsed_json: '{"cabinets": 24, "countertops": 8, "elevations": 7, "elevation_callout": 12}',
+      raw_content: '{"cabinet":24,"countertop":8,"elevation":7,"elevation_callout":12}',
+      parsed_json: '{"cabinet": 24, "countertop": 8, "elevation": 7, "elevation_callout": 12}',
       parse_error: null,
       box_count: 0,
       edited_json: null,
@@ -196,9 +196,9 @@ export const LOCATION_RESULT: ResultDetailResponse = {
     recall: 0.81,
     f1: 0.84,
     per_label: [
-      { label: "cabinets", tp: 22, fp: 3, fn: 2, precision: 0.88, recall: 0.92, f1: 0.9 },
-      { label: "countertops", tp: 14, fp: 2, fn: 4, precision: 0.88, recall: 0.78, f1: 0.82 },
-      { label: "elevations", tp: 9, fp: 1, fn: 1, precision: 0.9, recall: 0.9, f1: 0.9 },
+      { label: "cabinet", tp: 22, fp: 3, fn: 2, precision: 0.88, recall: 0.92, f1: 0.9 },
+      { label: "countertop", tp: 14, fp: 2, fn: 4, precision: 0.88, recall: 0.78, f1: 0.82 },
+      { label: "elevation", tp: 9, fp: 1, fn: 1, precision: 0.9, recall: 0.9, f1: 0.9 },
       { label: "elevation_callout", tp: 11, fp: 4, fn: 2, precision: 0.73, recall: 0.85, f1: 0.79 },
     ],
   },
@@ -234,7 +234,7 @@ export const EDITED_LOCATION_RESULT: ResultDetailResponse = {
       ...LOCATION_RESULT.predictions[0],
       box_count: 1,
       edited_json:
-        '{"detections": [{"label": "cabinets", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
+        '{"detections": [{"label": "cabinet", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
     },
     LOCATION_RESULT.predictions[1],
   ],
@@ -279,9 +279,9 @@ export const SALVAGED_LOCATION_RESULT: ResultDetailResponse = {
     {
       page_number: 1,
       status: "error",
-      raw_content: '[{"label": "cabinets", "bounding_box": {"x_min": 0.1',
+      raw_content: '[{"label": "cabinet", "bounding_box": {"x_min": 0.1',
       parsed_json:
-        '{"detections": [{"label": "cabinets", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
+        '{"detections": [{"label": "cabinet", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
       parse_error: "response was truncated; salvaged intact array elements",
       box_count: 1,
       edited_json: null,
@@ -464,9 +464,9 @@ export const DRAWING_DETAIL: DrawingDetailResponse = {
 export const COUNTING_GT: CountingGroundTruthResponse = {
   drawing_id: 3,
   labels: [
-    { name: "cabinets", value: 4 },
-    { name: "countertops", value: 2 },
-    { name: "elevations", value: 1 },
+    { name: "cabinet", value: 4 },
+    { name: "countertop", value: 2 },
+    { name: "elevation", value: 1 },
     { name: "elevation_callout", value: null },
   ],
 };
@@ -475,9 +475,9 @@ export const COUNTING_GT: CountingGroundTruthResponse = {
 export const COUNTING_GT_EMPTY: CountingGroundTruthResponse = {
   drawing_id: 3,
   labels: [
-    { name: "cabinets", value: null },
-    { name: "countertops", value: null },
-    { name: "elevations", value: null },
+    { name: "cabinet", value: null },
+    { name: "countertop", value: null },
+    { name: "elevation", value: null },
     { name: "elevation_callout", value: null },
   ],
 };

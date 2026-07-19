@@ -27,11 +27,11 @@ GPT = "openai/gpt-5-mini"
 BOXES_JSON = json.dumps(
     [
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
         },
         {
-            "label": "countertops",
+            "label": "countertop",
             "bounding_box": {"x_min": 0.5, "y_min": 0.5, "x_max": 0.6, "y_max": 0.7},
         },
     ]
@@ -94,7 +94,7 @@ def test_location_run_persists_predictions_and_overlays(
             assert pred.raw_content == BOXES_JSON
             # Parsed output is stored as a LocationResult (the detected boxes).
             parsed = LocationResult.model_validate_json(pred.parsed_json)
-            assert [d.label for d in parsed.detections] == ["cabinets", "countertops"]
+            assert [d.label for d in parsed.detections] == ["cabinet", "countertop"]
             assert parsed.detections[0].bounding_box.x_min == 0.1
             # A prediction-overlay PNG was rendered on the page image.
             assert pred.overlay_path is not None

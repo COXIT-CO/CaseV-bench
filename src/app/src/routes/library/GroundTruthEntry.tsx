@@ -189,7 +189,7 @@ function LocationImportCard({ drawingId }: { drawingId: number }) {
             value={labelMap}
             onChange={(event) => setLabelMap(event.target.value)}
             rows={3}
-            placeholder={'{"Base Cabinet": "cabinets"}'}
+            placeholder={'{"Base Cabinet": "cabinet"}'}
             className="mt-2 w-full resize-y rounded-md border bg-background px-2.5 py-2 font-mono text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <p className="mt-1 text-[11px] text-muted-foreground">

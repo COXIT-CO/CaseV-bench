@@ -18,9 +18,7 @@ from core.services.prompt import PromptService
 from core.services.run import RunKnobs, RunService
 
 MODEL = "anthropic/claude-sonnet-4.5"
-COUNT_JSON = (
-    '{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}'
-)
+COUNT_JSON = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 
 
 def _ingest_pdf(session, sample_pdf, tmp_path) -> tuple:

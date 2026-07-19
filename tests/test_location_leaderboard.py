@@ -28,17 +28,17 @@ GT_COUNTERTOP = {"x_min": 0.5, "y_min": 0.5, "x_max": 0.7, "y_max": 0.7}
 # Accurate model returns both GT boxes exactly → precision = recall = F1 = 1.0.
 ACCURATE_JSON = json.dumps(
     [
-        {"label": "cabinets", "bounding_box": GT_CABINET},
-        {"label": "countertops", "bounding_box": GT_COUNTERTOP},
+        {"label": "cabinet", "bounding_box": GT_CABINET},
+        {"label": "countertop", "bounding_box": GT_COUNTERTOP},
     ]
 )
 # Sloppy model finds the cabinet but misses the countertop and hallucinates a third
 # box → tp=1, fp=1, fn=1 → precision = recall = F1 = 0.5.
 SLOPPY_JSON = json.dumps(
     [
-        {"label": "cabinets", "bounding_box": GT_CABINET},
+        {"label": "cabinet", "bounding_box": GT_CABINET},
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.8, "y_min": 0.8, "x_max": 0.9, "y_max": 0.9},
         },
     ]
@@ -76,8 +76,8 @@ def _import_gt(session, drawing) -> None:
             {"id": 1, "file_name": "page_0001.png", "width": 100, "height": 100}
         ],
         "categories": [
-            {"id": 1, "name": "cabinets"},
-            {"id": 2, "name": "countertops"},
+            {"id": 1, "name": "cabinet"},
+            {"id": 2, "name": "countertop"},
         ],
         # COCO bbox is [x, y, w, h] in pixels; page is 100×100 so /100 gives the norms.
         "annotations": [
@@ -175,7 +175,7 @@ def test_location_score_is_recomputed_when_ground_truth_changes(
             "images": [
                 {"id": 1, "file_name": "page_0001.png", "width": 100, "height": 100}
             ],
-            "categories": [{"id": 1, "name": "cabinets"}],
+            "categories": [{"id": 1, "name": "cabinet"}],
             "annotations": [
                 {"id": 1, "image_id": 1, "category_id": 1, "bbox": [80, 80, 15, 15]},
             ],

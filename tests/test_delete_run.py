@@ -27,7 +27,7 @@ GPT = "openai/gpt-5-mini"
 BOXES_JSON = json.dumps(
     [
         {
-            "label": "cabinets",
+            "label": "cabinet",
             "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
         }
     ]

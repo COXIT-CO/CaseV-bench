@@ -16,7 +16,7 @@ from core.models.prompt import Prompt, Task
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 
-CAB = "cabinets"
+CAB = "cabinet"
 ACCURATE = "anthropic/claude-sonnet-4.5"
 
 
@@ -56,9 +56,9 @@ def _seed_counting_result(engine, *, with_gt: bool) -> int:
             CountingGroundTruthService(session).save(
                 drawing.id,
                 {
-                    "cabinets": 3,
-                    "countertops": 1,
-                    "elevations": 2,
+                    "cabinet": 3,
+                    "countertop": 1,
+                    "elevation": 2,
                     "elevation_callout": 0,
                 },
             )
@@ -83,8 +83,8 @@ def _seed_counting_result(engine, *, with_gt: bool) -> int:
                 page_id=pages[0].id,
                 page_number=1,
                 status=PredictionStatus.ok,
-                raw_content='{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}',
-                parsed_json='{"cabinets": 3, "countertops": 1, "elevations": 2, "elevation_callout": 0}',
+                raw_content='{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}',
+                parsed_json='{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}',
             )
         )
         session.add(
@@ -240,8 +240,8 @@ def test_counting_result_detail_returns_score_and_predictions(client, engine):
     assert score["total_absolute_error"] == 0
     assert score["exact_match_count"] == 4
     labels = {ls["label"]: ls for ls in score["per_label"]}
-    assert labels["cabinets"] == {
-        "label": "cabinets",
+    assert labels["cabinet"] == {
+        "label": "cabinet",
         "predicted": 3,
         "gt": 3,
         "absolute_error": 0,
@@ -254,7 +254,7 @@ def test_counting_result_detail_returns_score_and_predictions(client, engine):
     ok, failed = preds
     assert ok["page_number"] == 1
     assert ok["status"] == "ok"
-    assert '"cabinets": 3' in ok["parsed_json"]
+    assert '"cabinet": 3' in ok["parsed_json"]
     assert failed["status"] == "error"
     assert failed["parse_error"] == "response was not valid JSON"
     assert failed["parsed_json"] is None
@@ -283,7 +283,7 @@ def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp
 
     # Location score shape: micro-averaged P/R/F1 + per-label tp/fp/fn/rates.
     score = body["location_score"]
-    cab = next(ls for ls in score["per_label"] if ls["label"] == "cabinets")
+    cab = next(ls for ls in score["per_label"] if ls["label"] == "cabinet")
     assert cab["tp"] == 1  # one predicted box matches a GT box
     assert cab["fp"] == 2  # one spurious box on p1, one predicted box on the GT-less p2
     assert cab["fn"] == 1  # one GT box never covered
@@ -334,7 +334,7 @@ def test_salvaged_location_error_surfaces_boxes_and_json(client, engine, tmp_pat
                 page_id=page.id,
                 page_number=1,
                 status=PredictionStatus.error,
-                raw_content='[{"label": "cabinets", ... truncated',
+                raw_content='[{"label": "cabinet", ... truncated',
                 parsed_json=salvaged.model_dump_json(),
                 parse_error="response was truncated; salvaged intact array elements",
             )

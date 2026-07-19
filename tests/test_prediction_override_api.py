@@ -14,7 +14,7 @@ from core.models.prompt import Prompt, Task
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 
-CAB = "cabinets"
+CAB = "cabinet"
 
 
 def _detection(x_min, y_min, x_max, y_max, label=CAB) -> LocationDetection:
@@ -133,8 +133,8 @@ def _seed_counting(engine) -> int:
                 page_id=page.id,
                 page_number=1,
                 status=PredictionStatus.ok,
-                raw_content='{"cabinets": 1, "countertops": 0, "elevations": 0, "elevation_callout": 0}',
-                parsed_json='{"cabinets": 1, "countertops": 0, "elevations": 0, "elevation_callout": 0}',
+                raw_content='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
+                parsed_json='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
             )
         )
         session.commit()
