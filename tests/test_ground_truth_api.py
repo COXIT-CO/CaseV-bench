@@ -230,6 +230,49 @@ def test_location_import_creates_boxes_and_reports_problems(
         assert LocationGroundTruthService(session).boxes_by_page(drawing_id)
 
 
+def test_location_import_derives_counting_when_opted_in(client, drawing_id, page_dims):
+    # The default-off derive flag, when set on the multipart form, writes the counting GT from
+    # the accepted boxes (ADR 0025). The shared fixture doc lands exactly one cabinet box.
+    response = client.post(
+        LOCATION_URL.format(id=drawing_id),
+        files=_upload(_objects(page_dims)),
+        data={"derive_counting": "true"},
+    )
+    assert response.status_code == 200
+
+    totals = {
+        label["name"]: label["value"]
+        for label in client.get(COUNTING_URL.format(id=drawing_id)).json()["labels"]
+    }
+    # Only the covered label (cabinet) is written; the labels these boxes do not cover stay
+    # unentered (null), not asserted as zero.
+    assert totals == {
+        "cabinet": 1,
+        "countertop": None,
+        "elevation": None,
+        "elevation_callout": None,
+    }
+
+
+def test_location_import_leaves_counting_untouched_by_default(
+    client, drawing_id, page_dims
+):
+    # Without the flag the import touches only location GT; a pre-existing counting total for
+    # the Drawing survives unchanged.
+    client.put(
+        COUNTING_URL.format(id=drawing_id),
+        json={"cabinet": 9, "countertop": 0, "elevation": 0, "elevation_callout": 0},
+    )
+
+    client.post(LOCATION_URL.format(id=drawing_id), files=_upload(_objects(page_dims)))
+
+    totals = {
+        label["name"]: label["value"]
+        for label in client.get(COUNTING_URL.format(id=drawing_id)).json()["labels"]
+    }
+    assert totals["cabinet"] == 9
+
+
 def test_location_import_rejects_non_json_file_with_400(client, drawing_id):
     import io
 

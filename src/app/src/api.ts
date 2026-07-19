@@ -294,10 +294,12 @@ export const api = {
 
   /** Import a Drawing's LocationGroundTruth from a native `objects` JSON upload (multipart),
    * surfacing the importer's problem report (spec §A.6). The file needs no configuration — the
-   * label map is the identity and each object states its page (ADR 0022). */
-  importLocationGroundTruth: (id: number, file: File) => {
+   * label map is the identity and each object states its page (ADR 0022). With `deriveCounting`
+   * the import also writes the counting GT from the accepted boxes (default off — ADR 0025). */
+  importLocationGroundTruth: (id: number, file: File, deriveCounting: boolean) => {
     const form = new FormData();
     form.append("file", file);
+    form.append("derive_counting", String(deriveCounting));
     return postForm<LocationImportResponse>(
       `/api/drawings/${id}/location-ground-truth`,
       form,

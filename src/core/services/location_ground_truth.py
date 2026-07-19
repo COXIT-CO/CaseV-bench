@@ -29,6 +29,7 @@ Re-importing a Drawing replaces its existing location ground truth so an import 
 truth for that Drawing rather than an append.
 """
 
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
@@ -38,6 +39,7 @@ from sqlmodel import Session, select
 from core.models.drawing import Page
 from core.models.location_ground_truth import LocationGroundTruth
 from core.models.results import OBJECT_LABELS
+from core.services.counting_ground_truth import CountingGroundTruthService
 
 # The three reasons an object can't be imported (reported, never silently dropped).
 ProblemKind = Literal["unmapped_label", "unknown_page", "out_of_frame"]
@@ -72,7 +74,7 @@ class LocationGroundTruthService:
         self.session = session
 
     def import_objects(
-        self, drawing_id: int, document: Mapping
+        self, drawing_id: int, document: Mapping, derive_counting: bool = False
     ) -> LocationImportResult:
         """Import a parsed native ``objects`` document as this Drawing's LocationGroundTruth.
 
@@ -80,8 +82,20 @@ class LocationGroundTruthService:
         list of problems (off-taxonomy categories / unknown pages / gross overflows) that were
         reported, not imported. ``project_id`` in the document is ignored — ``drawing_id`` is
         authoritative.
+
+        With ``derive_counting`` set (off by default — ADR 0025), the accepted boxes are
+        tallied per label and written as this Drawing's counting GT through the existing
+        ``CountingGroundTruthService`` — a convenience writer, never a silent coupling. Only
+        the labels these boxes actually cover are written: a taxonomy label with no accepted
+        box is left untouched, not asserted as zero, since an objects file need not localize
+        every object type and ADR 0025 keeps "boxes" and "count" from silently equating
+        (counting totals may legitimately include objects that were not localized). Left off
+        (the default), the import touches only ``LocationGroundTruth`` and any existing
+        counting total is preserved.
         """
         result = LocationImportResult()
+        # Accepted boxes per label, so an opt-in caller can derive counting GT from them.
+        tallies: Counter[str] = Counter()
 
         pages_by_number = {
             page.page_number: page
@@ -144,8 +158,16 @@ class LocationGroundTruthService:
                 )
             )
             result.created += 1
+            tallies[category] += 1
 
         self.session.commit()
+
+        if derive_counting:
+            # Upsert a total only for the labels these boxes cover; a label with no accepted
+            # box is left as-is rather than zeroed, so we never fabricate a "zero of this
+            # object" answer the boxes did not state (ADR 0025).
+            CountingGroundTruthService(self.session).save(drawing_id, dict(tallies))
+
         return result
 
     def boxes_by_page(self, drawing_id: int) -> dict[int, list[LocationGroundTruth]]:
