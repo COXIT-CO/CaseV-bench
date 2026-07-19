@@ -126,7 +126,9 @@ def test_empty_location_array_is_scored_ok_with_no_boxes(
     session, stub_adapter, tmp_path
 ):
     """An empty array is a valid "no objects on this page" answer, not a failure: it scores
-    a clean ok with zero detections (no overlay to draw), never an error."""
+    a clean ok with zero detections, never an error. Even with no boxes to draw an overlay is
+    still rendered — the bare page image — so the UI shows the page a clean ``ok`` promises
+    rather than a broken image."""
     drawing, prompt = _seed_location(session, tmp_path)
     stub_adapter.responses = {MODEL: "[]"}
     overlay_root = tmp_path / "overlays"
@@ -140,8 +142,9 @@ def test_empty_location_array_is_scored_ok_with_no_boxes(
     assert pred.parse_error is None
     parsed = LocationResult.model_validate_json(pred.parsed_json)
     assert parsed.detections == []
-    # Nothing to draw, so no overlay is rendered.
-    assert pred.overlay_path is None
+    # No boxes, but a clean ok still renders the bare page so the UI has an image to show.
+    assert pred.overlay_path is not None
+    assert Path(pred.overlay_path).exists()
     assert pred.raw_content == "[]"
 
 
