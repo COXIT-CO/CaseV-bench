@@ -110,5 +110,11 @@ class Prediction(SQLModel, table=True):
     # Path to the prediction-overlay PNG (location Runs only): the detected boxes drawn
     # on the page image (ticket 09). None for counting or failed predictions.
     overlay_path: str | None = None
+    # A developer's manual JSON override for a location Prediction (ADR 0020, ticket 07): the
+    # corrected boxes as a ``LocationResult`` JSON. Never touches ``parsed_json``/``raw_content``
+    # and is **invisible to scoring** — the Leaderboard always ranks the model's original output.
+    # When set, the drill-down JSON view and the prediction overlay render from it (marked
+    # "edited"); clearing it reverts to the model's output. None on counting or unedited Predictions.
+    edited_json: str | None = None
 
     result: Result | None = Relationship(back_populates="predictions")

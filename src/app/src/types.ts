@@ -117,6 +117,10 @@ export interface ResultPrediction {
   parsed_json: string | null;
   parse_error: string | null;
   box_count: number;
+  /** A developer's manual box-JSON override (ADR 0020, ticket 07): `null` unless the boxes
+   * were edited. When set, the overlay and JSON view render from it (marked "edited") and
+   * `box_count` reflects the edited boxes; scoring ignores it, so the Leaderboard is unmoved. */
+  edited_json: string | null;
 }
 
 /**

@@ -19,6 +19,7 @@ import type {
   PromptsResponse,
   PromptVersionRef,
   ResultDetailResponse,
+  ResultPrediction,
   RunCreated,
   RunCreateRequest,
   RunDeleted,
@@ -167,6 +168,23 @@ export const api = {
 
   /** One Result's drill-down: header refs, the score block, and the per-page predictions (spec §A.3). */
   result: (id: number) => getJson<ResultDetailResponse>(`/api/results/${id}`),
+
+  /** Set a location Prediction's manual JSON override — the corrected boxes as a
+   * `LocationResult` string (ADR 0020, ticket 07). The server validates against the taxonomy
+   * and 0–1 coords, rejecting bad input with a precise `400` and persisting nothing; the model's
+   * original output and its Score are untouched. Returns the updated Prediction. */
+  setPredictionOverride: (resultId: number, pageNumber: number, editedJson: string) =>
+    putJson<ResultPrediction>(
+      `/api/results/${resultId}/pages/${pageNumber}/prediction`,
+      { edited_json: editedJson },
+    ),
+
+  /** Revert a location Prediction to the model's output by clearing its override (ADR 0020,
+   * ticket 07). Returns the reverted Prediction. */
+  revertPredictionOverride: (resultId: number, pageNumber: number) =>
+    deleteJson<ResultPrediction>(
+      `/api/results/${resultId}/pages/${pageNumber}/prediction`,
+    ),
 
   /** The run history, newest-first (spec §A.4). */
   runs: () => getJson<RunHistoryResponse>("/api/runs"),
