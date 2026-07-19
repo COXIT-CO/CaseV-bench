@@ -1,12 +1,13 @@
 """Ground-truth entry (ticket 07), hung off the Drawing detail. Recording GT for a Drawing
 turns its previously-unscored Leaderboard/Result rows into scored ones with **no re-run**
-(scores recompute on read). Two entry points: a counting number-per-label form and a COCO
-location import — both reusing the existing services unchanged; only the web layer differs.
+(scores recompute on read). Two entry points: a counting number-per-label form and a native
+``objects`` location import — both reusing the existing services unchanged; only the web layer
+differs.
 """
 
 import json
 
-from fastapi import APIRouter, Body, Depends, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -39,17 +40,17 @@ class CountingGroundTruthResponse(BaseModel):
 
 
 class ImportProblemOut(BaseModel):
-    """One annotation the COCO import reported rather than silently dropped: an unmapped
-    label (``unmapped_label``) or a reference to a page the Drawing lacks (``unknown_page``).
-    """
+    """One object the native import reported rather than silently dropped: an off-taxonomy
+    category (``unmapped_label``), a reference to a page the Drawing lacks (``unknown_page``),
+    or a box that grossly overflows its page's native frame (``out_of_frame``)."""
 
     kind: str
     detail: str
 
 
 class LocationImportResponse(BaseModel):
-    """``POST /api/drawings/{id}/location-ground-truth``: the ``CocoImportResult`` — how many
-    boxes were created and every problem reported (spec §A.6)."""
+    """``POST /api/drawings/{id}/location-ground-truth``: the ``LocationImportResult`` — how
+    many boxes were created and every problem reported (spec §A.6)."""
 
     created: int
     problems: list[ImportProblemOut]
@@ -124,43 +125,36 @@ def save_counting_ground_truth(
 async def import_location_ground_truth(
     drawing_id: int,
     file: UploadFile,
-    label_map: str | None = Form(default=None),
     session: Session = Depends(get_session),
 ) -> LocationImportResponse:
-    """Import a COCO JSON upload as this Drawing's LocationGroundTruth via the existing
-    importer (spec §A.6), surfacing its problem report (unmapped labels / unknown pages)
-    instead of silently dropping them. The optional ``label_map`` is a JSON object mapping
-    external category names onto the taxonomy. A non-JSON file, a non-object COCO body, a
-    bad ``label_map``, or a map targeting a label outside the taxonomy is a ``400``; an
-    unknown Drawing is a ``404``. Re-importing replaces the Drawing's existing boxes."""
+    """Import a native ``objects`` JSON upload as this Drawing's LocationGroundTruth via the
+    importer (spec §A.6), surfacing its problem report (off-taxonomy categories / unknown
+    pages / out-of-frame boxes) instead of silently dropping them. The file needs no
+    configuration — the label map is the identity and each box states its page. A Drawing with
+    no source PDF (image-ingested, so no native page frame to normalize against), a non-JSON
+    file, or a non-object body is a ``400``; an unknown Drawing is a ``404``. Re-importing
+    replaces the Drawing's existing boxes."""
     drawing = session.get(Drawing, drawing_id)
     if drawing is None:
         raise HTTPException(status_code=404, detail="Drawing not found")
+    if drawing.source_path is None:
+        # No source PDF → no native point frame; normalizing against nothing would be wrong.
+        raise HTTPException(
+            status_code=400,
+            detail="Drawing has no source PDF; location ground truth needs native page "
+            "dimensions from a PDF import",
+        )
 
     try:
-        coco = json.loads(await file.read())
+        document = json.loads(await file.read())
     except (json.JSONDecodeError, UnicodeDecodeError):
         raise HTTPException(status_code=400, detail="Uploaded file is not valid JSON")
-    if not isinstance(coco, dict):
-        raise HTTPException(status_code=400, detail="COCO JSON must be an object")
-
-    parsed_map: dict | None = None
-    if label_map:
-        try:
-            parsed_map = json.loads(label_map)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="label_map is not valid JSON")
-        if not isinstance(parsed_map, dict):
-            raise HTTPException(
-                status_code=400, detail="label_map must be a JSON object"
-            )
-
-    try:
-        result = LocationGroundTruthService(session).import_coco(
-            drawing_id, coco, label_map=parsed_map
+    if not isinstance(document, dict):
+        raise HTTPException(
+            status_code=400, detail="Location ground truth JSON must be an object"
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+
+    result = LocationGroundTruthService(session).import_objects(drawing_id, document)
 
     return LocationImportResponse(
         created=result.created,

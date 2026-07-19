@@ -34,7 +34,7 @@ class DrawingsResponse(BaseModel):
 
 class DrawingPageOut(BaseModel):
     """One rendered Page on the Drawing detail: its number, the full-resolution pixel dims
-    (COCO boxes are annotated against these), and the URL of its cached image PNG."""
+    (the basis for prediction overlays/display), and the URL of its cached image PNG."""
 
     page_number: int
     width_px: int

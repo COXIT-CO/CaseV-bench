@@ -1,6 +1,6 @@
 """JSON contract for ground-truth entry (spec §A.6, ticket 07). The twins of the retired
-Jinja counting form, plus the brand-new COCO import that surfaces ticket-10's importer
-(previously CLI-only) as a Library upload with a problem report.
+Jinja counting form, plus the native ``objects`` location import that surfaces the importer
+(ADR 0022) as a Library upload with a problem report.
 
 Both endpoints reuse their services unchanged (``CountingGroundTruthService``,
 ``LocationGroundTruthService``) — only the web layer differs. Entering ground truth turns
@@ -34,20 +34,34 @@ def drawing_id(engine, sample_pdf, tmp_path) -> int:
 
 
 @pytest.fixture
-def page_dims(engine, drawing_id) -> dict[int, tuple[int, int]]:
-    """The ingested Pages' pixel dims, keyed by page number, so a COCO fixture can point at
-    a page that really exists (the importer normalizes against these dims)."""
+def page_dims(engine, drawing_id) -> dict[int, tuple[float, float]]:
+    """The ingested Pages' native point dims, keyed by page number, so a native ``objects``
+    fixture can point at a page that really exists (the importer normalizes against these
+    native dims — ADR 0022, not the render-DPI pixel dims)."""
     from sqlmodel import select
 
     from core.models.drawing import Page
 
     with Session(engine) as session:
         return {
-            page.page_number: (page.width_px, page.height_px)
+            page.page_number: (page.native_width_pt, page.native_height_pt)
             for page in session.exec(
                 select(Page).where(Page.drawing_id == drawing_id)
             ).all()
         }
+
+
+@pytest.fixture
+def image_drawing_id(engine, sample_image, tmp_path) -> int:
+    """An image-ingested Drawing (no source PDF, so no native page frame) — the importer
+    rejects a location import for it with a 400."""
+    with Session(engine) as session:
+        service = DrawingService(
+            session,
+            pdf_service=PDFProcessingService(dpi=72),
+            cache_root=tmp_path / "image-drawings",
+        )
+        return service.ingest(sample_image, name="image").id
 
 
 # --- counting ground truth ------------------------------------------------------------
@@ -145,37 +159,56 @@ def test_counting_put_unknown_drawing_is_404(client):
     assert response.status_code == 404
 
 
-# --- location ground truth (COCO import) ----------------------------------------------
+# --- location ground truth (native objects import) ------------------------------------
 
 
-def _coco(page_dims: dict[int, tuple[int, int]]) -> dict:
-    """A COCO doc with one valid cabinets box on page 1, one unmapped label, and one box on
-    a page the drawing does not have — so a single import exercises created + both problem
-    kinds."""
+def _objects(page_dims: dict[int, tuple[float, float]]) -> dict:
+    """A native ``objects`` doc with one valid cabinet box on page 1, one off-taxonomy
+    category, one box on a page the drawing does not have, and one box that grossly overflows
+    the page's native frame — so a single import exercises created + all three problem kinds.
+    """
     width, height = page_dims[1]
     return {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": width, "height": height},
-            {"id": 9, "file_name": "page_0099.png", "width": width, "height": height},
-        ],
-        "categories": [
-            {"id": 1, "name": "cabinet"},
-            {"id": 2, "name": "windows"},  # off-taxonomy → unmapped_label
-        ],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [10, 10, 20, 20]},
-            {"id": 2, "image_id": 1, "category_id": 2, "bbox": [0, 0, 5, 5]},
-            {"id": 3, "image_id": 9, "category_id": 1, "bbox": [0, 0, 5, 5]},
+        "project_id": "prj1",
+        "objects": [
+            {
+                "id": "a",
+                "category": "cabinet",
+                "page": 1,
+                "bbox": {"x": 10, "y": 10, "width": 20, "height": 20},
+            },
+            {  # off-taxonomy → unmapped_label
+                "id": "b",
+                "category": "windows",
+                "page": 1,
+                "bbox": {"x": 0, "y": 0, "width": 5, "height": 5},
+            },
+            {  # page 9 does not exist → unknown_page
+                "id": "c",
+                "category": "cabinet",
+                "page": 9,
+                "bbox": {"x": 0, "y": 0, "width": 5, "height": 5},
+            },
+            {  # extends far past the native frame → out_of_frame
+                "id": "d",
+                "category": "cabinet",
+                "page": 1,
+                "bbox": {"x": 0, "y": 0, "width": width * 2, "height": height * 2},
+            },
         ],
     }
 
 
-def _upload(coco: dict) -> dict:
+def _upload(document: dict) -> dict:
     import io
     import json
 
     return {
-        "file": ("gt.json", io.BytesIO(json.dumps(coco).encode()), "application/json")
+        "file": (
+            "gt.json",
+            io.BytesIO(json.dumps(document).encode()),
+            "application/json",
+        )
     }
 
 
@@ -183,41 +216,18 @@ def test_location_import_creates_boxes_and_reports_problems(
     client, engine, drawing_id, page_dims
 ):
     response = client.post(
-        LOCATION_URL.format(id=drawing_id), files=_upload(_coco(page_dims))
+        LOCATION_URL.format(id=drawing_id), files=_upload(_objects(page_dims))
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["created"] == 1
     kinds = sorted(problem["kind"] for problem in body["problems"])
-    assert kinds == ["unknown_page", "unmapped_label"]
+    assert kinds == ["out_of_frame", "unknown_page", "unmapped_label"]
 
     # The valid box actually landed via the service (recompute-on-read makes rows scored).
     with Session(engine) as session:
         assert LocationGroundTruthService(session).boxes_by_page(drawing_id)
-
-
-def test_location_import_accepts_a_label_map(client, drawing_id, page_dims):
-    import json
-
-    width, height = page_dims[1]
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": width, "height": height}
-        ],
-        "categories": [{"id": 1, "name": "Base Cabinet"}],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [10, 10, 20, 20]}
-        ],
-    }
-    response = client.post(
-        LOCATION_URL.format(id=drawing_id),
-        files=_upload(coco),
-        data={"label_map": json.dumps({"Base Cabinet": "cabinet"})},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["created"] == 1
 
 
 def test_location_import_rejects_non_json_file_with_400(client, drawing_id):
@@ -230,21 +240,26 @@ def test_location_import_rejects_non_json_file_with_400(client, drawing_id):
     assert response.status_code == 400
 
 
-def test_location_import_rejects_label_map_off_taxonomy_with_400(
-    client, drawing_id, page_dims
-):
-    import json
+def test_location_import_rejects_non_object_body_with_400(client, drawing_id):
+    response = client.post(LOCATION_URL.format(id=drawing_id), files=_upload([1, 2, 3]))
+    assert response.status_code == 400
 
+
+def test_location_import_rejects_image_ingested_drawing_with_400(
+    client, image_drawing_id, page_dims
+):
+    # An image-ingested Drawing has no source PDF and thus no native page frame to normalize
+    # against; the import is rejected rather than wrongly normalized.
     response = client.post(
-        LOCATION_URL.format(id=drawing_id),
-        files=_upload(_coco(page_dims)),
-        data={"label_map": json.dumps({"windows": "not_a_real_label"})},
+        LOCATION_URL.format(id=image_drawing_id), files=_upload(_objects(page_dims))
     )
     assert response.status_code == 400
 
 
 def test_location_import_unknown_drawing_is_404(client, page_dims):
     # A drawing that does not exist; page_dims comes from the fixture drawing only to build
-    # a well-formed COCO body.
-    response = client.post(LOCATION_URL.format(id=999), files=_upload(_coco(page_dims)))
+    # a well-formed native body.
+    response = client.post(
+        LOCATION_URL.format(id=999), files=_upload(_objects(page_dims))
+    )
     assert response.status_code == 404

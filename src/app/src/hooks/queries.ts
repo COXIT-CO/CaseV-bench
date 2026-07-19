@@ -336,7 +336,7 @@ export function useCountingGroundTruth(id: number, enabled = true) {
  * Entering ground truth makes the previously-unscored Leaderboard rows and Result details
  * for this Drawing scored — with no re-run, since scores recompute on read (spec Further
  * Notes). So both are invalidated after a save/import; React Query re-fetches and the rows
- * flip to scored. Shared by the counting-save and COCO-import mutations.
+ * flip to scored. Shared by the counting-save and location-import mutations.
  */
 function invalidateScored(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
@@ -357,13 +357,14 @@ export function useSaveCountingGroundTruth(id: number) {
   });
 }
 
-/** Import one Drawing's LocationGroundTruth from a COCO upload. On success the now-scored
- * board/results are invalidated (spec §A.6); the caller renders the returned problem report. */
+/** Import one Drawing's LocationGroundTruth from a native `objects` upload. On success the
+ * now-scored board/results are invalidated (spec §A.6); the caller renders the returned
+ * problem report. */
 export function useImportLocationGroundTruth(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ file, labelMap }: { file: File; labelMap?: string }) =>
-      api.importLocationGroundTruth(id, file, labelMap),
+    mutationFn: ({ file }: { file: File }) =>
+      api.importLocationGroundTruth(id, file),
     onSuccess: () => {
       invalidateScored(queryClient);
     },

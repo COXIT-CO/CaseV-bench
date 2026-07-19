@@ -99,7 +99,7 @@ describe("DrawingDetail", () => {
     expect(screen.queryByText("View ground truth ↗")).not.toBeInTheDocument();
   });
 
-  it("mounts the ground-truth entry points (counting form + COCO import)", async () => {
+  it("mounts the ground-truth entry points (counting form + location import)", async () => {
     vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
     renderDetail();
 
@@ -107,7 +107,7 @@ describe("DrawingDetail", () => {
       await screen.findByRole("heading", { name: "Ground truth" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Counting totals")).toBeInTheDocument();
-    expect(screen.getByText("Location boxes (COCO import)")).toBeInTheDocument();
+    expect(screen.getByText("Location boxes (JSON import)")).toBeInTheDocument();
   });
 
   it("scrolls to the ground-truth section when linked with the #ground-truth hash", async () => {

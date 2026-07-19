@@ -41,6 +41,8 @@ def _seed_drawing(engine, tmp_path) -> int:
                 image_path=str(image_path),
                 width_px=100,
                 height_px=100,
+                native_width_pt=100.0,
+                native_height_pt=100.0,
             )
         )
         session.commit()
@@ -56,15 +58,16 @@ def _location_prompt_id(engine) -> int:
 
 def _import_gt(engine, drawing_id) -> None:
     with Session(engine) as session:
-        LocationGroundTruthService(session).import_coco(
+        LocationGroundTruthService(session).import_objects(
             drawing_id,
             {
-                "images": [
-                    {"id": 1, "file_name": "page_0001.png", "width": 100, "height": 100}
-                ],
-                "categories": [{"id": 1, "name": "cabinet"}],
-                "annotations": [
-                    {"id": 1, "image_id": 1, "category_id": 1, "bbox": [10, 10, 30, 30]}
+                "objects": [
+                    {
+                        "id": "a",
+                        "category": "cabinet",
+                        "page": 1,
+                        "bbox": {"x": 10, "y": 10, "width": 30, "height": 30},
+                    }
                 ],
             },
         )
