@@ -75,12 +75,16 @@ class DrawingService:
 
         rendered = self._render_pages(source_path, page_dir)
 
-        for page_number, full_res in enumerate(rendered, start=1):
-            # Record the full-resolution render's dimensions: imported COCO boxes
-            # (ticket 10) are annotated against the real page raster, not our
-            # model-facing downsample, so normalizing by these dims lands in 0-1.
+        for page_number, (full_res, native) in enumerate(rendered, start=1):
+            # Record the full-resolution render's pixel dimensions — the basis for prediction
+            # overlays/display — alongside the source PDF page's native point dims, the frame
+            # location GT is normalized by (ADR 0022). ``native`` is None for an image page,
+            # which has no source PDF and thus no native frame.
             with Image.open(full_res) as image:
                 width_px, height_px = image.size
+            native_width_pt, native_height_pt = (
+                native if native is not None else (None, None)
+            )
             cached = full_res.with_stem(f"{full_res.stem}_downsampled")
             downsample(full_res, cached)
             self.session.add(
@@ -90,6 +94,8 @@ class DrawingService:
                     image_path=str(cached),
                     width_px=width_px,
                     height_px=height_px,
+                    native_width_pt=native_width_pt,
+                    native_height_pt=native_height_pt,
                 )
             )
 
@@ -97,15 +103,21 @@ class DrawingService:
         self.session.refresh(drawing)
         return drawing
 
-    def _render_pages(self, source_path: Path, page_dir: Path) -> list[Path]:
-        """The full-resolution page image(s) for an upload, one per resulting Page: a PDF is
-        rendered per-page, a plain image is stored as its own single page (skipping the PDF
-        render). Either way the caller's downsample loop treats them identically."""
+    def _render_pages(
+        self, source_path: Path, page_dir: Path
+    ) -> list[tuple[Path, tuple[float, float] | None]]:
+        """The full-resolution page image(s) for an upload, one per resulting Page, each paired
+        with the source PDF page's native point dims (``(width_pt, height_pt)``) or ``None`` for
+        an image page with no source PDF. A PDF is rendered per-page; a plain image is stored as
+        its own single page (skipping the PDF render). Either way the caller's downsample loop
+        treats the images identically."""
         suffix = source_path.suffix.lower()
         if suffix in IMAGE_SUFFIXES:
-            return [self._store_image_page(source_path, page_dir)]
+            return [(self._store_image_page(source_path, page_dir), None)]
         if suffix == PDF_SUFFIX:
-            return self.pdf_service.extract_images(source_path, output_dir=page_dir)
+            images = self.pdf_service.extract_images(source_path, output_dir=page_dir)
+            native = self.pdf_service.native_page_dims(source_path)
+            return list(zip(images, native, strict=True))
         raise ValueError(
             f"unsupported drawing file type: {suffix or source_path.name!r}"
         )
