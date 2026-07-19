@@ -306,3 +306,46 @@ def test_location_import_unknown_drawing_is_404(client, page_dims):
         LOCATION_URL.format(id=999), files=_upload(_objects(page_dims))
     )
     assert response.status_code == 404
+
+
+# --- ground-truth overlay (ticket 05, ADR 0024) ---------------------------------------
+
+GT_OVERLAY_URL = "/api/drawings/{id}/pages/{page}/gt-overlay"
+
+
+def test_gt_overlay_labeled_page_returns_png(client, drawing_id, page_dims):
+    # After an import, page 1 carries a ground-truth box; the route returns its overlay PNG.
+    client.post(LOCATION_URL.format(id=drawing_id), files=_upload(_objects(page_dims)))
+
+    response = client.get(GT_OVERLAY_URL.format(id=drawing_id, page=1))
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_gt_overlay_unlabeled_page_returns_plain_page(client, drawing_id):
+    # With no import the page has no ground truth; the route returns the plain page image
+    # (no boxes, no error) rather than 404-ing.
+    response = client.get(GT_OVERLAY_URL.format(id=drawing_id, page=1))
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_gt_overlay_reflects_the_latest_import(client, drawing_id, page_dims):
+    # The overlay renders on demand from the stored boxes, so importing boxes onto a page
+    # changes what it draws: the labeled overlay differs from the plain (pre-import) page.
+    plain = client.get(GT_OVERLAY_URL.format(id=drawing_id, page=1)).content
+
+    client.post(LOCATION_URL.format(id=drawing_id), files=_upload(_objects(page_dims)))
+    labeled = client.get(GT_OVERLAY_URL.format(id=drawing_id, page=1)).content
+
+    assert labeled != plain
+
+
+def test_gt_overlay_unknown_page_is_404(client, drawing_id):
+    # A page the drawing does not have (the fixture PDF has 2 pages) → 404, like the plain
+    # page-image route.
+    response = client.get(GT_OVERLAY_URL.format(id=drawing_id, page=9))
+
+    assert response.status_code == 404

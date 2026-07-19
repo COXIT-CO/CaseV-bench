@@ -7,6 +7,7 @@ from typing import Iterable
 
 from PIL import Image, ImageDraw
 
+from core.models.location_ground_truth import LocationGroundTruth
 from core.models.results import LabeledBox, LocationDetection
 
 # Long-edge (px) each page image is downsampled to at ingest; snapshotted on a Run.
@@ -232,6 +233,19 @@ def _detections_to_boxes(
     ]
 
 
+def _ground_truth_to_boxes(
+    rows: Iterable[LocationGroundTruth],
+) -> list[LabeledBox]:
+    """Flatten LocationGroundTruth rows into the shared ``LabeledBox`` shape — the GT
+    counterpart of ``_detections_to_boxes``, so ground truth and predictions reach the
+    canonical renderer through the same reduction rather than one done inline in a caller.
+    """
+    return [
+        LabeledBox(row.label, row.x_min, row.y_min, row.x_max, row.y_max)
+        for row in rows
+    ]
+
+
 def _build_overlay(image_path: Path, boxes: Iterable[LabeledBox]) -> Image.Image:
     """Draw the labeled boxes onto a copy of the page image, each in its **ObjectType**'s
     colour (ADR 0021, ticket 06).
@@ -268,6 +282,14 @@ def draw_overlay(
     return dest
 
 
+def _overlay_to_png_bytes(overlay: Image.Image) -> bytes:
+    """Serialize a built overlay to in-memory PNG bytes — the shared tail of the two
+    on-demand (uncached) renderers below."""
+    buffer = BytesIO()
+    overlay.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 def overlay_to_png_bytes(
     image_path: Path, detections: list[LocationDetection]
 ) -> bytes:
@@ -275,7 +297,24 @@ def overlay_to_png_bytes(
     PNG bytes instead of caching a file (ADR 0020, ticket 07). This is how an **edited**
     prediction's overlay is produced on demand — nothing extra is written to disk, since the
     override is a one-off correction rather than a run artefact."""
-    overlay = _build_overlay(image_path, _detections_to_boxes(detections))
-    buffer = BytesIO()
-    overlay.save(buffer, format="PNG")
-    return buffer.getvalue()
+    return _overlay_to_png_bytes(
+        _build_overlay(image_path, _detections_to_boxes(detections))
+    )
+
+
+def ground_truth_overlay_png(
+    image_path: Path, rows: Iterable[LocationGroundTruth]
+) -> bytes:
+    """Render a Page's LocationGroundTruth boxes on its image and return the PNG bytes (ADR
+    0024, ticket 05) — the GT parallel of ``overlay_to_png_bytes``.
+
+    Drives the *same* canonical ``_build_overlay`` the prediction overlay uses, so a
+    ground-truth box carries its **ObjectType**'s colour and label (``GROUND_TRUTH_COLOR`` is
+    not revived — GT is coloured by class, not provenance) and reads on the shared palette +
+    legend. ``rows`` are the Page's stored LocationGroundTruth, flattened to ``LabeledBox``
+    here; an empty iterable yields the plain page image (an unlabeled page draws no boxes
+    rather than erroring). Rendered on demand — nothing is cached — so the overlay always
+    reflects the latest import."""
+    return _overlay_to_png_bytes(
+        _build_overlay(image_path, _ground_truth_to_boxes(rows))
+    )
