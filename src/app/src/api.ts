@@ -292,13 +292,12 @@ export const api = {
       totals,
     ),
 
-  /** Import a Drawing's LocationGroundTruth from a COCO JSON upload (multipart), surfacing
-   * the importer's problem report (spec §A.6). An optional `label_map` (a JSON object) maps
-   * external category names onto the taxonomy. */
-  importLocationGroundTruth: (id: number, file: File, labelMap?: string) => {
+  /** Import a Drawing's LocationGroundTruth from a native `objects` JSON upload (multipart),
+   * surfacing the importer's problem report (spec §A.6). The file needs no configuration — the
+   * label map is the identity and each object states its page (ADR 0022). */
+  importLocationGroundTruth: (id: number, file: File) => {
     const form = new FormData();
     form.append("file", file);
-    if (labelMap) form.append("label_map", labelMap);
     return postForm<LocationImportResponse>(
       `/api/drawings/${id}/location-ground-truth`,
       form,

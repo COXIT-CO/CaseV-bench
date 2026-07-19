@@ -482,15 +482,15 @@ export const COUNTING_GT_EMPTY: CountingGroundTruthResponse = {
   ],
 };
 
-/** A COCO import result: one box created, plus one unmapped label and one unknown page
- * reported rather than silently dropped. */
+/** A native import result: 37 boxes created, plus one off-taxonomy category and one unknown
+ * page reported rather than silently dropped. */
 export const LOCATION_IMPORT_RESULT: LocationImportResponse = {
   created: 37,
   problems: [
     { kind: "unmapped_label", detail: "no taxonomy mapping for label 'windows'" },
     {
       kind: "unknown_page",
-      detail: "annotation references page 9, which drawing 3 does not have",
+      detail: "object references page 9, which drawing 3 does not have",
     },
   ],
 };

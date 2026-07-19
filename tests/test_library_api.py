@@ -3,7 +3,7 @@
 pixel dims), the cached page-image PNG route re-mounted under ``/api``, and the ``/models``
 curated catalog. Ingestion reuses ``DrawingService`` unchanged — only the web layer differs.
 
-Ground-truth entry (counting form, COCO import) is ticket 07 and is not covered here; the
+Ground-truth entry (counting form, native objects import) is ticket 07 and is not covered here; the
 Drawing detail is only the entry point it hangs off.
 """
 

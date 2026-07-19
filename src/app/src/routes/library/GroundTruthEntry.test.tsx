@@ -96,27 +96,27 @@ describe("GroundTruthEntry — counting form", () => {
   });
 });
 
-describe("GroundTruthEntry — COCO import", () => {
+describe("GroundTruthEntry — location import", () => {
   beforeEach(() => {
     vi.mocked(api.countingGroundTruth).mockReset();
     vi.mocked(api.countingGroundTruth).mockResolvedValue(COUNTING_GT);
     vi.mocked(api.importLocationGroundTruth).mockReset();
   });
 
-  it("imports a COCO file and reports the created count and problems", async () => {
+  it("imports a native JSON file and reports the created count and problems", async () => {
     vi.mocked(api.importLocationGroundTruth).mockResolvedValue(
       LOCATION_IMPORT_RESULT,
     );
     renderEntry();
 
-    const file = new File(['{"images":[]}'], "gt.json", {
+    const file = new File(['{"objects":[]}'], "gt.json", {
       type: "application/json",
     });
-    await userEvent.upload(await screen.findByLabelText("COCO JSON file"), file);
-    await userEvent.click(screen.getByRole("button", { name: "Import COCO" }));
+    await userEvent.upload(await screen.findByLabelText("Location JSON file"), file);
+    await userEvent.click(screen.getByRole("button", { name: "Import JSON" }));
 
     await waitFor(() =>
-      expect(api.importLocationGroundTruth).toHaveBeenCalledWith(3, file, undefined),
+      expect(api.importLocationGroundTruth).toHaveBeenCalledWith(3, file),
     );
     // The problem report surfaces the created count and both reported problems.
     expect(await screen.findByText(/Imported 37 boxes\./)).toBeInTheDocument();
@@ -124,30 +124,5 @@ describe("GroundTruthEntry — COCO import", () => {
     expect(
       screen.getByText(/which drawing 3 does not have/),
     ).toBeInTheDocument();
-  });
-
-  it("passes an optional label map through to the importer", async () => {
-    vi.mocked(api.importLocationGroundTruth).mockResolvedValue(
-      LOCATION_IMPORT_RESULT,
-    );
-    renderEntry();
-
-    const file = new File(['{"images":[]}'], "gt.json", {
-      type: "application/json",
-    });
-    await userEvent.upload(await screen.findByLabelText("COCO JSON file"), file);
-    await userEvent.type(
-      screen.getByPlaceholderText('{"Base Cabinet": "cabinet"}'),
-      '{{"Base Cabinet": "cabinet"}',
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Import COCO" }));
-
-    await waitFor(() =>
-      expect(api.importLocationGroundTruth).toHaveBeenCalledWith(
-        3,
-        file,
-        '{"Base Cabinet": "cabinet"}',
-      ),
-    );
   });
 });

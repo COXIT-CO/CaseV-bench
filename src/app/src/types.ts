@@ -417,14 +417,15 @@ export interface CountingGroundTruthResponse {
  * required (a missing/non-integer total is a `400`). */
 export type CountingGtSaveRequest = Record<string, number>;
 
-/** One annotation the COCO import reported rather than silently dropped: an unmapped label
- * or a reference to a page the Drawing lacks (src/web/api.py::ImportProblemOut). */
+/** One object the native import reported rather than silently dropped: an off-taxonomy
+ * category, a reference to a page the Drawing lacks, or a box that grossly overflows its
+ * page's native frame (src/api/routers/ground_truth.py::ImportProblemOut). */
 export interface LocationImportProblem {
-  kind: "unmapped_label" | "unknown_page";
+  kind: "unmapped_label" | "unknown_page" | "out_of_frame";
   detail: string;
 }
 
-/** `POST /api/drawings/{id}/location-ground-truth` → the COCO import result: how many boxes
+/** `POST /api/drawings/{id}/location-ground-truth` → the native import result: how many boxes
  * were created and every problem reported (spec §A.6). */
 export interface LocationImportResponse {
   created: number;

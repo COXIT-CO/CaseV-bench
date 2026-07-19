@@ -1,9 +1,11 @@
-"""COCO importer for LocationGroundTruth (ticket 10, ADR 0003).
+"""Native ``objects`` importer for LocationGroundTruth (ticket 03, ADR 0022).
 
-Pure-ish service tests over a temp SQLite DB: a COCO JSON's absolute pixel boxes are
-converted to normalized 0-1 boxes on the correct Pages, external labels are mapped onto
-the fixed taxonomy, and an unmapped label / unknown page is reported rather than silently
-dropped. The importer never calls a model, so no adapter seam is involved.
+Pure-ish service tests over a temp SQLite DB: a native ``objects`` JSON's absolute pixel
+boxes are converted to normalized 0-1 boxes on the correct Pages, normalized by each Page's
+**native point dimensions** (the source PDF's ``page.rect``, captured at ingest), and anything
+that can't be imported — an off-taxonomy category, a page the Drawing lacks, a box that
+grossly overflows its native frame — is reported rather than silently dropped. The importer
+never calls a model, so no adapter seam is involved.
 """
 
 import pytest
@@ -12,26 +14,34 @@ from sqlmodel import select
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
 from core.services.location_ground_truth import (
+    OUT_OF_FRAME,
     UNKNOWN_PAGE,
     UNMAPPED_LABEL,
     LocationGroundTruthService,
 )
 
 
-def _make_drawing_with_pages(session, dims: list[tuple[int, int]]) -> Drawing:
-    """A Drawing with one Page per (width_px, height_px), numbered from 1."""
+def _make_drawing_with_pages(session, native_dims: list[tuple[int, int]]) -> Drawing:
+    """A Drawing with one Page per native ``(width_pt, height_pt)``, numbered from 1.
+
+    The Page's full-resolution pixel dims are set to a different (larger) frame than its
+    native point dims, so a test that passes when the importer normalizes by the native
+    dims would fail if it wrongly normalized by the pixel dims.
+    """
     drawing = Drawing(name="d")
     session.add(drawing)
     session.commit()
     session.refresh(drawing)
-    for page_number, (width_px, height_px) in enumerate(dims, start=1):
+    for page_number, (native_w, native_h) in enumerate(native_dims, start=1):
         session.add(
             Page(
                 drawing_id=drawing.id,
                 page_number=page_number,
                 image_path=f"page_{page_number:04d}_downsampled.png",
-                width_px=width_px,
-                height_px=height_px,
+                width_px=native_w * 4,
+                height_px=native_h * 4,
+                native_width_pt=float(native_w),
+                native_height_pt=float(native_h),
             )
         )
     session.commit()
@@ -49,26 +59,28 @@ def _boxes_by_page(session, drawing: Drawing) -> dict[int, list[LocationGroundTr
     return grouped
 
 
+def _obj(category: str, page: int, x: int, y: int, width: int, height: int) -> dict:
+    return {
+        "id": f"{category}-{page}-{x}-{y}",
+        "category": category,
+        "page": page,
+        "bbox": {"x": x, "y": y, "width": width, "height": height},
+    }
+
+
 def test_import_creates_normalized_boxes_on_correct_pages(session):
     drawing = _make_drawing_with_pages(session, [(1000, 2000), (500, 400)])
-    coco = {
-        "images": [
-            {"id": 11, "file_name": "page_0001.png", "width": 1000, "height": 2000},
-            {"id": 22, "file_name": "page_0002.png", "width": 500, "height": 400},
-        ],
-        "categories": [
-            {"id": 1, "name": "cabinet"},
-            {"id": 2, "name": "countertop"},
-        ],
-        "annotations": [
-            # page 1: [x, y, w, h] px -> normalized by (1000, 2000)
-            {"id": 1, "image_id": 11, "category_id": 1, "bbox": [100, 200, 300, 400]},
-            # page 2: normalized by (500, 400)
-            {"id": 2, "image_id": 22, "category_id": 2, "bbox": [50, 40, 100, 80]},
+    document = {
+        "project_id": "prj1",
+        "objects": [
+            # page 1: [x, y, w, h] px -> normalized by native (1000, 2000)
+            _obj("cabinet", 1, 100, 200, 300, 400),
+            # page 2: normalized by native (500, 400)
+            _obj("countertop", 2, 50, 40, 100, 80),
         ],
     }
 
-    result = LocationGroundTruthService(session).import_coco(drawing.id, coco)
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
 
     assert result.created == 2
     assert result.problems == []
@@ -91,68 +103,47 @@ def test_import_creates_normalized_boxes_on_correct_pages(session):
     assert box2.y_max == pytest.approx(0.3)  # (40 + 80) / 400
 
 
-def test_normalization_uses_page_dimensions_not_coco_image_dims(session):
-    # The Page's stored dims are authoritative (ticket 10). If a COCO image reports
-    # different dims, normalization must still divide by the Page's dimensions.
+def test_normalization_uses_native_point_dims_not_pixel_dims(session):
+    # The Page's native point dims are authoritative for GT (ADR 0022). The helper sets the
+    # pixel dims to 4x the native frame; normalization must still divide by the native dims.
     drawing = _make_drawing_with_pages(session, [(1000, 1000)])
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": 500, "height": 500},
-        ],
-        "categories": [{"id": 1, "name": "cabinet"}],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [100, 100, 200, 200]},
-        ],
-    }
+    document = {"objects": [_obj("cabinet", 1, 100, 100, 200, 200)]}
 
-    LocationGroundTruthService(session).import_coco(drawing.id, coco)
+    LocationGroundTruthService(session).import_objects(drawing.id, document)
 
     box = _boxes_by_page(session, drawing)[1][0]
-    # Divided by the Page's 1000, not the COCO image's 500.
+    # Divided by the native 1000, not the pixel frame's 4000.
     assert box.x_min == pytest.approx(0.1)
     assert box.x_max == pytest.approx(0.3)
 
 
-def test_external_label_names_are_mapped_onto_taxonomy(session):
+def test_project_id_is_ignored(session):
+    # The Drawing the import is launched from is authoritative; the file's project_id, even a
+    # mismatched one, is read past.
     drawing = _make_drawing_with_pages(session, [(1000, 1000)])
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000}
-        ],
-        "categories": [{"id": 7, "name": "Base Cabinet"}],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 7, "bbox": [0, 0, 100, 100]},
-        ],
+    document = {
+        "project_id": "some-other-project",
+        "objects": [_obj("cabinet", 1, 0, 0, 100, 100)],
     }
 
-    result = LocationGroundTruthService(session).import_coco(
-        drawing.id, coco, label_map={"Base Cabinet": "cabinet"}
-    )
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
 
     assert result.created == 1
     assert result.problems == []
-    assert _boxes_by_page(session, drawing)[1][0].label == "cabinet"
 
 
-def test_unmapped_label_is_reported_not_dropped(session):
+def test_off_taxonomy_category_is_reported_not_dropped(session):
     drawing = _make_drawing_with_pages(session, [(1000, 1000)])
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000}
-        ],
-        "categories": [
-            {"id": 1, "name": "cabinet"},
-            {"id": 2, "name": "windows"},  # not in the taxonomy or the map
-        ],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100]},
-            {"id": 2, "image_id": 1, "category_id": 2, "bbox": [0, 0, 100, 100]},
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("windows", 1, 0, 0, 100, 100),  # not in the singular taxonomy
         ],
     }
 
-    result = LocationGroundTruthService(session).import_coco(drawing.id, coco)
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
 
-    # The mappable annotation still imports; the unmapped one is reported, not dropped silently.
+    # The valid object still imports; the off-taxonomy one is reported, not dropped silently.
     assert result.created == 1
     assert len(result.problems) == 1
     problem = result.problems[0]
@@ -160,38 +151,16 @@ def test_unmapped_label_is_reported_not_dropped(session):
     assert "windows" in problem.detail
 
 
-def test_label_map_targeting_outside_taxonomy_is_rejected(session):
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000}
-        ],
-        "categories": [{"id": 1, "name": "Base Cabinet"}],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 10, 10]}
-        ],
-    }
-    with pytest.raises(ValueError):
-        LocationGroundTruthService(session).import_coco(
-            drawing.id, coco, label_map={"Base Cabinet": "windows"}
-        )
-
-
 def test_unknown_page_is_reported_not_dropped(session):
     drawing = _make_drawing_with_pages(session, [(1000, 1000)])  # only page 1 exists
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000},
-            {"id": 2, "file_name": "page_0009.png", "width": 1000, "height": 1000},
-        ],
-        "categories": [{"id": 1, "name": "cabinet"}],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100]},
-            {"id": 2, "image_id": 2, "category_id": 1, "bbox": [0, 0, 100, 100]},
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("cabinet", 9, 0, 0, 100, 100),  # page 9 does not exist
         ],
     }
 
-    result = LocationGroundTruthService(session).import_coco(drawing.id, coco)
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
 
     assert result.created == 1
     assert len(result.problems) == 1
@@ -200,20 +169,66 @@ def test_unknown_page_is_reported_not_dropped(session):
     assert "9" in problem.detail
 
 
-def test_reimport_replaces_rather_than_duplicates(session):
+def test_gross_overflow_is_reported_out_of_frame_and_skipped(session):
     drawing = _make_drawing_with_pages(session, [(1000, 1000)])
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": 1000, "height": 1000}
-        ],
-        "categories": [{"id": 1, "name": "cabinet"}],
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 100, 100]},
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),  # well inside the frame
+            _obj("cabinet", 1, 900, 900, 400, 400),  # extends to 1300px on a 1000 frame
         ],
     }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 1
+    assert len(result.problems) == 1
+    assert result.problems[0].kind == OUT_OF_FRAME
+    # The in-frame box is the only one that landed.
+    assert len(_boxes_by_page(session, drawing)[1]) == 1
+
+
+def test_within_tolerance_overflow_is_clamped_and_accepted(session):
+    # A flush-to-edge annotation that spills over by <= ~0.5% is accepted and clamped to the
+    # unit square, not rejected as an error.
+    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    # x_max = 1004 / 1000 = 1.004 -> within 0.5% tolerance -> clamp to 1.0.
+    document = {"objects": [_obj("cabinet", 1, 0, 0, 1004, 1004)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 1
+    assert result.problems == []
+    box = _boxes_by_page(session, drawing)[1][0]
+    assert box.x_max == pytest.approx(1.0)
+    assert box.y_max == pytest.approx(1.0)
+    assert box.x_min == pytest.approx(0.0)
+
+
+def test_each_distinct_problem_is_reported_once(session):
+    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("windows", 1, 0, 0, 100, 100),  # unmapped, twice
+            _obj("windows", 1, 10, 10, 100, 100),
+            _obj("cabinet", 9, 0, 0, 100, 100),  # unknown page, twice
+            _obj("cabinet", 9, 10, 10, 100, 100),
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    kinds = sorted(problem.kind for problem in result.problems)
+    # One report per distinct cause, not one per object.
+    assert kinds == [UNKNOWN_PAGE, UNMAPPED_LABEL]
+
+
+def test_reimport_replaces_rather_than_duplicates(session):
+    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("cabinet", 1, 0, 0, 100, 100)]}
     service = LocationGroundTruthService(session)
 
-    service.import_coco(drawing.id, coco)
-    service.import_coco(drawing.id, coco)
+    service.import_objects(drawing.id, document)
+    service.import_objects(drawing.id, document)
 
     assert len(_boxes_by_page(session, drawing)[1]) == 1

@@ -12,10 +12,10 @@ import type { CountingGtLabel, LocationImportResponse } from "@/types";
 // The scoring payoff (ticket 07, spec §A.6): recording ground truth for a Drawing turns its
 // previously-unscored Leaderboard/Result rows into scored ones with **no re-run** (scores
 // recompute on read). Two entry points hang off the Drawing detail — a counting number-per-
-// object-type form pre-filled with any existing totals, and a COCO location import (an upload
-// affordance; there is no in-app box editor, ADR 0003) that reports problems instead of
-// silently dropping them. The contextual "unscored → enter ground truth" CTAs on the
-// Leaderboard/Result land on this section (ADR 0011).
+// object-type form pre-filled with any existing totals, and a native `objects` location import
+// (an upload affordance; there is no in-app box editor, ADR 0003/0022) that reports problems
+// instead of silently dropping them. The contextual "unscored → enter ground truth" CTAs on
+// the Leaderboard/Result land on this section (ADR 0011).
 
 const NUMBER_FIELD_CLASS =
   "w-24 rounded-md border bg-background px-2.5 py-1.5 text-right font-mono text-[12.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -30,7 +30,7 @@ export function GroundTruthEntry({ drawingId }: { drawingId: number }) {
         <h2 className="text-sm font-semibold">Ground truth</h2>
         <p className="mt-1 text-[12.5px] text-muted-foreground">
           Record ground truth so this drawing's results become scored — with no re-run. Enter
-          counting totals per object type, or import location boxes from a COCO file.
+          counting totals per object type, or import location boxes from an expert's JSON file.
         </p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -141,12 +141,11 @@ function CountingForm({
   );
 }
 
-/** The location-GT entry point: upload a COCO JSON (with an optional label map) and surface
- * the importer's problem report (spec §A.6). No in-app box editor — annotation happens in an
- * external tool (ADR 0003); this only imports its export. */
+/** The location-GT entry point: upload a native `objects` JSON and surface the importer's
+ * problem report (spec §A.6). No in-app box editor — annotation happens in an external tool
+ * (ADR 0003); this only imports its export, needing no configuration (ADR 0022). */
 function LocationImportCard({ drawingId }: { drawingId: number }) {
   const [file, setFile] = React.useState<File | null>(null);
-  const [labelMap, setLabelMap] = React.useState("");
   const importGt = useImportLocationGroundTruth(drawingId);
 
   const canSubmit = file !== null && !importGt.isPending;
@@ -154,49 +153,32 @@ function LocationImportCard({ drawingId }: { drawingId: number }) {
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (file === null || importGt.isPending) return;
-    importGt.mutate({ file, labelMap: labelMap.trim() || undefined });
+    importGt.mutate({ file });
   }
 
   return (
     <div className="rounded-lg border bg-card p-4">
-      <div className="text-sm font-semibold">Location boxes (COCO import)</div>
+      <div className="text-sm font-semibold">Location boxes (JSON import)</div>
       <p className="mb-3.5 mt-1 text-[12px] text-muted-foreground">
-        Import bounding boxes from a COCO JSON exported by your annotation tool. Re-importing
-        replaces this drawing's existing boxes.
+        Import bounding boxes from your expert's labeling JSON. Re-importing replaces this
+        drawing's existing boxes.
       </p>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div>
           <label
-            htmlFor="coco-file"
+            htmlFor="location-gt-file"
             className="mb-1.5 block text-xs font-semibold text-muted-foreground"
           >
-            COCO JSON file
+            Location JSON file
           </label>
           <input
-            id="coco-file"
+            id="location-gt-file"
             type="file"
             accept="application/json,.json"
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             className={FILE_FIELD_CLASS}
           />
         </div>
-
-        <details className="text-[12px]">
-          <summary className="cursor-pointer text-muted-foreground">
-            Label map (optional)
-          </summary>
-          <textarea
-            value={labelMap}
-            onChange={(event) => setLabelMap(event.target.value)}
-            rows={3}
-            placeholder={'{"Base Cabinet": "cabinet"}'}
-            className="mt-2 w-full resize-y rounded-md border bg-background px-2.5 py-2 font-mono text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            A JSON object mapping your category names onto the taxonomy. Leave blank if your
-            export already uses the canonical labels.
-          </p>
-        </details>
 
         {importGt.isError && <ErrorBlock error={importGt.error} />}
 
@@ -206,7 +188,7 @@ function LocationImportCard({ drawingId }: { drawingId: number }) {
           disabled={!canSubmit}
           className="self-start"
         >
-          {importGt.isPending ? "Importing…" : "Import COCO"}
+          {importGt.isPending ? "Importing…" : "Import JSON"}
         </Button>
       </form>
 
@@ -217,8 +199,9 @@ function LocationImportCard({ drawingId }: { drawingId: number }) {
   );
 }
 
-/** The importer's report: how many boxes were created, and every problem (unmapped label /
- * unknown page) it surfaced rather than silently dropping (spec §A.6). */
+/** The importer's report: how many boxes were created, and every problem (off-taxonomy
+ * category / unknown page / out-of-frame box) it surfaced rather than silently dropping
+ * (spec §A.6). */
 function ImportReport({ result }: { result: LocationImportResponse }) {
   return (
     <div

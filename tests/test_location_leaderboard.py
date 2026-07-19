@@ -47,7 +47,7 @@ SLOPPY_JSON = json.dumps(
 
 def _seed_drawing(session, tmp_path: Path) -> Drawing:
     """A 1-page Drawing whose Page points at a real PNG so overlay rendering has an
-    image to draw on. Page dims are 100×100 so COCO pixel boxes normalize cleanly."""
+    image to draw on. Native point dims are 100×100 so native pixel boxes normalize cleanly."""
     drawing = Drawing(name="sample")
     session.add(drawing)
     session.commit()
@@ -61,6 +61,8 @@ def _seed_drawing(session, tmp_path: Path) -> Drawing:
             image_path=str(image_path),
             width_px=100,
             height_px=100,
+            native_width_pt=100.0,
+            native_height_pt=100.0,
         )
     )
     session.commit()
@@ -69,23 +71,26 @@ def _seed_drawing(session, tmp_path: Path) -> Drawing:
 
 
 def _import_gt(session, drawing) -> None:
-    """Import the two GT boxes via the COCO importer (ticket 10) so the whole scored
+    """Import the two GT boxes via the native importer (ADR 0022) so the whole scored
     path — import → score → rank — is exercised, not just a hand-built Score."""
-    coco = {
-        "images": [
-            {"id": 1, "file_name": "page_0001.png", "width": 100, "height": 100}
-        ],
-        "categories": [
-            {"id": 1, "name": "cabinet"},
-            {"id": 2, "name": "countertop"},
-        ],
-        # COCO bbox is [x, y, w, h] in pixels; page is 100×100 so /100 gives the norms.
-        "annotations": [
-            {"id": 1, "image_id": 1, "category_id": 1, "bbox": [10, 10, 30, 30]},
-            {"id": 2, "image_id": 1, "category_id": 2, "bbox": [50, 50, 20, 20]},
+    document = {
+        # bbox is {x, y, width, height} in pixels; native frame is 100×100 so /100 gives norms.
+        "objects": [
+            {
+                "id": "a",
+                "category": "cabinet",
+                "page": 1,
+                "bbox": {"x": 10, "y": 10, "width": 30, "height": 30},
+            },
+            {
+                "id": "b",
+                "category": "countertop",
+                "page": 1,
+                "bbox": {"x": 50, "y": 50, "width": 20, "height": 20},
+            },
         ],
     }
-    LocationGroundTruthService(session).import_coco(drawing.id, coco)
+    LocationGroundTruthService(session).import_objects(drawing.id, document)
 
 
 def _launch(session, stub_adapter, drawing, overlay_root):
@@ -169,15 +174,16 @@ def test_location_score_is_recomputed_when_ground_truth_changes(
 
     # Re-import GT with only the cabinet moved out from under the accurate prediction:
     # a single GT box the model no longer matches → recall drops to 0.
-    gt_service.import_coco(
+    gt_service.import_objects(
         drawing.id,
         {
-            "images": [
-                {"id": 1, "file_name": "page_0001.png", "width": 100, "height": 100}
-            ],
-            "categories": [{"id": 1, "name": "cabinet"}],
-            "annotations": [
-                {"id": 1, "image_id": 1, "category_id": 1, "bbox": [80, 80, 15, 15]},
+            "objects": [
+                {
+                    "id": "a",
+                    "category": "cabinet",
+                    "page": 1,
+                    "bbox": {"x": 80, "y": 80, "width": 15, "height": 15},
+                },
             ],
         },
     )
