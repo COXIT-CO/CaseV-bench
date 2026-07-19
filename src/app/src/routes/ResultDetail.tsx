@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { KnobsSnapshot } from "@/components/KnobsSnapshot";
+import { OverlayLegend } from "@/components/OverlayLegend";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +20,6 @@ import {
   useSetPredictionOverride,
 } from "@/hooks/queries";
 import { formatExactMatch, formatRate } from "@/lib/format";
-import { LABEL_COLORS } from "@/lib/labelColors";
 import { cn } from "@/lib/utils";
 import type {
   CountingScore,
@@ -394,28 +394,6 @@ function PredictionOverlayGrid({ result }: { result: ResultDetailResponse }) {
         onClose={() => setOpenIndex(null)}
       />
     </div>
-  );
-}
-
-/** The overlay's per-label colour key (ADR 0021, ticket 06): each ObjectType's fixed colour
- * next to its name, so the class-coloured boxes on the overlay are self-explanatory. Colours
- * mirror the backend renderer via the shared `LABEL_COLORS`. */
-function OverlayLegend() {
-  return (
-    <ul
-      aria-label="Overlay colour legend"
-      className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground"
-    >
-      {LABEL_COLORS.map(({ label, color }) => (
-        <li key={label} className="flex items-center gap-1.5">
-          <span
-            className="h-2.5 w-2.5 rounded-sm"
-            style={{ backgroundColor: color }}
-          />
-          {label}
-        </li>
-      ))}
-    </ul>
   );
 }
 
