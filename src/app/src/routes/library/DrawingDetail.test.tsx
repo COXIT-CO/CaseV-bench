@@ -86,17 +86,74 @@ describe("DrawingDetail", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("no longer offers a GT-only overlay view on any page", async () => {
+  it("shows a GT overlay toggle that defaults off (plain page, no legend)", async () => {
     vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
     renderDetail();
 
-    // The GT visuals were dropped (ticket 01): no page links a ground-truth overlay.
-    await screen.findByAltText("Page 1");
-    const gtLinks = screen
-      .getAllByRole("link")
-      .filter((a) => a.getAttribute("href")?.includes("ground-truth-overlay"));
-    expect(gtLinks).toHaveLength(0);
-    expect(screen.queryByText("View ground truth ↗")).not.toBeInTheDocument();
+    // The overlay toggle (ticket 06) reinstates the GT verification view; it is present but
+    // off by default, so the page cards show the plain image and no colour legend yet.
+    const toggle = await screen.findByRole("checkbox", {
+      name: /ground-truth overlay/i,
+    });
+    expect(toggle).not.toBeChecked();
+    expect(screen.getByAltText("Page 1")).toHaveAttribute(
+      "src",
+      "/api/drawings/3/pages/1/image",
+    );
+    expect(
+      screen.queryByRole("list", { name: "Overlay colour legend" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("toggles the GT overlay on: page images switch to the gt-overlay route and a legend appears", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
+    renderDetail();
+
+    await user.click(
+      await screen.findByRole("checkbox", { name: /ground-truth overlay/i }),
+    );
+
+    // Every page card now points at the on-demand GT overlay PNG (a page with no imported
+    // ground truth returns the plain page from that same route — no special-casing here).
+    expect(screen.getByAltText("Page 1")).toHaveAttribute(
+      "src",
+      "/api/drawings/3/pages/1/gt-overlay",
+    );
+    expect(screen.getByAltText("Page 2")).toHaveAttribute(
+      "src",
+      "/api/drawings/3/pages/2/gt-overlay",
+    );
+
+    // The class-coloured boxes are keyed by the shared per-label legend.
+    const legend = screen.getByRole("list", { name: "Overlay colour legend" });
+    for (const label of ["cabinet", "countertop", "elevation"]) {
+      expect(within(legend).getByText(label)).toBeInTheDocument();
+    }
+
+    // Toggling back off returns to the plain page image.
+    await user.click(screen.getByRole("checkbox", { name: /ground-truth overlay/i }));
+    expect(screen.getByAltText("Page 1")).toHaveAttribute(
+      "src",
+      "/api/drawings/3/pages/1/image",
+    );
+  });
+
+  it("opens the GT overlay variant in the lightbox when the toggle is on", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
+    renderDetail();
+
+    await user.click(
+      await screen.findByRole("checkbox", { name: /ground-truth overlay/i }),
+    );
+    // Clicking a page opens the scope-4 lightbox at the overlay image, for zoom/pan.
+    await user.click(screen.getByAltText("Page 1"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/drawings/3/pages/1/gt-overlay",
+    );
   });
 
   it("mounts the ground-truth entry points (counting form + location import)", async () => {
