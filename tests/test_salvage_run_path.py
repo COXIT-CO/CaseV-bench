@@ -122,6 +122,29 @@ def test_truncated_location_array_salvages_boxes_and_renders_overlay(
     assert pred.raw_content == truncated
 
 
+def test_empty_location_array_is_scored_ok_with_no_boxes(
+    session, stub_adapter, tmp_path
+):
+    """An empty array is a valid "no objects on this page" answer, not a failure: it scores
+    a clean ok with zero detections (no overlay to draw), never an error."""
+    drawing, prompt = _seed_location(session, tmp_path)
+    stub_adapter.responses = {MODEL: "[]"}
+    overlay_root = tmp_path / "overlays"
+
+    run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
+        Task.location, prompt.id, drawing.id, [MODEL]
+    )
+    pred = _only_prediction(run)
+
+    assert pred.status == PredictionStatus.ok
+    assert pred.parse_error is None
+    parsed = LocationResult.model_validate_json(pred.parsed_json)
+    assert parsed.detections == []
+    # Nothing to draw, so no overlay is rendered.
+    assert pred.overlay_path is None
+    assert pred.raw_content == "[]"
+
+
 def test_total_garbage_location_is_error_with_no_boxes(session, stub_adapter, tmp_path):
     drawing, prompt = _seed_location(session, tmp_path)
     stub_adapter.responses = {MODEL: "the drawing was unreadable, sorry"}
