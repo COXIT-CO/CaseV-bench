@@ -15,6 +15,8 @@ from api.deps import get_drawing_service, get_session
 from api.routers.common import DrawingRef
 from core.models.drawing import Drawing, Page
 from core.services.drawing import SUPPORTED_SUFFIXES, DrawingService
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.utils import ground_truth_overlay_png
 
 router = APIRouter(prefix="/api", tags=["drawings"])
 
@@ -155,6 +157,22 @@ def delete_drawing(
     return DrawingDeletedOut(runs=counts.runs, results=counts.results)
 
 
+def _require_page_with_image(
+    session: Session, drawing_id: int, page_number: int
+) -> Page:
+    """The Page for a (Drawing, page_number) whose cached image exists, or a ``404`` — the
+    shared lookup both page-image PNG routes below serve, so their not-found rule stays in
+    one place."""
+    page = session.exec(
+        select(Page).where(
+            Page.drawing_id == drawing_id, Page.page_number == page_number
+        )
+    ).first()
+    if page is None or not Path(page.image_path).exists():
+        raise HTTPException(status_code=404, detail="Page image not found")
+    return page
+
+
 @router.get("/drawings/{drawing_id}/pages/{page_number}/image")
 def drawing_page_image(
     drawing_id: int,
@@ -163,11 +181,26 @@ def drawing_page_image(
 ) -> Response:
     """The cached, downsampled page image PNG for one (Drawing, Page), served under
     ``/api`` for the SPA (ported unchanged from the retired Jinja twin)."""
-    page = session.exec(
-        select(Page).where(
-            Page.drawing_id == drawing_id, Page.page_number == page_number
-        )
-    ).first()
-    if page is None or not Path(page.image_path).exists():
-        raise HTTPException(status_code=404, detail="Page image not found")
+    page = _require_page_with_image(session, drawing_id, page_number)
     return FileResponse(page.image_path, media_type="image/png")
+
+
+@router.get("/drawings/{drawing_id}/pages/{page_number}/gt-overlay")
+def drawing_page_gt_overlay(
+    drawing_id: int,
+    page_number: int,
+    session: Session = Depends(get_session),
+) -> Response:
+    """The ground-truth overlay PNG for one (Drawing, Page) — the backend half of the Library
+    verification view (ADR 0024, ticket 05). The Page's imported LocationGroundTruth boxes are
+    drawn on the page image, each in its ObjectType's colour (the shared palette + legend the
+    prediction overlay uses), rendered on demand from the stored normalized boxes so the overlay
+    always reflects the latest import. A page with no ground truth returns the plain page image
+    (no boxes, no error); an unknown page or a missing image file is a ``404`` (mirrors the plain
+    page-image route)."""
+    page = _require_page_with_image(session, drawing_id, page_number)
+    rows = (
+        LocationGroundTruthService(session).boxes_by_page(drawing_id).get(page.id, [])
+    )
+    png = ground_truth_overlay_png(Path(page.image_path), rows)
+    return Response(content=png, media_type="image/png")
