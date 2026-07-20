@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Prompt Runner</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="page">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}<ul class="flash-list">{% for category, message in messages %}<li class="flash-{{ category }}">{{ message }}</li>{% endfor %}</ul>{% endif %}
+  {% endwith %}
+
+  <h1>New run</h1>
+  <form class="composer" method="POST" enctype="multipart/form-data">
+    <p class="field-label">System prompt</p>
+    <textarea name="system_prompt" placeholder="System instructions…"></textarea>
+    <p class="field-label">User prompt</p>
+    <textarea name="user_prompt" placeholder="Task for each page…" required></textarea>
+
+    <div class="settings-grid">
+      <label>Workflow
+        <select name="workflow"><option value="count">Count objects</option><option value="locate">Locate + draw boxes</option></select>
+      </label>
+      <label>DPI <input type="number" name="dpi" value="200" min="72" max="600"></label>
+      <label>Model
+        <select name="model">{% for m in available_models %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
+      </label>
+    </div>
+
+    <p class="field-label">Expected JSON (paste or upload)</p>
+    <textarea name="expected_json" class="mono small-textarea" placeholder='{"cabinets": 23, "countertops": 4, "elevations": 7, "elevation_callouts": 7}'></textarea>
+    <div class="composer-row">
+      <label class="file-input-label">📎 PDF / images<input type="file" name="file" multiple accept=".pdf,.png,.jpg,.jpeg"></label>
+      <label class="file-input-label">Expected .json<input type="file" name="expected_file" accept="application/json,.json"></label>
+      <span class="spacer"></span><button class="btn" type="submit">Run</button>
+    </div>
+  </form>
+
+  <h2 style="margin-top:30px">Projects</h2>
+  {% for row in prompt_rows %}
+    <div class="prompt-row">
+      <div><a class="prompt-name" href="{{ url_for('routes.prompt_detail', prompt_id=row.prompt.id) }}">{{ row.prompt.name }}</a><div class="prompt-meta">#{{ row.prompt.id }} · {{ row.prompt.created_at.strftime('%b %d, %Y %H:%M') }}</div></div>
+      {% if row.latest_run %}<span class="status-pill status-{{ row.latest_run.status.value }}"><span class="status-dot"></span>{{ row.latest_run.status.value }}</span><span class="prompt-model">{{ row.latest_run.workflow }} · {{ row.latest_run.dpi }} DPI</span>{% endif %}
+      <form action="{{ url_for('routes.prompt_delete', prompt_id=row.prompt.id) }}" method="POST" onsubmit="return confirm('Delete project?')"><button class="btn-icon">✕</button></form>
+    </div>
+  {% else %}<div class="empty-state">No projects yet.</div>{% endfor %}
+</div>
+</body>
+</html>

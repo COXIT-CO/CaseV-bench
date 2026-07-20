@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ prompt.name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="page wide-page">
+  <a class="back-link" href="{{ url_for('routes.index') }}">← Back</a>
+  {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<ul class="flash-list">{% for category, message in messages %}<li class="flash-{{ category }}">{{ message }}</li>{% endfor %}</ul>{% endif %}{% endwith %}
+
+  <form action="{{ url_for('routes.prompt_rename', prompt_id=prompt.id) }}" method="POST"><input class="title-input" type="text" name="name" value="{{ prompt.name }}" onchange="this.form.submit()"></form>
+
+  <div class="layout detail-layout">
+    <div>
+      <div class="panel">
+        <h2>Run configuration</h2>
+        <form action="{{ url_for('routes.prompt_update', prompt_id=prompt.id) }}" method="POST" enctype="multipart/form-data">
+          <p class="field-label">System prompt</p>
+          <textarea name="system_prompt" rows="8" class="mono form-textarea">{{ prompt.system_prompt or '' }}</textarea>
+          <p class="field-label">User prompt</p>
+          <textarea name="user_prompt" rows="8" class="mono form-textarea" required>{{ prompt.content }}</textarea>
+          <div class="settings-grid">
+            <label>Workflow<select name="workflow"><option value="count" {% if selected_run and selected_run.workflow == 'count' %}selected{% endif %}>Count objects</option><option value="locate" {% if selected_run and selected_run.workflow == 'locate' %}selected{% endif %}>Locate + draw boxes</option></select></label>
+            <label>DPI<input type="number" name="dpi" min="72" max="600" value="{{ selected_run.dpi if selected_run else 200 }}"></label>
+            <label>Model<select name="model">{% for m in available_models %}<option value="{{ m }}" {% if selected_run and m == selected_run.model %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
+          </div>
+          <p class="field-label">Expected JSON</p>
+          <textarea name="expected_json" rows="6" class="mono form-textarea">{{ prompt.expected_json or '' }}</textarea>
+          <div class="composer-row"><label class="file-input-label">Replace expected JSON<input type="file" name="expected_file" accept="application/json,.json"></label><span class="spacer"></span><button class="btn">Run</button></div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="top-bar"><h2>Input files</h2><form action="{{ url_for('routes.prompt_add_files', prompt_id=prompt.id) }}" method="POST" enctype="multipart/form-data"><label class="file-input-label">Add files<input type="file" name="file" multiple accept=".pdf,.png,.jpg,.jpeg" onchange="this.form.submit()"></label></form></div>
+        <p class="muted">Only preprocessed PNG pages are shown below after a run.</p>
+      </div>
+
+      <div class="panel"><h2>Runs</h2>
+        {% for run in runs %}<a class="run-row {{ 'active' if selected_run and run.id == selected_run.id else '' }}" href="{{ url_for('routes.prompt_detail', prompt_id=prompt.id, run_id=run.id) }}"><span>#{{ run.id }}</span><span>{{ run.model }}</span><span>{{ run.workflow }} · {{ run.dpi }} DPI</span><span class="status-pill status-{{ run.status.value }}"><span class="status-dot"></span>{{ run.status.value }}</span><form action="{{ url_for('routes.prompt_run_delete', run_id=run.id) }}" method="POST" onclick="event.stopPropagation()"><button class="btn-icon">✕</button></form></a>{% else %}<div class="empty-state">No runs.</div>{% endfor %}
+      </div>
+    </div>
+
+    <div class="side-panel">
+      {% if selected_run %}
+      <div class="panel" id="run-panel" data-run-id="{{ selected_run.id }}">
+        <div class="top-bar"><h2>Run #{{ selected_run.id }}</h2><span id="run-status-pill" class="status-pill status-{{ selected_run.status.value }}"><span class="status-dot"></span><span id="run-status-text">{{ selected_run.status.value }}</span></span></div>
+        <p class="muted">{{ selected_run.workflow }} · {{ selected_run.dpi }} DPI · {{ selected_run.model }}</p>
+        <div class="top-bar"><span></span><a id="run-download-link" class="btn-ghost" href="{{ url_for('routes.prompt_run_download', run_id=selected_run.id) }}" {% if not selected_run.result_json %}style="display:none"{% endif %}>⬇ Download result.json</a></div>
+        <div id="run-error-wrap" {% if not selected_run.error_message %}style="display:none"{% endif %}><div id="run-error" class="output-block error-block">{{ selected_run.error_message or '' }}</div></div>
+
+        {% if result.comparison %}
+        <h3>Expected vs actual</h3>
+        <table class="metrics-table"><thead><tr><th>Label</th><th>Expected</th><th>Actual</th><th>Δ</th><th>Accuracy</th></tr></thead><tbody>{% for row in result.comparison %}<tr><td>{{ row.label }}</td><td>{{ row.expected }}</td><td>{{ row.actual }}</td><td class="{{ 'delta-good' if row.delta == 0 else 'delta-bad' }}">{{ '%+d'|format(row.delta) }}</td><td>{{ '%.1f'|format(row.accuracy) }}%</td></tr>{% endfor %}</tbody></table>
+        {% endif %}
+
+        {% if result %}
+        <div class="result-heading">
+          <h3>Full result</h3>
+          <button type="button" class="btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('full-result-json').textContent)">Copy JSON</button>
+        </div>
+        <pre id="full-result-json" class="output-block full-result-json">{{ result | tojson(indent=2) }}</pre>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if pages %}
+  <div class="panel"><h2>Processed pages</h2><div class="page-gallery">
+    {% for page in pages %}
+    <article class="page-card">
+      <a href="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=page.annotated_image or page.image) }}" target="_blank"><img src="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=page.annotated_image or page.image) }}" alt="Page {{ loop.index }}"></a>
+      <div class="page-card-body"><div class="top-bar"><strong>Page {{ loop.index }}</strong><a href="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=page.json_file) }}" target="_blank">local JSON</a></div><pre>{{ page.counts | tojson(indent=2) }}</pre>{% if page.error %}<p class="error-text">{{ page.error }}</p>{% endif %}</div>
+    </article>
+    {% endfor %}
+  </div></div>
+  {% endif %}
+</div>
+<script src="{{ url_for('static', filename='js/prompt_run.js') }}"></script>
+</body>
+</html>
