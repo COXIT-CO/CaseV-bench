@@ -1,0 +1,9 @@
+fastapi==0.139.2
+uvicorn==0.51.0
+pydantic==2.13.4
+openai==2.46.0
+python-dotenv==1.2.2
+pdf2image==1.17.0
+Pillow==12.3.0
+python-multipart==0.0.32
+json-repair==0.61.6
