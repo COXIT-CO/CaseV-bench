@@ -1,0 +1,44 @@
+{
+  "run_id": "20260719T120045-6b37ba73",
+  "created_at": "2026-07-19T12:02:31.404220+00:00",
+  "system_prompt": "You are a Visual Grounding and Object Detection algorithm specialized in monochrome architectural millwork drawings. Your objective is precise bounding box extraction. \r\n\r\nDETECT EXACTLY THESE 4 CLASSES:\r\n1. \"elevation\": The large outer rectangular frame enclosing a casework drawing, including its bottom text title.\r\n2. \"cabinet\": A rectangular subdivision inside an elevation frame. \r\n   - TRIGGER: Must contain a crossing diagonal \"X\", a single diagonal line, or a drawer pull mark.\r\n   - BOUNDARIES: Strictly separated by solid vertical/horizontal divider lines.\r\n   - EXCLUSIONS: Ignore any areas labeled \"LOCKER\", \"BENCH\", or structural notes (e.g., \"SPEED BRACE\").\r\n3. \"countertop\": The thin horizontal band/surface running across the base cabinets. Do not include cabinets below it.\r\n4. \"elevation_callout\": Small, isolated circular, hexagonal, or multi-flagged symbols on floor plans. Must contain at least two text identifiers (view number and sheet reference).\r\n\r\nCOORDINATE SYSTEM [x_min, y_min, x_max, y_max]:\r\n- The image is strictly mapped to a normalized 0-1000 scale.\r\n- [0, 0] is the absolute top-left, [1000, 1000] is the absolute bottom-right.\r\n- Cabinet boxes MUST NOT overlap countertop boxes.\r\n- Elevation boxes MUST NOT overlap each other.\r\n\r\nOUTPUT SPECIFICATION:\r\nGenerate valid, raw JSON only. No markdown, no preambles. Do not compute a summary.\r\n\r\nRequired Schema:\r\n{\r\n \"objects\": [\r\n   {\r\n    \"label\": \"cabinet\",\r\n    \"box\": [0, 0, 100, 100],\r\n    \"image_index\": 0\r\n   }\r\n ]\r\n}",
+  "dpi": 300,
+  "execution_settings": {
+    "model_execution_mode": "sequential",
+    "file_grouping_mode": "split",
+    "file_execution_mode": "parallel",
+    "page_grouping_mode": "split",
+    "page_execution_mode": "parallel"
+  },
+  "files": [
+    "01+3T+MRI+Cabinets+Drawings.pdf"
+  ],
+  "pages": [
+    {
+      "file_index": 0,
+      "file_name": "01+3T+MRI+Cabinets+Drawings.pdf",
+      "page_num": 1,
+      "image_url": "/history-files/20260719T120045-6b37ba73/images/0_1.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "01+3T+MRI+Cabinets+Drawings.pdf",
+      "page_num": 2,
+      "image_url": "/history-files/20260719T120045-6b37ba73/images/0_2.png"
+    }
+  ],
+  "results": [
+    {
+      "model": "qwen/qwen3.7-plus",
+      "prompt": "INITIATE OBJECT DETECTION.\n\nAnalyze the image and extract all instances of: elevation, cabinet, countertop, and elevation_callout.\n- Strictly enforce the 0-1000 normalized coordinate scale.\n- Ensure individual 'cabinet' objects are cleanly separated by their physical divider lines (do not merge them).\n- Assign the correct image_index to each object.\n\nOutput the final JSON array now.",
+      "response": "{\"summary\": {\"cabinets\": 24, \"countertops\": 4, \"elevations\": 7, \"elevation_callouts\": 9}, \"objects\": [{\"label\": \"elevation\", \"box\": [70, 60, 220, 260], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation\", \"box\": [240, 60, 380, 260], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation\", \"box\": [400, 60, 500, 260], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation\", \"box\": [520, 60, 720, 260], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation\", \"box\": [750, 60, 950, 260], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation\", \"box\": [70, 350, 400, 550], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation\", \"box\": [70, 620, 400, 850], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [110, 80, 140, 230], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [140, 80, 210, 230], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [290, 80, 370, 230], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [430, 150, 490, 180], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [560, 100, 600, 150], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [600, 100, 640, 150], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [650, 100, 690, 150], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [650, 180, 710, 230], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [800, 100, 840, 150], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [840, 100, 880, 150], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [840, 180, 880, 230], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [170, 380, 250, 450], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [90, 650, 130, 720], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [130, 650, 170, 720], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [170, 650, 210, 720], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [250, 650, 290, 720], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [290, 650, 330, 720], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [330, 650, 370, 720], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [90, 750, 130, 820], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [130, 750, 170, 820], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [170, 750, 210, 820], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [250, 750, 290, 820], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [290, 750, 330, 820], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"cabinet\", \"box\": [330, 750, 370, 820], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"countertop\", \"box\": [540, 170, 710, 180], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"countertop\", \"box\": [770, 170, 940, 180], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"countertop\", \"box\": [250, 450, 380, 460], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"countertop\", \"box\": [90, 730, 390, 740], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [475, 755, 495, 775], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [475, 785, 495, 805], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [495, 785, 515, 805], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [545, 785, 565, 805], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [565, 775, 585, 795], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [565, 795, 585, 815], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [675, 785, 695, 805], \"file_index\": 0, \"page_num\": 1}, {\"label\": \"elevation_callout\", \"box\": [473, 336, 497, 360], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"elevation_callout\", \"box\": [473, 876, 497, 900], \"file_index\": 0, \"page_num\": 2}]}",
+      "counts": {
+        "cabinets": 24,
+        "countertops": 4,
+        "elevations": 7,
+        "elevation_callouts": 9
+      },
+      "expected_summary": null
+    }
+  ]
+}

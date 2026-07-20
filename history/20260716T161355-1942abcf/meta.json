@@ -1,0 +1,91 @@
+{
+  "run_id": "20260716T161355-1942abcf",
+  "created_at": "2026-07-16T16:14:04.107351+00:00",
+  "system_prompt": "You are a senior construction-documents specialist and an ultra-precise computer vision measurement tool. You analyze architectural millwork and casework drawing sets (interior elevations, floor plans, RCPs).\r\n\r\nYour ONLY job is to locate each object and report its exact bounding box. You are NOT responsible for counting them or creating summaries. Scan the ENTIRE sheet systematically — left to right, top to bottom. \r\n\r\n═══════════════════════════════════════\r\nHOW TO RECOGNIZE EACH OBJECT TYPE\r\n═══════════════════════════════════════\r\n\r\n**elevation**\r\nA flat, straight-on drawing of a wall or built-in casework run, enclosed in its own rectangular frame.\r\n- What's inside the frame: a horizontal floor line, side boundaries, and cabinets/countertops.\r\n- Directly below or beside the frame: a short caption line naming the view (e.g. \"DRESS 101 ELEVATION\").\r\n- The box MUST enclose the WHOLE drawing (including the title below) but must NOT swallow a neighboring, separately-framed elevation.\r\n\r\n**cabinet**\r\nOne individual cabinet/shelving/drawer compartment drawn INSIDE an elevation.\r\n- STRICT GRAPHIC REQUIREMENT: Only tag a cabinet if you see: an OPEN/ADJUSTABLE SHELF BAY (crossing diagonals \"X\" or a single diagonal), a DOOR-FRONT PANEL (with a pull handle mark), or a DRAWER STACK (horizontal bands with pulls).\r\n- DIVIDER RULE: A straight vertical construction line separating compartments means separate cabinets. Never merge separate bays into one box.\r\n- EXCLUSIONS: Always read leader lines first. If an area is labeled \"LOCKER\", \"BENCH\", or just has structural notes like \"SPEED BRACE\" without actual door/shelf graphics, DO NOT tag it.\r\n- A cabinet box NEVER crosses or includes a countertop band.\r\n\r\n**countertop**\r\nA thin horizontal band/sliver along the top-front edge of a base-cabinet run.\r\n- ZERO-TOLERANCE CHECK: The box must contain ONLY the countertop's own line(s) (surface line + backsplash). Do not include cabinets below or blank wall above.\r\n- HORIZONTAL EXTENT: Stop exactly at the physical edges of the counter surface itself (including any rounded corner return). Never stretch the box to match a nearby dimension string or wall line.\r\n\r\n**elevation_callout**\r\nA small reference symbol on a PLAN-TYPE view (floor plan / RCP), showing a view number and sheet reference.\r\n- Form 1: A single circle/hexagon split into two compartments.\r\n- Form 2: MULTIPLE FLAGS SHARING ONE POINT. Several triangular flags pointing in different directions from a shared center. You MUST check all 4 directions (up, down, left, right) around that center. Box EACH flag individually.\r\n- Form 3: A single unbroken diamond divided into quadrants (one box for the whole diamond).\r\n- EXCLUSIONS: Do NOT tag single-number door tags, room tags, or structural grid bubbles. A valid callout must have AT LEAST TWO pieces of text (view number + sheet reference).\r\n\r\n═══════════════════════════════════════\r\nCOORDINATE & OUTPUT RULES\r\n═══════════════════════════════════════\r\n- Coordinates MUST be normalized to a 0-1000 scale relative to the image's own dimensions. [0, 0] is top-left, [1000, 1000] is bottom-right.\r\n- Output RAW JSON ONLY. No markdown, no preambles, no conversational text.\r\n- Do NOT include a \"summary\" object. The backend will handle counting.\r\n\r\nRequired JSON Schema:\r\n{\r\n \"objects\": [\r\n   {\r\n    \"label\": \"cabinet\",\r\n    \"box\": [x_min, y_min, x_max, y_max],\r\n    \"image_index\": 0\r\n   }\r\n ]\r\n}\r\n\r\nCRITICAL RULES:\r\n- \"label\" MUST ONLY be one of: \"cabinet\", \"countertop\", \"elevation\", \"elevation_callout\".\r\n- \"image_index\" MUST be included for every object. It is a KEY, NOT a label value!",
+  "dpi": 400,
+  "execution_settings": {
+    "model_execution_mode": "sequential",
+    "file_grouping_mode": "split",
+    "file_execution_mode": "parallel",
+    "page_grouping_mode": "split",
+    "page_execution_mode": "parallel"
+  },
+  "files": [
+    "Attachment+5+Drawings+Cabinetry.pdf"
+  ],
+  "pages": [
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 1,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_1.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 2,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_2.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 3,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_3.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 4,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_4.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 5,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_5.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 6,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_6.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 7,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_7.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 8,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_8.png"
+    },
+    {
+      "file_index": 0,
+      "file_name": "Attachment+5+Drawings+Cabinetry.pdf",
+      "page_num": 9,
+      "image_url": "/history-files/20260716T161355-1942abcf/images/0_9.png"
+    }
+  ],
+  "results": [
+    {
+      "model": "google/gemini-3.1-pro-preview",
+      "prompt": "Activate spatial geometry mapping.\n\nCRITICAL COORDINATE REMINDER: \nThe output format is strictly [x_min, y_min, x_max, y_max]. \nX represents the horizontal axis (width). Y represents the vertical axis (height). \n\nFocus tightly on the ink: \n- Countertops are thin horizontal parallelograms. Their height (y_max - y_min) should be very small.\n- Cabinets are separated by vertical construction lines. \n- Ignore textual notes pointing to blank spaces. Only draw a box if the physical cabinet pattern (X, diagonal, or drawer pull) is rendered in ink.\n\nOutput the structured JSON.",
+      "response": "{\"summary\": {\"cabinets\": 17, \"countertops\": 3, \"elevations\": 6, \"elevation_callouts\": 6}, \"objects\": [{\"label\": \"elevation_callout\", \"box\": [367, 586, 398, 636], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"elevation_callout\", \"box\": [183, 385, 218, 435], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"elevation\", \"box\": [396, 402, 595, 742], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"elevation\", \"box\": [634, 402, 761, 742], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"cabinet\", \"box\": [489, 445, 531, 528], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"cabinet\", \"box\": [531, 445, 573, 528], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"cabinet\", \"box\": [489, 593, 531, 676], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"cabinet\", \"box\": [531, 593, 573, 676], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"cabinet\", \"box\": [668, 445, 695, 528], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"countertop\", \"box\": [489, 578, 573, 593], \"file_index\": 0, \"page_num\": 2}, {\"label\": \"elevation_callout\", \"box\": [468, 468, 481, 496], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"elevation_callout\", \"box\": [120, 468, 155, 518], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"elevation_callout\", \"box\": [343, 641, 379, 691], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"elevation\", \"box\": [388, 468, 584, 561], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"cabinet\", \"box\": [458, 491, 686, 547], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"elevation\", \"box\": [405, 636, 776, 790], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"cabinet\", \"box\": [458, 668, 544, 695], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"cabinet\", \"box\": [458, 695, 544, 722], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"cabinet\", \"box\": [458, 722, 544, 750], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"countertop\", \"box\": [594, 666, 606, 752], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"cabinet\", \"box\": [606, 668, 686, 695], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"cabinet\", \"box\": [606, 695, 686, 722], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"cabinet\", \"box\": [606, 722, 686, 750], \"file_index\": 0, \"page_num\": 3}, {\"label\": \"elevation\", \"box\": [56, 276, 327, 798], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"elevation\", \"box\": [470, 276, 745, 798], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"cabinet\", \"box\": [149, 468, 176, 555], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"cabinet\", \"box\": [176, 468, 231, 555], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"cabinet\", \"box\": [149, 615, 176, 702], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"cabinet\", \"box\": [176, 615, 231, 702], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"countertop\", \"box\": [147, 603, 233, 615], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"cabinet\", \"box\": [563, 456, 634, 702], \"file_index\": 0, \"page_num\": 4}, {\"label\": \"elevation_callout\", \"box\": [289, 538, 324, 588], \"file_index\": 0, \"page_num\": 5}]}",
+      "counts": {
+        "cabinets": 17,
+        "countertops": 3,
+        "elevations": 6,
+        "elevation_callouts": 6
+      },
+      "expected_summary": {
+        "cabinets": 15,
+        "countertops": 3,
+        "elevations": 14,
+        "elevation_callouts": 0
+      }
+    }
+  ]
+}
