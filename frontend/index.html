@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Benchmark Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-title">
+            <h1>LLM Benchmark Hub</h1>
+            <span class="header-tag">OpenRouter</span>
+        </div>
+        <p class="header-subtitle">Compare structured JSON extraction across multiple vision-language models</p>
+    </header>
+
+    <main class="container">
+        <section class="pdf-section panel">
+            <h2>PDF Documents</h2>
+
+            <div class="drop-zone" id="drop-zone">
+                <input type="file" id="pdf-upload" accept="application/pdf" multiple hidden>
+                <div class="drop-zone-content">
+                    <svg viewBox="0 0 24 24" width="40" height="40">
+                        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM12 11.5L8.5 15H11V18H13V15H15.5L12 11.5Z"/>
+                    </svg>
+                    <p>Drag &amp; drop PDF files here, or <span>browse files</span></p>
+                </div>
+            </div>
+
+            <div class="pdf-navigation" id="pdf-nav" style="display: none;">
+                <select id="file-selector"></select>
+                <div class="page-controls">
+                    <button id="zoom-out" title="Zoom out" class="icon-button">&minus;</button>
+                    <span id="zoom-level" class="zoom-readout">150%</span>
+                    <button id="zoom-in" title="Zoom in" class="icon-button">&plus;</button>
+
+                    <span class="divider"></span>
+
+                    <button id="prev-page">&larr; Prev</button>
+                    <span class="page-readout"><span id="page-num">0</span> / <span id="page-count">0</span></span>
+                    <button id="next-page">Next &rarr;</button>
+
+                    <span class="divider"></span>
+
+                    <button id="open-fullview" class="icon-button" title="Open full page view">&#9974;</button>
+                </div>
+            </div>
+
+            <div class="canvas-container">
+                <div class="canvas-wrapper">
+                    <canvas id="pdf-canvas"></canvas>
+                </div>
+            </div>
+
+            <div class="visualization-controls" id="vis-controls" style="display: none;">
+                <label for="bbox-selector">Show detections from:</label>
+                <select id="bbox-selector">
+                    <option value="none">Hide overlays</option>
+                </select>
+
+                <label class="toggle outline-toggle">
+                    <input type="checkbox" id="outline-only-toggle">
+                    <span>Outline only</span>
+                </label>
+
+                <div class="bbox-legend" aria-label="Bounding box color legend">
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #4da3ff;"></i>elevation</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #00ff9d;"></i>cabinet</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #ffb347;"></i>countertop</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #ff5fa2;"></i>elevation_callout</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="models-section panel">
+            <div class="section-toolbar">
+                <h2>Model Configuration</h2>
+                <div class="toolbar-actions">
+                    <span class="json-badge">✨ Enforced: JSON only</span>
+                    <button type="button" id="open-history" class="ghost-button">
+                        <span class="gear-icon" aria-hidden="true">🕘</span> History
+                    </button>
+                    <button type="button" id="open-execution-settings" class="ghost-button">
+                        <span class="gear-icon" aria-hidden="true">⚡</span> Execution Settings
+                    </button>
+                    <button type="button" id="open-system-prompt" class="ghost-button">
+                        <span class="gear-icon" aria-hidden="true">⚙</span> System Prompt
+                    </button>
+                </div>
+            </div>
+
+            <div class="global-controls">
+                <div class="settings-row">
+                    <div class="control-group">
+                        <label for="model-count">Active models</label>
+                        <select id="model-count" class="inline-select">
+                            <option value="1">1 model</option>
+                            <option value="2">2 models</option>
+                            <option value="3" selected>3 models</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="dpi-input">Render DPI</label>
+                        <input type="number" id="dpi-input" class="inline-number" value="200" min="72" max="600" step="50" title="Resolution PDF pages are rendered at before being sent to the models. Higher = sharper detail on small text/labels, but a larger request.">
+                    </div>
+
+                    <label class="toggle">
+                        <input type="checkbox" id="use-global-prompt">
+                        <span>Use one shared prompt for all models</span>
+                    </label>
+                </div>
+
+                <textarea id="global-prompt" placeholder="Enter a shared prompt here..."></textarea>
+            </div>
+
+            <div class="models-grid cols-3" id="models-grid">
+                <div class="model-card" id="model-1">
+                    <div class="model-card-head">
+                        <span class="model-index">1</span>
+                        <input type="text" class="model-name" value="openai/gpt-4o-mini" placeholder="Model ID">
+                    </div>
+                    <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
+                    <div class="response-box" data-empty="true">Waiting to run…</div>
+                </div>
+                <div class="model-card" id="model-2">
+                    <div class="model-card-head">
+                        <span class="model-index">2</span>
+                        <input type="text" class="model-name" value="anthropic/claude-3-haiku" placeholder="Model ID">
+                    </div>
+                    <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
+                    <div class="response-box" data-empty="true">Waiting to run…</div>
+                </div>
+                <div class="model-card" id="model-3">
+                    <div class="model-card-head">
+                        <span class="model-index">3</span>
+                        <input type="text" class="model-name" value="google/gemini-flash-1.5" placeholder="Model ID">
+                    </div>
+                    <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
+                    <div class="response-box" data-empty="true">Waiting to run…</div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="run-btn" class="run-button">▶ Run Benchmark</button>
+                <button id="export-btn" class="export-button" style="display: none;">⬇ Export Results (JSON)</button>
+            </div>
+        </section>
+    </main>
+
+    <div class="modal-overlay" id="system-prompt-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 id="modal-title">System Prompt</h3>
+                    <p class="modal-subtitle">Rules and JSON schema sent with every model request</p>
+                </div>
+                <button type="button" id="close-system-prompt" class="icon-button close-button" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="system-prompt" class="system-prompt-textarea"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="reset-system-prompt" class="ghost-button">Reset to default</button>
+                <button type="button" id="save-system-prompt" class="run-button modal-save">Save &amp; Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="execution-settings-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="execution-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 id="execution-modal-title">Execution Settings</h3>
+                    <p class="modal-subtitle">Control how requests to the models are batched and ordered</p>
+                </div>
+                <button type="button" id="close-execution-settings" class="icon-button close-button" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Models</div>
+                    <p class="settings-block-desc">When more than one model is configured, should they be queried one after another, or all at once?</p>
+                    <div class="control-group">
+                        <label for="model-execution-mode">Model requests</label>
+                        <select id="model-execution-mode" class="inline-select">
+                            <option value="sequential" selected>Sequential</option>
+                            <option value="parallel">Parallel</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Files</div>
+                    <p class="settings-block-desc">Combine every uploaded PDF into a single request per model, or send a separate request per file.</p>
+                    <div class="control-group">
+                        <label for="file-grouping-mode">File batching</label>
+                        <select id="file-grouping-mode" class="inline-select">
+                            <option value="single" selected>All files in one request</option>
+                            <option value="split">Split into one request per file</option>
+                        </select>
+                    </div>
+                    <div class="control-group settings-sub" id="file-execution-mode-row" style="display: none;">
+                        <label for="file-execution-mode">File request order</label>
+                        <select id="file-execution-mode" class="inline-select">
+                            <option value="sequential" selected>Sequential</option>
+                            <option value="parallel">Parallel</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Pages</div>
+                    <p class="settings-block-desc">Within each file (or file group), send all pages together in one request, or split into one request per page.</p>
+                    <div class="control-group">
+                        <label for="page-grouping-mode">Page batching</label>
+                        <select id="page-grouping-mode" class="inline-select">
+                            <option value="single" selected>All pages in one request</option>
+                            <option value="split">Split into one request per page</option>
+                        </select>
+                    </div>
+                    <div class="control-group settings-sub" id="page-execution-mode-row" style="display: none;">
+                        <label for="page-execution-mode">Page request order</label>
+                        <select id="page-execution-mode" class="inline-select">
+                            <option value="sequential" selected>Sequential</option>
+                            <option value="parallel">Parallel</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="reset-execution-settings" class="ghost-button">Reset to default</button>
+                <button type="button" id="save-execution-settings" class="run-button modal-save">Save &amp; Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="history-overlay">
+        <div class="modal history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 id="history-modal-title">Run History</h3>
+                    <p class="modal-subtitle">Past runs — images, prompts, and settings, stored on the server</p>
+                </div>
+                <button type="button" id="close-history" class="icon-button close-button" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body history-body">
+                <div class="history-list" id="history-list">
+                    <p class="history-empty">Loading…</p>
+                </div>
+                <div class="history-detail" id="history-detail">
+                    <p class="history-empty">Select a run on the left to see details.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="fullview-overlay">
+        <div class="modal fullview-modal" role="dialog" aria-modal="true" aria-labelledby="fullview-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 id="fullview-modal-title">Full Page View</h3>
+                    <p class="modal-subtitle">Pan, zoom, and crop-to-zoom for close inspection — nothing here is sent anywhere</p>
+                </div>
+                <button type="button" id="close-fullview" class="icon-button close-button" aria-label="Close">✕</button>
+            </div>
+
+            <div class="fullview-toolbar">
+                <div class="control-group">
+                    <label for="fv-bbox-selector">Overlay:</label>
+                    <select id="fv-bbox-selector" class="inline-select">
+                        <option value="none">Hide overlays</option>
+                    </select>
+                </div>
+
+                <div class="bbox-legend" aria-label="Bounding box color legend">
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #4da3ff;"></i>elevation</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #00ff9d;"></i>cabinet</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #ffb347;"></i>countertop</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #ff5fa2;"></i>elevation_callout</span>
+                </div>
+
+                <div class="fv-toolbar-actions">
+                    <label class="toggle outline-toggle">
+                        <input type="checkbox" id="fv-outline-only-toggle">
+                        <span>Outline only</span>
+                    </label>
+                    <span class="divider"></span>
+                    <button type="button" id="fv-crop-toggle" class="ghost-button">
+                        <span aria-hidden="true">⬚</span> Crop to zoom
+                    </button>
+                    <span class="divider"></span>
+                    <button type="button" id="fv-zoom-out" class="icon-button" title="Zoom out">&minus;</button>
+                    <span id="fv-zoom-level" class="zoom-readout">100%</span>
+                    <button type="button" id="fv-zoom-in" class="icon-button" title="Zoom in">&plus;</button>
+                    <button type="button" id="fv-reset-view" class="ghost-button">Reset view</button>
+                </div>
+            </div>
+
+            <div class="fullview-viewport" id="fullview-viewport">
+                <div class="fullview-stage" id="fullview-stage">
+                    <canvas id="fullview-canvas"></canvas>
+                </div>
+                <div class="fv-crop-box" id="fv-crop-box" hidden></div>
+                <p class="fullview-hint" id="fullview-hint">Scroll to zoom · Drag to pan</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=5"></script>
+</body>
+</html>
