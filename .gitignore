@@ -1,0 +1,29 @@
+# ── Secrets ──────────────────────────────────────────────────────────────
+.env
+!.env.example
+
+# ── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Client architectural drawings sometimes dropped in for local testing —
+# these often carry "PROPERTY OF ..." / "FOR OFFICIAL USE ONLY" notices.
+# Not present in the repo right now, but keeping this so a test PDF never
+# accidentally gets committed later. Delete this line if that's not a risk
+# for you.
+*.pdf
+
+# ── OS / editor ──────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+
+# ── Docker ───────────────────────────────────────────────────────────────
+*.log

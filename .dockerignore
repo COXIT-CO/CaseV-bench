@@ -1,0 +1,35 @@
+# ── Git / VCS ────────────────────────────────────────────────────────────
+.git/
+.gitignore
+.github/
+
+# ── Secrets ──────────────────────────────────────────────────────────────
+.env
+
+# ── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Docs / editor / OS — irrelevant inside the container ────────────────
+README.md
+*.md
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Docker itself — the build context doesn't need to copy these in ─────
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# ── Misc ─────────────────────────────────────────────────────────────────
+*.log
+*.pdf
