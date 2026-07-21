@@ -1,9 +1,10 @@
 """Salvage outcomes through the run seam (ADR 0019, ticket 03).
 
 Drives the same ``OpenRouterAdapter`` stub as the scope-1 run tests to assert the
-*external* behaviour of the robust parser: which crafted response yields a scored ``ok``
-vs. an unscored ``error`` whose best-effort salvage is still stored (and, for location,
-drawn). Never asserts internal parser mechanics — only the ``Prediction`` a Run produces.
+*external* behaviour of the robust parser: which crafted response yields a clean ``ok``
+vs. a non-clean ``error`` whose best-effort salvage is still stored (and, for location,
+drawn — and, since ADR 0027, scored). Never asserts internal parser mechanics — only the
+``Prediction`` a Run produces.
 """
 
 import json
@@ -110,10 +111,11 @@ def test_truncated_location_array_salvages_boxes_and_renders_overlay(
     )
     pred = _only_prediction(run)
 
-    # Salvage is display-only: the Prediction stays an unscored error…
+    # The non-clean parse stays an ``error`` (the clean/salvaged flag survives as a
+    # displayed data-quality badge, ADR 0027)…
     assert pred.status == PredictionStatus.error
     assert pred.parse_error
-    # …but the box that did parse is stored and an overlay is drawn from it.
+    # …and the box that did parse is stored (and now scored, ADR 0027) with an overlay drawn.
     parsed = LocationResult.model_validate_json(pred.parsed_json)
     assert [d.label for d in parsed.detections] == ["cabinet"]
     assert pred.overlay_path is not None

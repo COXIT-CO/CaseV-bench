@@ -310,8 +310,11 @@ class ScoringService:
 
     def predicted_totals(self, result: Result) -> dict[str, int]:
         """Sum a Result's ok Predictions across pages into a per-label Drawing total
-        (spec: predictions summed across pages). Failed Predictions contribute nothing;
-        the drill-down surfaces them."""
+        (spec: predictions summed across pages). Counting stays clean-only — the gate is
+        ``status == ok`` (ADR 0027): a truncated/partial count is not partly valid, so a
+        salvaged ``error`` count is not summed (unlike location boxes — see
+        ``predicted_boxes_by_page``). Failed Predictions contribute nothing; the drill-down
+        surfaces them."""
         totals = {label: 0 for label in OBJECT_LABELS}
         for pred in result.predictions:
             if pred.status != PredictionStatus.ok or pred.parsed_json is None:
@@ -405,12 +408,17 @@ class ScoringService:
         return _rank(rows, metric)
 
     def predicted_boxes_by_page(self, result: Result) -> dict[int, list[LocationBox]]:
-        """A location Result's ok Predictions as ``LocationBox`` lists keyed by page id.
-        Failed Predictions (no parsed boxes) contribute nothing; the drill-down surfaces
-        them. Keying by page id aligns predictions with GT for the per-page match."""
+        """A location Result's Predictions with usable detections as ``LocationBox`` lists
+        keyed by page id. The gate is the presence of parsed boxes, not ``status == ok`` (ADR
+        0027): a salvaged/truncated ``error`` whose surviving boxes were stored in
+        ``parsed_json`` still contributes, so precision holds on the boxes it emitted and
+        recall takes the honest hit for the ones it missed. The ok/error flag is now a
+        displayed data-quality badge, not a scoring gate. A Prediction with no ``parsed_json``
+        (an unsalvageable failure) contributes nothing; the drill-down surfaces it. Keying by
+        page id aligns predictions with GT for the per-page match."""
         by_page: dict[int, list[LocationBox]] = {}
         for pred in result.predictions:
-            if pred.status != PredictionStatus.ok or pred.parsed_json is None:
+            if pred.parsed_json is None:
                 continue
             detections = LocationResult.model_validate_json(pred.parsed_json).detections
             by_page[pred.page_id] = [

@@ -447,8 +447,10 @@ def _prediction(
     overlay_path: str | None = None,
 ) -> Prediction:
     """Build the (unsaved) ``Prediction`` from an interpretation: a scored ``ok`` when clean,
-    else an unscored ``error`` that still retains the salvaged ``parsed_json``/overlay for
-    display. ``raw_content`` is retained either way (spec: Runs 19, 20)."""
+    else an ``error`` that still retains the salvaged ``parsed_json``/overlay — for location
+    those salvaged boxes are now scored (ADR 0027), so ``error`` is a data-quality flag, not
+    an unscored verdict; counting stays clean-only. ``raw_content`` is retained either way
+    (spec: Runs 19, 20)."""
     status = PredictionStatus.ok if interp.clean else PredictionStatus.error
     return Prediction(
         result_id=result_id,
