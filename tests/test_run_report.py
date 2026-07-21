@@ -234,9 +234,48 @@ def test_report_is_self_contained(client, engine, tmp_path):
     assert "data:image/png;base64," in html
     assert "http://" not in html
     assert "https://" not in html
-    # No external stylesheet or script; ticket 02 is static (zoom is ticket 03).
+    # No external stylesheet; and the only script is inline classic JS (the ticket-03
+    # lightbox) — never an external <script src> or an ES module.
     assert "<link" not in html
-    assert "<script" not in html
+    assert "<script src" not in html
+    assert 'type="module"' not in html
+
+
+# --- image lightbox (ticket 03) ------------------------------------------------------
+
+
+def test_report_has_file_safe_inline_lightbox(client, engine, tmp_path):
+    """The report ships a single inline classic-JS lightbox: clickable overlays, a lightbox
+    container to project the enlarged image into, and no file://-hostile constructs (no ES
+    modules, no fetch, no external script src)."""
+    run_id = _seed_report_run(engine, tmp_path)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    # An inline script is present, and it is file://-safe classic JS.
+    assert "<script>" in html
+    assert "<script src" not in html
+    assert 'type="module"' not in html
+    assert "fetch(" not in html
+    assert "import " not in html
+
+    # Overlay images are marked as zoom targets, and there is a lightbox to open.
+    assert "zoomable" in html
+    assert 'id="lightbox"' in html
+    # Esc and backdrop close are wired up.
+    assert "Escape" in html
+    # The opened image can be magnified further (click-to-zoom around the point).
+    assert "zoomed" in html
+
+
+def test_report_images_render_without_javascript(client, engine, tmp_path):
+    """The lightbox is enhancement only: every overlay is a plain <img> with a data: URI, so
+    the report is fully readable with JavaScript disabled."""
+    run_id = _seed_report_run(engine, tmp_path)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    # The images themselves carry the inlined pixels — no JS needed to see them.
+    assert 'src="data:image/png;base64,' in html
+    assert "<img " in html
 
 
 # --- summary block -------------------------------------------------------------------

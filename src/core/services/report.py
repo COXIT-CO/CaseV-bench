@@ -259,6 +259,8 @@ class ReportService:
             self._render_summary(models, gt_page_ids, len(pages), has_gt),
             self._render_pages(pages, gt_by_page, gt_rows_by_page, models),
             self._render_per_label(models, has_gt),
+            _LIGHTBOX_MARKUP,
+            f"<script>{_LIGHTBOX_JS}</script>",
             "</body>",
             "</html>",
         ]
@@ -429,7 +431,9 @@ def _render_column(
     if overlay_uri is None:
         image = '<div class="placeholder">failed — no output</div>'
     else:
-        image = f'<img src="{overlay_uri}" alt="{_esc(title)}">'
+        # ``zoomable`` is the ticket-03 lightbox hook; the inlined pixels render with or
+        # without JS, so click-to-enlarge is pure enhancement.
+        image = f'<img class="zoomable" src="{overlay_uri}" alt="{_esc(title)}">'
     tally_html = (
         "".join(
             f'<li><span class="swatch" style="background:{color_for_label(label)}">'
@@ -502,4 +506,82 @@ th { color: #555; font-weight: 600; }
 .f1 { font-size: 13px; font-weight: 600; margin: 6px 0 0; }
 .f1.muted { color: #888; font-weight: 500; }
 .per-label .breakdown td:first-child { display: flex; align-items: center; gap: 6px; }
+.zoomable { cursor: zoom-in; }
+.lightbox[hidden] { display: none; }
+.lightbox { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center;
+  justify-content: center; padding: 24px; background: rgba(0,0,0,0.82); cursor: zoom-out;
+  overflow: hidden; }
+.lightbox img { max-width: 96vw; max-height: 96vh; width: auto; height: auto;
+  border-radius: 4px; box-shadow: 0 8px 40px rgba(0,0,0,0.5); cursor: zoom-in;
+  transition: transform 0.15s ease; }
+.lightbox img.zoomed { cursor: zoom-out; transform: scale(2.5); }
+"""
+
+
+# The lightbox is a single hidden overlay the script projects the clicked image into; it is
+# inert (hidden, no image) until JS wires it up, so a JS-disabled report never shows it.
+_LIGHTBOX_MARKUP = (
+    '<div id="lightbox" class="lightbox" hidden>'
+    '<img alt="Enlarged overlay">'
+    "</div>"
+)
+
+# Ticket-03 lightbox: a single inline *classic* script — no ES modules, no fetch, no external
+# src — so it runs when the report is opened straight from ``file://``. Click any ``.zoomable``
+# overlay to enlarge it; then click the enlarged image to magnify further around the click
+# point (move the pointer to pan, click again to zoom back out); Esc or a backdrop click
+# closes it. Pure enhancement over the inlined images, which render regardless.
+_LIGHTBOX_JS = """
+(function () {
+  var box = document.getElementById('lightbox');
+  if (!box) return;
+  var full = box.querySelector('img');
+  var zoomed = false;
+  function resetZoom() {
+    zoomed = false;
+    full.classList.remove('zoomed');
+    full.style.transformOrigin = '';
+  }
+  function open(src, alt) {
+    full.setAttribute('src', src);
+    full.setAttribute('alt', alt || 'Enlarged overlay');
+    resetZoom();
+    box.hidden = false;
+  }
+  function close() {
+    box.hidden = true;
+    full.removeAttribute('src');
+    resetZoom();
+  }
+  function originFrom(e) {
+    var rect = full.getBoundingClientRect();
+    var x = ((e.clientX - rect.left) / rect.width) * 100;
+    var y = ((e.clientY - rect.top) / rect.height) * 100;
+    full.style.transformOrigin = x + '% ' + y + '%';
+  }
+  document.addEventListener('click', function (e) {
+    var img = e.target.closest ? e.target.closest('img.zoomable') : null;
+    if (img) {
+      open(img.getAttribute('src'), img.getAttribute('alt'));
+    } else if (!box.hidden && e.target === full) {
+      // Click the enlarged image to magnify around the click point; click again to reset.
+      if (zoomed) {
+        resetZoom();
+      } else {
+        zoomed = true;
+        originFrom(e);
+        full.classList.add('zoomed');
+      }
+    } else if (!box.hidden && e.target === box) {
+      // Only the backdrop closes — clicking the image zooms, so it never dismisses.
+      close();
+    }
+  });
+  full.addEventListener('mousemove', function (e) {
+    if (zoomed) originFrom(e);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !box.hidden) close();
+  });
+})();
 """
