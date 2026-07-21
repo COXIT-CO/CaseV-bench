@@ -8,6 +8,7 @@ from pathlib import Path
 from threading import Thread
 
 from flask import current_app
+from werkzeug.security import safe_join
 from werkzeug.utils import secure_filename
 
 from app.annotate import annotate_image
@@ -25,6 +26,7 @@ from app.result_parser import (
 
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
 WORKFLOWS = {'count', 'locate'}
+IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 
 def allowed_file(filename: str) -> bool:
@@ -45,6 +47,39 @@ def get_prompt_folder(prompt_id: int) -> str:
     folder = os.path.abspath(os.path.join(base_folder, f'prompt_{prompt_id}'))
     os.makedirs(folder, exist_ok=True)
     return folder
+
+
+def _inputs_dir_for(prompt: Prompt) -> str:
+    return os.path.abspath(os.path.join(prompt.file_path or '', 'inputs'))
+
+
+def list_input_files(prompt: Prompt) -> list[dict]:
+    """Returns metadata for every file in the prompt's inputs folder, for UI display."""
+    inputs_dir = _inputs_dir_for(prompt)
+    if not os.path.isdir(inputs_dir):
+        return []
+    items = []
+    for name in sorted(os.listdir(inputs_dir)):
+        full_path = os.path.join(inputs_dir, name)
+        if not os.path.isfile(full_path):
+            continue
+        ext = os.path.splitext(name)[1].lower().lstrip('.')
+        items.append({
+            'name': name,
+            'ext': ext,
+            'is_image': ext in IMAGE_EXTENSIONS,
+            'size_kb': round(os.path.getsize(full_path) / 1024, 1),
+        })
+    return items
+
+
+def delete_input_file(prompt_id: int, filename: str) -> None:
+    prompt = Prompt.query.get_or_404(prompt_id)
+    inputs_dir = _inputs_dir_for(prompt)
+    full_path = safe_join(inputs_dir, filename)
+    if not full_path or not os.path.isfile(full_path):
+        raise ValueError(f"File not found: {filename}")
+    os.remove(full_path)
 
 
 def save_uploaded_file(files, prompt_id: int) -> str | None:

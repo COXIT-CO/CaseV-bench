@@ -34,7 +34,22 @@
 
       <div class="panel">
         <div class="top-bar"><h2>Input files</h2><form action="{{ url_for('routes.prompt_add_files', prompt_id=prompt.id) }}" method="POST" enctype="multipart/form-data"><label class="file-input-label">Add files<input type="file" name="file" multiple accept=".pdf,.png,.jpg,.jpeg" onchange="this.form.submit()"></label></form></div>
-        <p class="muted">Only preprocessed PNG pages are shown below after a run.</p>
+        {% if input_files %}
+        <ul class="file-list">
+          {% for f in input_files %}
+          <li class="file-chip">
+            <span class="file-icon">{{ 'IMG' if f.is_image else 'PDF' }}</span>
+            <span class="file-name" title="{{ f.name }}">{{ f.name }}</span>
+            <span class="muted">{{ f.size_kb }} KB</span>
+            <form action="{{ url_for('routes.prompt_delete_file', prompt_id=prompt.id, filename=f.name) }}" method="POST" onsubmit="return confirm('Delete {{ f.name }}?')">
+              <button class="btn-icon" type="submit" title="Delete file">✕</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No files uploaded yet.</p>
+        {% endif %}
       </div>
 
       <div class="panel"><h2>Runs</h2>

@@ -10,8 +10,10 @@ from app.models import Prompt, PromptRun
 from app.services import (
     add_files_to_prompt,
     create_prompt,
+    delete_input_file,
     delete_prompt,
     delete_prompt_run,
+    list_input_files,
     rename_prompt,
     update_or_fork_prompt,
 )
@@ -83,7 +85,7 @@ def prompt_detail(prompt_id: int):
     pages = result.get('pages', [])
     return render_template(
         'prompt_detail.html', prompt=prompt, runs=runs, selected_run=selected_run,
-        result=result, pages=pages,
+        result=result, pages=pages, input_files=list_input_files(prompt),
     )
 
 
@@ -117,6 +119,16 @@ def prompt_add_files(prompt_id: int):
     try:
         add_files_to_prompt(prompt_id, request.files.getlist('file'))
         flash('Files added.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'error')
+    return redirect(url_for('routes.prompt_detail', prompt_id=prompt_id))
+
+
+@routes.route('/prompts/<int:prompt_id>/files/<path:filename>/delete', methods=['POST'])
+def prompt_delete_file(prompt_id: int, filename: str):
+    try:
+        delete_input_file(prompt_id, filename)
+        flash('File deleted.', 'success')
     except ValueError as exc:
         flash(str(exc), 'error')
     return redirect(url_for('routes.prompt_detail', prompt_id=prompt_id))

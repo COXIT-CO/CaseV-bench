@@ -30,9 +30,12 @@
 
     <p class="field-label">Expected JSON (paste or upload)</p>
     <textarea name="expected_json" class="mono small-textarea" placeholder='{"cabinets": 23, "countertops": 4, "elevations": 7, "elevation_callouts": 7}'></textarea>
+
+    <ul id="file-preview-list" class="file-list" style="display:none"></ul>
+
     <div class="composer-row">
-      <label class="file-input-label">📎 PDF / images<input type="file" name="file" multiple accept=".pdf,.png,.jpg,.jpeg"></label>
-      <label class="file-input-label">Expected .json<input type="file" name="expected_file" accept="application/json,.json"></label>
+      <label class="file-input-label">📎 PDF / images<input id="input-files" type="file" name="file" multiple accept=".pdf,.png,.jpg,.jpeg"></label>
+      <label class="file-input-label">Expected .json<input id="input-expected" type="file" name="expected_file" accept="application/json,.json"></label>
       <span class="spacer"></span><button class="btn" type="submit">Run</button>
     </div>
   </form>
@@ -46,5 +49,40 @@
     </div>
   {% else %}<div class="empty-state">No projects yet.</div>{% endfor %}
 </div>
+<script>
+(function () {
+  const filesInput = document.getElementById('input-files');
+  const expectedInput = document.getElementById('input-expected');
+  const list = document.getElementById('file-preview-list');
+
+  function iconFor(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    return ['png', 'jpg', 'jpeg'].includes(ext) ? 'IMG' : ext.toUpperCase();
+  }
+
+  function render() {
+    const items = [];
+    Array.from(filesInput.files || []).forEach(f => items.push({ name: f.name, tag: iconFor(f.name) }));
+    if (expectedInput.files && expectedInput.files[0]) {
+      items.push({ name: expectedInput.files[0].name, tag: 'JSON' });
+    }
+    list.innerHTML = '';
+    if (!items.length) {
+      list.style.display = 'none';
+      return;
+    }
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'file-chip';
+      li.innerHTML = `<span class="file-icon">${item.tag}</span><span class="file-name" title="${item.name}">${item.name}</span>`;
+      list.appendChild(li);
+    });
+    list.style.display = 'flex';
+  }
+
+  filesInput.addEventListener('change', render);
+  expectedInput.addEventListener('change', render);
+})();
+</script>
 </body>
 </html>
