@@ -82,6 +82,23 @@ def delete_input_file(prompt_id: int, filename: str) -> None:
     os.remove(full_path)
 
 
+def _copy_prompt_files(source: Prompt, target: Prompt) -> str | None:
+    """Copies every input file from source prompt's folder into target prompt's folder.
+    Used when forking a prompt so the new version starts with the same inputs."""
+    source_inputs = _inputs_dir_for(source)
+    if not os.path.isdir(source_inputs):
+        return None
+    files = [n for n in os.listdir(source_inputs) if os.path.isfile(os.path.join(source_inputs, n))]
+    if not files:
+        return None
+    target_folder = get_prompt_folder(target.id)
+    target_inputs = os.path.join(target_folder, 'inputs')
+    os.makedirs(target_inputs, exist_ok=True)
+    for name in files:
+        shutil.copy2(os.path.join(source_inputs, name), os.path.join(target_inputs, name))
+    return target_folder
+
+
 def save_uploaded_file(files, prompt_id: int) -> str | None:
     if not files:
         return None
@@ -179,22 +196,47 @@ def rename_prompt(prompt_id: int, new_name: str) -> Prompt:
 
 def update_or_fork_prompt(prompt_id: int, user_prompt: str, system_prompt: str,
                           model: str, workflow: str, dpi: int,
-                          expected_text: str | None = None, expected_file=None) -> Prompt:
+                          expected_text: str | None = None, expected_file=None,
+                          fork_name: str | None = None) -> tuple[Prompt, bool]:
+    """Runs the given config against `prompt_id`. If user_prompt or system_prompt differs
+    from the stored version by even one character, forks into a brand-new Prompt (copying
+    input files) instead of mutating the original, so different prompt texts can be compared
+    side by side. Returns (prompt, forked)."""
+    
     original = Prompt.query.get_or_404(prompt_id)
     user_prompt = user_prompt.strip()
     system_prompt = system_prompt.strip()
     if not user_prompt:
         raise ValueError("User prompt cannot be empty.")
-    expected_json = _parse_expected(expected_text, expected_file)
-    # Update configuration in place: runs remain the immutable history.
-    original.content = user_prompt
-    original.system_prompt = system_prompt
-    if expected_text is not None or (expected_file and getattr(expected_file, 'filename', '')):
+
+    expected_provided = expected_text is not None or (expected_file and getattr(expected_file, 'filename', ''))
+    expected_json = _parse_expected(expected_text, expected_file) if expected_provided else None
+
+    text_changed = (user_prompt != (original.content or '')) or (system_prompt != (original.system_prompt or ''))
+
+    if text_changed:
+        new_name = fork_name.strip() if fork_name and fork_name.strip() else user_prompt[:50]
+        forked = Prompt(
+            name=new_name,
+            content=user_prompt,
+            system_prompt=system_prompt,
+            expected_json=expected_json if expected_provided else original.expected_json,
+        )
+        db.session.add(forked)
+        db.session.flush()
+        forked.file_path = _copy_prompt_files(original, forked)
+        run = _create_run(forked.id, model, workflow, dpi)
+        db.session.commit()
+        _start_processing_thread(run.id)
+        return forked, True
+
+    # No text change: just a re-run / config tweak on the same prompt.
+    if expected_provided:
         original.expected_json = expected_json
     run = _create_run(original.id, model, workflow, dpi)
     db.session.commit()
     _start_processing_thread(run.id)
-    return original
+    return original, False
 
 
 def _create_run(prompt_id: int, model: str, workflow: str, dpi: int) -> PromptRun:

@@ -32,6 +32,10 @@ def _form_dpi() -> int:
         raise ValueError("DPI must be a number between 72 and 600.")
 
 
+def _derive_name(user_prompt: str) -> str:
+    return (user_prompt[:50] + '…') if len(user_prompt) > 50 else user_prompt
+
+
 def _run_result(run: PromptRun | None) -> dict:
     if not run or not run.result_json:
         return {}
@@ -61,10 +65,9 @@ def create_prompt_route():
     if not user_prompt:
         flash('User prompt cannot be empty.', 'error')
         return redirect(url_for('routes.index'))
-    name = (user_prompt[:50] + '…') if len(user_prompt) > 50 else user_prompt
     try:
         prompt = create_prompt(
-            name=name, user_prompt=user_prompt, system_prompt=system_prompt,
+            name=_derive_name(user_prompt), user_prompt=user_prompt, system_prompt=system_prompt,
             model=model, workflow=workflow, dpi=_form_dpi(), files=files,
             expected_text=request.form.get('expected_json'),
             expected_file=request.files.get('expected_file'),
@@ -97,20 +100,24 @@ def prompt_rename(prompt_id: int):
 
 @routes.route('/prompts/<int:prompt_id>/update', methods=['POST'])
 def prompt_update(prompt_id: int):
+    user_prompt = request.form.get('user_prompt', '')
     try:
-        prompt = update_or_fork_prompt(
+        prompt, forked = update_or_fork_prompt(
             prompt_id=prompt_id,
-            user_prompt=request.form.get('user_prompt', ''),
+            user_prompt=user_prompt,
             system_prompt=request.form.get('system_prompt', ''),
             model=request.form.get('model', '').strip() or 'default-model',
             workflow=request.form.get('workflow', 'count'),
             dpi=_form_dpi(),
             expected_text=request.form.get('expected_json'),
             expected_file=request.files.get('expected_file'),
+            fork_name=_derive_name(user_prompt.strip()),
         )
     except ValueError as exc:
         flash(str(exc), 'error')
         return redirect(url_for('routes.prompt_detail', prompt_id=prompt_id))
+    if forked:
+        flash(f'Prompt text changed — created new project "{prompt.name}".', 'success')
     return redirect(url_for('routes.prompt_detail', prompt_id=prompt.id))
 
 
