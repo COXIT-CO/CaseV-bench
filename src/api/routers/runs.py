@@ -6,6 +6,7 @@ on the in-process background runner (ADR 0006); the SPA polls status and stops w
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -18,10 +19,11 @@ from api.routers.common import (
 )
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS
 from core.models.drawing import Drawing
-from core.models.prompt import Prompt
-from core.models.run import Run
+from core.models.prompt import Prompt, Task
+from core.models.run import Run, RunStatus
 from core.services.model_catalog import ModelCatalogService
 from core.services.pdf_processing import DEFAULT_DPI
+from core.services.report import ReportService
 from core.services.run import DEFAULT_TEMPERATURE, RunKnobs, RunService
 from core.utils import DEFAULT_DOWNSAMPLE_PX
 
@@ -300,4 +302,34 @@ def run_status(
         progress=run.progress,
         total_units=run.total_units,
         results=[RunResultOut(id=r.id, model=r.model) for r in run.results],
+    )
+
+
+_TERMINAL_STATUSES = {RunStatus.done, RunStatus.failed}
+
+
+@router.get("/runs/{run_id}/report")
+def run_report(run_id: int, session: Session = Depends(get_session)) -> Response:
+    """Stream a single, self-contained HTML comparison of this Run's models as a download
+    (ADR 0026, ticket 02). Assembled synchronously in-request from the Run's Results — no
+    ``Report`` entity, no stored file. Enabled only for a **terminal** (``done``/``failed``)
+    **location** Run, with no GT gating: a counting or non-terminal Run is a ``400``; an
+    unknown Run a ``404``. The file opens by double-click (every image base64-inlined, all CSS
+    inlined, no network)."""
+    run = session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"no run with id {run_id}")
+    if run.task != Task.location:
+        raise HTTPException(
+            status_code=400, detail="reports are available for location runs only"
+        )
+    if run.status not in _TERMINAL_STATUSES:
+        raise HTTPException(
+            status_code=400, detail="report is available once the run is done or failed"
+        )
+    report = ReportService(session).build(run)
+    return Response(
+        content=report.html,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{report.filename}"'},
     )

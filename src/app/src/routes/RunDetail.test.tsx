@@ -84,6 +84,41 @@ describe("RunDetail", () => {
     expect(links[0]).toHaveAttribute("href", "/results/42");
   });
 
+  it("offers a Download report link for a terminal location run", async () => {
+    vi.mocked(api.runStatus).mockResolvedValue(RUN_STATUS_DONE);
+    renderDetail();
+
+    await screen.findByText("Run #812");
+    const link = await screen.findByRole("link", { name: "Download report" });
+    expect(link).toHaveAttribute("href", "/api/runs/812/report");
+  });
+
+  it("hides the Download report link while the run is not terminal", async () => {
+    vi.mocked(api.runStatus).mockResolvedValue(RUNNING_STATUS);
+    renderDetail();
+
+    await screen.findByText("Run #812");
+    expect(
+      screen.queryByRole("link", { name: "Download report" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the Download report link for a counting run (location-only)", async () => {
+    vi.mocked(api.run).mockResolvedValue({
+      ...RUN_DETAIL,
+      run: { ...RUN_DETAIL.run, task: "counting" },
+    });
+    vi.mocked(api.runStatus).mockResolvedValue(RUN_STATUS_DONE);
+    renderDetail();
+
+    await screen.findByText("Run #812");
+    // Terminal, so the run is deletable — but reports are location-only.
+    await screen.findByRole("button", { name: "Delete run" });
+    expect(
+      screen.queryByRole("link", { name: "Download report" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("treats a non-numeric id as not found", async () => {
     renderDetail("/runs/not-a-number");
     expect(await screen.findByText("Run not found")).toBeInTheDocument();
