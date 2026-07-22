@@ -159,9 +159,18 @@ export const api = {
    * (spec §A.2). Params map 1:1 to the URL query the SPA mirrors; `null` values are
    * omitted so the server applies its defaults ("All drawings", the task's default sort).
    */
-  leaderboard: ({ task, drawing_id, sort }: LeaderboardParams) => {
+  leaderboard: ({
+    task,
+    drawing_id,
+    prompt_family,
+    prompt_version,
+    sort,
+  }: LeaderboardParams) => {
     const query = new URLSearchParams({ task });
     if (drawing_id !== null) query.set("drawing_id", String(drawing_id));
+    if (prompt_family !== null) query.set("prompt_family", prompt_family);
+    if (prompt_version !== null)
+      query.set("prompt_version", String(prompt_version));
     if (sort !== null) query.set("sort", sort);
     return getJson<LeaderboardResponse>(`/api/leaderboard?${query}`);
   },

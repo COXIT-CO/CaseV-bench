@@ -367,12 +367,18 @@ class ScoringService:
         self,
         drawing_id: int | None = None,
         metric: LeaderboardMetric = LeaderboardMetric.total_absolute_error,
+        prompt_family: str | None = None,
+        prompt_version: int | None = None,
     ) -> list[LeaderboardRow]:
         """Build the counting Leaderboard: every counting Result as a prompt-version ×
         model row, filtered by Drawing, ranked best-first by ``metric``. Scores are
         recomputed against current GT on read (ADR 0004), fetching each Drawing's GT once
         and committing all upserts in a single write. Unscored Results (no GT) always sort
-        last, so a missing-GT row never outranks a real score."""
+        last, so a missing-GT row never outranks a real score.
+
+        Optional ``prompt_family`` / ``prompt_version`` narrow the board to one prompt
+        lineage (compare its versions across models) or pin one exact version, applied as
+        ``WHERE`` clauses on the Prompt join (spec-run-report, ticket 04)."""
         stmt = (
             select(Result, Run, Prompt)
             .join(Run, Result.run_id == Run.id)
@@ -381,6 +387,10 @@ class ScoringService:
         )
         if drawing_id is not None:
             stmt = stmt.where(Run.drawing_id == drawing_id)
+        if prompt_family is not None:
+            stmt = stmt.where(Prompt.family == prompt_family)
+        if prompt_version is not None:
+            stmt = stmt.where(Prompt.version == prompt_version)
 
         gt_service = CountingGroundTruthService(self.session)
         gt_by_drawing: dict[int, dict[str, int]] = {}
@@ -497,12 +507,18 @@ class ScoringService:
         self,
         drawing_id: int | None = None,
         metric: LocationLeaderboardMetric = LocationLeaderboardMetric.f1,
+        prompt_family: str | None = None,
+        prompt_version: int | None = None,
     ) -> list[LocationLeaderboardRow]:
         """Build the location Leaderboard: every location Result as a prompt-version ×
         model row, filtered by Drawing, ranked best-first by ``metric``. Mirrors the
         counting board — scores recomputed against current GT on read (ADR 0004), each
         Drawing's GT fetched once, all upserts committed in a single write, and unscored
-        Results (no GT) pinned last."""
+        Results (no GT) pinned last.
+
+        Optional ``prompt_family`` / ``prompt_version`` narrow the board to one prompt
+        lineage or pin one exact version, applied as ``WHERE`` clauses on the Prompt join
+        (spec-run-report, ticket 04)."""
         stmt = (
             select(Result, Run, Prompt)
             .join(Run, Result.run_id == Run.id)
@@ -511,6 +527,10 @@ class ScoringService:
         )
         if drawing_id is not None:
             stmt = stmt.where(Run.drawing_id == drawing_id)
+        if prompt_family is not None:
+            stmt = stmt.where(Prompt.family == prompt_family)
+        if prompt_version is not None:
+            stmt = stmt.where(Prompt.version == prompt_version)
 
         gt_by_drawing: dict[int, dict[int, list[LocationBox]]] = {}
         rows: list[LocationLeaderboardRow] = []

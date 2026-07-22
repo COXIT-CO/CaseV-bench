@@ -135,3 +135,40 @@ def test_location_leaderboard_api_unscored_without_gt(
     assert rows[0]["scored"] is False
     assert rows[0]["rank"] is None
     assert rows[0]["f1"] is None
+
+
+def test_location_leaderboard_api_filters_by_prompt_family(
+    app, client, engine, stub_adapter, tmp_path
+):
+    """On the location board too, a ``prompt_family`` narrows to that lineage (ticket 04)."""
+    drawing_id = _seed_drawing(engine, tmp_path)
+    _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
+    _import_gt(engine, drawing_id)
+
+    seeded_family = None
+    with Session(engine) as session:
+        seeded_family = (
+            session.exec(select(Prompt).where(Prompt.task == Task.location))
+            .first()
+            .family
+        )
+
+    body = client.get(
+        f"/api/leaderboard?task=location&drawing_id={drawing_id}"
+        f"&prompt_family={seeded_family}"
+    ).json()
+    assert body["prompt_family"] == seeded_family
+    assert {r["prompt_family"] for r in body["rows"]} == {seeded_family}
+
+    # A family with no location Runs yields an empty board, not the seeded rows.
+    empty = client.get(
+        f"/api/leaderboard?task=location&drawing_id={drawing_id}&prompt_family=nonexistent"
+    ).json()
+    assert empty["rows"] == []
+
+
+def test_location_leaderboard_api_version_without_family_is_400(client):
+    """A ``prompt_version`` without a ``prompt_family`` is a 400 on the location board too."""
+    response = client.get("/api/leaderboard?task=location&prompt_version=1")
+    assert response.status_code == 400
+    assert "prompt_family" in response.json()["detail"]

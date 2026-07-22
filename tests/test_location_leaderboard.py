@@ -47,7 +47,8 @@ SLOPPY_JSON = json.dumps(
 
 def _seed_drawing(session, tmp_path: Path) -> Drawing:
     """A 1-page Drawing whose Page points at a real PNG so overlay rendering has an
-    image to draw on. Native point dims are 100×100 so native pixel boxes normalize cleanly."""
+    image to draw on. Native point dims are 100×100 so native pixel boxes normalize cleanly.
+    """
     drawing = Drawing(name="sample")
     session.add(drawing)
     session.commit()
@@ -138,6 +139,37 @@ def test_location_leaderboard_can_rank_by_recall(session, stub_adapter, tmp_path
     assert rows[0].model == ACCURATE
     assert rows[0].recall == 1.0
     assert rows[1].recall == 0.5
+
+
+def test_location_leaderboard_filters_by_prompt_family_and_version(
+    session, stub_adapter, tmp_path
+):
+    """A ``prompt_family`` narrows the location board to one lineage and a
+    ``prompt_version`` pins one exact version (ticket 04)."""
+    drawing = _seed_drawing(session, tmp_path)
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    prompt_service = PromptService(session)
+    v1 = prompt_service.create(Task.location, "default", "find them")
+    v2 = prompt_service.edit(Task.location, "default", "find them carefully")
+    other = prompt_service.create(Task.location, "terse", "find")
+    run_service = RunService(session, stub_adapter, overlay_root=tmp_path / "overlays")
+    run_service.launch(Task.location, v1.id, drawing.id, [ACCURATE])
+    run_service.launch(Task.location, v2.id, drawing.id, [SLOPPY])
+    run_service.launch(Task.location, other.id, drawing.id, [ACCURATE])
+    _import_gt(session, drawing)
+
+    scoring = ScoringService(session)
+    # Family alone narrows to the "default" lineage — both its versions, not "terse".
+    family_rows = scoring.location_leaderboard(drawing.id, prompt_family="default")
+    assert {r.prompt_family for r in family_rows} == {"default"}
+    assert {r.prompt_version for r in family_rows} == {1, 2}
+
+    # Family + version pins one exact version.
+    pinned = scoring.location_leaderboard(
+        drawing.id, prompt_family="default", prompt_version=2
+    )
+    assert [(r.prompt_family, r.prompt_version) for r in pinned] == [("default", 2)]
+    assert [r.model for r in pinned] == [SLOPPY]
 
 
 def test_location_result_is_unscored_without_ground_truth(

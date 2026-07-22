@@ -2,7 +2,7 @@
 (spec §A.2). The service ranks once and returns rows already ordered; this router only
 serializes and enriches each row with its Drawing."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -54,6 +54,8 @@ class LeaderboardResponse(BaseModel):
 
     task: str
     drawing_id: int | None
+    prompt_family: str | None
+    prompt_version: int | None
     sort: str
     metrics: list[str]
     drawings: list[LeaderboardDrawing]
@@ -75,6 +77,8 @@ def _parse_metric(sort: str | None, metric_enum, default):
 def leaderboard(
     task: str = Task.counting.value,
     drawing_id: int | None = None,
+    prompt_family: str | None = None,
+    prompt_version: int | None = None,
     sort: str | None = None,
     session: Session = Depends(get_session),
 ) -> LeaderboardResponse:
@@ -83,18 +87,38 @@ def leaderboard(
     already ordered — the SPA renders, it does not re-rank. The Task selects both the
     ranking metrics and the row's score shape; an unknown ``sort`` falls back to the
     Task default. ``rank`` is the 1-based index over scored rows so the SPA needn't
-    re-derive it."""
+    re-derive it.
+
+    Optional ``prompt_family`` / ``prompt_version`` narrow the board to one prompt lineage
+    or pin one exact version (ticket 04). A ``prompt_version`` without a ``prompt_family``
+    is a ``400`` — versions are per-family, so a bare version is ambiguous."""
+    if prompt_version is not None and prompt_family is None:
+        raise HTTPException(
+            status_code=400,
+            detail="prompt_version requires prompt_family (versions are per-family)",
+        )
+
     scoring = ScoringService(session)
     board_task = Task.location if task == Task.location.value else Task.counting
 
     if board_task == Task.location:
         metric_enum, default = LocationLeaderboardMetric, LocationLeaderboardMetric.f1
         metric = _parse_metric(sort, metric_enum, default)
-        rows = scoring.location_leaderboard(drawing_id, metric=metric)
+        rows = scoring.location_leaderboard(
+            drawing_id,
+            metric=metric,
+            prompt_family=prompt_family,
+            prompt_version=prompt_version,
+        )
     else:
         metric_enum, default = LeaderboardMetric, LeaderboardMetric.total_absolute_error
         metric = _parse_metric(sort, metric_enum, default)
-        rows = scoring.leaderboard(drawing_id, metric=metric)
+        rows = scoring.leaderboard(
+            drawing_id,
+            metric=metric,
+            prompt_family=prompt_family,
+            prompt_version=prompt_version,
+        )
 
     # The board rows carry only run_id; look the Drawing up once per Run so a row can show
     # its Drawing and build the GT CTA — enrichment in the web layer, no service change.
@@ -149,6 +173,8 @@ def leaderboard(
     return LeaderboardResponse(
         task=board_task.value,
         drawing_id=drawing_id,
+        prompt_family=prompt_family,
+        prompt_version=prompt_version,
         sort=metric.value,
         metrics=[m.value for m in metric_enum],
         drawings=[

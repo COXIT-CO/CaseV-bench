@@ -51,13 +51,13 @@ def _counting_prompt_id(engine) -> int:
         )
 
 
-def _launch_and_wait(client, engine, drawing_id, prompt_id):
+def _launch_and_wait(client, engine, drawing_id, prompt_id, models=(ACCURATE, SLOPPY)):
     launched = client.post(
         "/api/runs",
         json={
             "prompt_id": prompt_id,
             "drawing_id": drawing_id,
-            "models": [ACCURATE, SLOPPY],
+            "models": list(models),
         },
     )
     run_id = launched.json()["id"]
@@ -140,6 +140,66 @@ def test_leaderboard_api_unscored_rows_have_null_rank_and_metrics(
     assert all(r["scored"] is False for r in rows)
     assert all(r["rank"] is None for r in rows)
     assert all(r["total_absolute_error"] is None for r in rows)
+
+
+def test_leaderboard_api_filters_by_prompt_family(client, engine, stub_adapter):
+    """A ``prompt_family`` narrows the board to that lineage (ticket 04)."""
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    with Session(engine) as session:
+        terse = Prompt(task=Task.counting, family="terse", version=1, text="count")
+        verbose = Prompt(
+            task=Task.counting, family="verbose", version=1, text="count well"
+        )
+        session.add(terse)
+        session.add(verbose)
+        session.commit()
+        terse_id, verbose_id = terse.id, verbose.id
+    _launch_and_wait(client, engine, drawing_id, terse_id, [ACCURATE])
+    _launch_and_wait(client, engine, drawing_id, verbose_id, [SLOPPY])
+    client.put(f"/api/drawings/{drawing_id}/counting-ground-truth", json=GT)
+
+    body = client.get(
+        f"/api/leaderboard?drawing_id={drawing_id}&prompt_family=terse"
+    ).json()
+    assert body["prompt_family"] == "terse"
+    assert {r["prompt_family"] for r in body["rows"]} == {"terse"}
+    assert [r["model"] for r in body["rows"]] == [ACCURATE]
+
+
+def test_leaderboard_api_filters_by_prompt_family_and_version(
+    client, engine, stub_adapter
+):
+    """A ``prompt_family`` + ``prompt_version`` pins one exact version (ticket 04)."""
+    drawing_id = _seed_drawing(engine)
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    with Session(engine) as session:
+        v1 = Prompt(task=Task.counting, family="custom", version=1, text="count")
+        v2 = Prompt(task=Task.counting, family="custom", version=2, text="count more")
+        session.add(v1)
+        session.add(v2)
+        session.commit()
+        v1_id, v2_id = v1.id, v2.id
+    _launch_and_wait(client, engine, drawing_id, v1_id, [ACCURATE])
+    _launch_and_wait(client, engine, drawing_id, v2_id, [SLOPPY])
+    client.put(f"/api/drawings/{drawing_id}/counting-ground-truth", json=GT)
+
+    body = client.get(
+        f"/api/leaderboard?drawing_id={drawing_id}&prompt_family=custom&prompt_version=2"
+    ).json()
+    assert body["prompt_family"] == "custom"
+    assert body["prompt_version"] == 2
+    assert [(r["prompt_family"], r["prompt_version"]) for r in body["rows"]] == [
+        ("custom", 2)
+    ]
+    assert [r["model"] for r in body["rows"]] == [SLOPPY]
+
+
+def test_leaderboard_api_version_without_family_is_400(client):
+    """A ``prompt_version`` without a ``prompt_family`` is ambiguous → 400 (ticket 04)."""
+    response = client.get("/api/leaderboard?prompt_version=2")
+    assert response.status_code == 400
+    assert "prompt_family" in response.json()["detail"]
 
 
 def test_leaderboard_api_empty_board(client):

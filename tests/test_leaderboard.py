@@ -109,6 +109,44 @@ def test_result_is_unscored_without_ground_truth(session, stub_adapter):
     assert session.exec(select(Score)).all() == []
 
 
+def test_leaderboard_filters_by_prompt_family(session, stub_adapter):
+    """A ``prompt_family`` narrows the board to that lineage (ticket 04): two families run
+    on one Drawing, filtering by one drops the other's rows."""
+    drawing = _seed_drawing(session)
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    terse = PromptService(session).create(Task.counting, "terse", "count")
+    verbose = PromptService(session).create(Task.counting, "verbose", "count carefully")
+    run_service = RunService(session, stub_adapter)
+    run_service.launch(Task.counting, terse.id, drawing.id, [ACCURATE])
+    run_service.launch(Task.counting, verbose.id, drawing.id, [SLOPPY])
+    CountingGroundTruthService(session).save(drawing.id, GT)
+
+    rows = ScoringService(session).leaderboard(drawing.id, prompt_family="terse")
+
+    assert [r.prompt_family for r in rows] == ["terse"]
+    assert [r.model for r in rows] == [ACCURATE]
+
+
+def test_leaderboard_filters_by_prompt_family_and_version(session, stub_adapter):
+    """A ``prompt_family`` + ``prompt_version`` pins one exact version (ticket 04)."""
+    drawing = _seed_drawing(session)
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    prompt_service = PromptService(session)
+    v1 = prompt_service.create(Task.counting, "default", "count")
+    v2 = prompt_service.edit(Task.counting, "default", "count again")
+    run_service = RunService(session, stub_adapter)
+    run_service.launch(Task.counting, v1.id, drawing.id, [ACCURATE])
+    run_service.launch(Task.counting, v2.id, drawing.id, [SLOPPY])
+    CountingGroundTruthService(session).save(drawing.id, GT)
+
+    rows = ScoringService(session).leaderboard(
+        drawing.id, prompt_family="default", prompt_version=2
+    )
+
+    assert [(r.prompt_family, r.prompt_version) for r in rows] == [("default", 2)]
+    assert [r.model for r in rows] == [SLOPPY]
+
+
 def test_score_is_recomputed_when_ground_truth_changes(session, stub_adapter):
     """A Score is a recompute against current GT, not a frozen value (ADR 0004): entering
     then correcting GT re-ranks without re-running the model."""

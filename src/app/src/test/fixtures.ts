@@ -34,6 +34,8 @@ const DRAWINGS = [
 export const COUNTING_BOARD: LeaderboardResponse = {
   task: "counting",
   drawing_id: null,
+  prompt_family: null,
+  prompt_version: null,
   sort: "total_absolute_error",
   metrics: ["total_absolute_error", "exact_match_count"],
   drawings: DRAWINGS,
@@ -94,6 +96,8 @@ export const COUNTING_BOARD: LeaderboardResponse = {
 export const LOCATION_BOARD: LeaderboardResponse = {
   task: "location",
   drawing_id: null,
+  prompt_family: null,
+  prompt_version: null,
   sort: "f1",
   metrics: ["f1", "precision", "recall"],
   drawings: DRAWINGS,
@@ -122,6 +126,8 @@ export const LOCATION_BOARD: LeaderboardResponse = {
 export const EMPTY_BOARD: LeaderboardResponse = {
   task: "counting",
   drawing_id: null,
+  prompt_family: null,
+  prompt_version: null,
   sort: "total_absolute_error",
   metrics: ["total_absolute_error", "exact_match_count"],
   drawings: [],

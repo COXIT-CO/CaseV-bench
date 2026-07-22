@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useLeaderboard } from "@/hooks/queries";
+import { useLeaderboard, usePromptHistory, usePrompts } from "@/hooks/queries";
 import {
   UNSCORED_CELL,
   formatExactMatch,
@@ -42,19 +42,51 @@ function parseDrawingId(raw: string | null): number | null {
   return Number.isInteger(id) ? id : null;
 }
 
+/** The `?prompt_family=` value, or `null` for "All prompts"/empty. */
+function parsePromptFamily(raw: string | null): string | null {
+  return raw === null || raw === "" ? null : raw;
+}
+
+/** The `?prompt_version=` value as a positive integer, or `null` for "All versions"/garbage. */
+function parsePromptVersion(raw: string | null): number | null {
+  if (raw === null || raw === "") return null;
+  const version = Number(raw);
+  return Number.isInteger(version) && version > 0 ? version : null;
+}
+
 export function Leaderboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const task = parseTask(searchParams.get("task"));
   const drawingId = parseDrawingId(searchParams.get("drawing_id"));
+  const promptFamily = parsePromptFamily(searchParams.get("prompt_family"));
+  // A version is only meaningful with a family (versions are per-family; the API 400s a
+  // bare version), so a stray version without a family is ignored, not sent.
+  const promptVersion = promptFamily
+    ? parsePromptVersion(searchParams.get("prompt_version"))
+    : null;
   const sort = searchParams.get("sort");
 
   const { data, isLoading, isError, error } = useLeaderboard({
     task,
     drawing_id: drawingId,
+    prompt_family: promptFamily,
+    prompt_version: promptVersion,
     sort,
   });
+
+  // The family dropdown lists this Task's prompt families (families are Task-scoped, ADR
+  // 0009); the version dropdown is populated from the chosen family's history.
+  const { data: promptsData } = usePrompts();
+  const familyOptions =
+    promptsData?.groups.find((g) => g.task === task)?.families ?? [];
+  const { data: historyData } = usePromptHistory(
+    task,
+    promptFamily ?? "",
+    promptFamily !== null,
+  );
+  const versionOptions = historyData?.versions ?? [];
 
   // Reflect a filter change into the URL query so the board is shareable and back/forward
   // work (spec §B.3). `null`/"all" drops the param so the server applies its default.
@@ -68,9 +100,16 @@ export function Leaderboard() {
   }
 
   // Switching Task swaps both the ranking metrics and the score columns; the old Task's
-  // `sort` is meaningless here, so drop it and let the new Task's default apply.
+  // `sort` is meaningless here, so drop it and let the new Task's default apply. Prompt
+  // families are Task-scoped too, so the family/version filters are cleared with it.
   function selectTask(next: Task) {
-    if (next !== task) patchParams({ task: next, sort: null });
+    if (next !== task)
+      patchParams({
+        task: next,
+        sort: null,
+        prompt_family: null,
+        prompt_version: null,
+      });
   }
 
   const columns = metricColumns(task);
@@ -136,6 +175,57 @@ export function Leaderboard() {
             {data?.drawings.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
+              </option>
+            ))}
+          </select>
+
+          <label
+            htmlFor="lb-prompt-family"
+            className="ml-1 text-xs font-medium text-muted-foreground"
+          >
+            Prompt
+          </label>
+          <select
+            id="lb-prompt-family"
+            value={promptFamily ?? "all"}
+            onChange={(e) =>
+              // Changing family clears the version — versions are per-family (ticket 04).
+              patchParams({
+                prompt_family: e.target.value === "all" ? null : e.target.value,
+                prompt_version: null,
+              })
+            }
+            className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="all">All prompts</option>
+            {familyOptions.map((f) => (
+              <option key={f.name} value={f.name}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+
+          <label
+            htmlFor="lb-prompt-version"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Version
+          </label>
+          <select
+            id="lb-prompt-version"
+            value={promptVersion ?? "all"}
+            onChange={(e) =>
+              patchParams({
+                prompt_version: e.target.value === "all" ? null : e.target.value,
+              })
+            }
+            disabled={promptFamily === null || versionOptions.length === 0}
+            className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="all">All versions</option>
+            {versionOptions.map((v) => (
+              <option key={v.version} value={v.version}>
+                v{v.version}
               </option>
             ))}
           </select>

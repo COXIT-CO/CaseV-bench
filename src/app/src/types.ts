@@ -52,10 +52,13 @@ export interface LeaderboardRow {
   f1: number | null;
 }
 
-/** `GET /api/leaderboard` — the ranked board plus the filter surface (spec §A.2). */
+/** `GET /api/leaderboard` — the ranked board plus the filter surface (spec §A.2). The
+ * server echoes the resolved `prompt_family`/`prompt_version` it filtered on (ticket 04). */
 export interface LeaderboardResponse {
   task: Task;
   drawing_id: number | null;
+  prompt_family: string | null;
+  prompt_version: number | null;
   sort: string;
   metrics: string[];
   drawings: LeaderboardDrawing[];
@@ -63,10 +66,13 @@ export interface LeaderboardResponse {
   rows: LeaderboardRow[];
 }
 
-/** The filter/sort state the Leaderboard mirrors into the URL (spec §B.3). */
+/** The filter/sort state the Leaderboard mirrors into the URL (spec §B.3). `prompt_version`
+ * is only meaningful with a `prompt_family` — the API rejects a version without one (ticket 04). */
 export interface LeaderboardParams {
   task: Task;
   drawing_id: number | null;
+  prompt_family: string | null;
+  prompt_version: number | null;
   sort: string | null;
 }
 

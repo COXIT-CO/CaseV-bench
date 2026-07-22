@@ -23,7 +23,14 @@ export function useMeta() {
  */
 export function useLeaderboard(params: LeaderboardParams) {
   return useQuery({
-    queryKey: ["leaderboard", params.task, params.drawing_id, params.sort],
+    queryKey: [
+      "leaderboard",
+      params.task,
+      params.drawing_id,
+      params.prompt_family,
+      params.prompt_version,
+      params.sort,
+    ],
     queryFn: () => api.leaderboard(params),
     placeholderData: (prev) => prev,
   });
