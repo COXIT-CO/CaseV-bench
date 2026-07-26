@@ -3,10 +3,11 @@
 Pure, dependency-free scoring of localization predictions against ground truth, so every team
 scoring MLLM output on drawings gets comparable numbers. It computes; it never stores.
 
-> **Not released yet — no tag to install.** This is the scaffold: page-scoped matching and overall
-> counts and rates. The per-type, per-page, and per-object breakdowns, ground-truth validation, and
-> the consumer-facing documentation (full result shape, worked example, reimplementation-grade
-> matching rule, release procedure) land with v0.1.0. Until then, use it from a checkout.
+> **Not released yet — no tag to install.** Present so far: page-scoped matching, overall counts
+> and rates, and the per-type and per-page breakdowns. The per-object breakdown, ground-truth
+> validation, and the consumer-facing documentation (full result shape, worked example,
+> reimplementation-grade matching rule, release procedure) land with v0.1.0. Until then, use it
+> from a checkout.
 
 ## Use
 
@@ -14,7 +15,9 @@ scoring MLLM output on drawings gets comparable numbers. It computes; it never s
 from location_scorer import score
 
 result = score(predictions, ground_truth, iou_threshold=0.5)
-result["metrics"]["f1"]
+result["metrics"]["f1"]                            # overall
+result["per_type"]["cabinet"]["metrics"]["recall"] # which label the prompt handles well
+result["per_page"][0]["page"]                      # a list sorted by page, never a dict
 ```
 
 Both sides are lists of `{"object_type": str, "bbox": [x_min, y_min, x_max, y_max], "page": int}`,

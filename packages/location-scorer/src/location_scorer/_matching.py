@@ -1,8 +1,6 @@
 from typing import NamedTuple, Sequence
 
-from ._types import Box
-
-_PartitionKey = tuple[int, str]
+from ._types import Box, Cell, cell_of
 
 
 class Match(NamedTuple):
@@ -41,8 +39,8 @@ def match(
     used_predictions: set[int] = set()
     used_ground_truth: set[int] = set()
 
-    prediction_partitions = _partition_by_page_and_type(predictions)
-    ground_truth_partitions = _partition_by_page_and_type(ground_truth)
+    prediction_partitions = _partition_by_cell(predictions)
+    ground_truth_partitions = _partition_by_cell(ground_truth)
 
     for key in sorted(prediction_partitions.keys() & ground_truth_partitions.keys()):
         for candidate in _candidates(
@@ -97,10 +95,10 @@ def _candidates(
     return pairs
 
 
-def _partition_by_page_and_type(boxes: Sequence[Box]) -> dict[_PartitionKey, list[int]]:
-    partitions: dict[_PartitionKey, list[int]] = {}
+def _partition_by_cell(boxes: Sequence[Box]) -> dict[Cell, list[int]]:
+    partitions: dict[Cell, list[int]] = {}
     for index, box in enumerate(boxes):
-        partitions.setdefault((box["page"], box["object_type"]), []).append(index)
+        partitions.setdefault(cell_of(box), []).append(index)
     return partitions
 
 

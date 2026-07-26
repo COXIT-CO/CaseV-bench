@@ -213,6 +213,141 @@ def test_rates_are_micro_averaged_from_pooled_tallies():
     assert result["metrics"]["precision"] == 1.0
 
 
+# --- Per-object-type breakdown ------------------------------------------------------
+
+
+def test_per_type_carries_its_own_counts_and_rates_for_every_type():
+    ground_truth = [unit(), unit(object_type=COUNTERTOP)]
+    predictions = [unit(), overlapping(0.2, object_type=COUNTERTOP)]
+
+    result = score(predictions, ground_truth, iou_threshold=0.5)
+
+    assert result["per_type"] == {
+        CABINET: {
+            "counts": {"tp": 1, "fp": 0, "fn": 0},
+            "metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+        },
+        COUNTERTOP: {
+            "counts": {"tp": 0, "fp": 1, "fn": 1},
+            "metrics": {"precision": 0.0, "recall": 0.0, "f1": 0.0},
+        },
+    }
+
+
+def test_type_present_only_in_ground_truth_appears_with_zero_recall():
+    result = score([unit()], [unit(), unit(object_type=COUNTERTOP)], iou_threshold=0.5)
+
+    assert result["per_type"][COUNTERTOP]["counts"] == {"tp": 0, "fp": 0, "fn": 1}
+    assert result["per_type"][COUNTERTOP]["metrics"]["recall"] == 0.0
+
+
+def test_type_present_only_in_predictions_appears_with_zero_precision():
+    result = score([unit(), unit(object_type=COUNTERTOP)], [unit()], iou_threshold=0.5)
+
+    assert result["per_type"][COUNTERTOP]["counts"] == {"tp": 0, "fp": 1, "fn": 0}
+    assert result["per_type"][COUNTERTOP]["metrics"]["precision"] == 0.0
+
+
+def test_per_type_keys_are_only_the_types_present_on_one_side_or_the_other():
+    result = score([unit()], [unit()], iou_threshold=0.5)
+
+    assert set(result["per_type"]) == {CABINET}
+
+
+def test_per_type_entry_pools_that_type_across_every_page():
+    # cabinet: 3 of 3 hit on page 1, 0 of 1 on page 2. Macro over pages 0.5, micro 3/4.
+    ground_truth = [
+        box(0, 0, 1, 1),
+        box(2, 0, 3, 1),
+        box(4, 0, 5, 1),
+        unit(page=2),
+    ]
+    predictions = [box(0, 0, 1, 1), box(2, 0, 3, 1), box(4, 0, 5, 1)]
+
+    result = score(predictions, ground_truth, iou_threshold=0.5)
+
+    assert result["per_type"][CABINET]["counts"] == {"tp": 3, "fp": 0, "fn": 1}
+    assert result["per_type"][CABINET]["metrics"]["recall"] == 0.75
+
+
+# --- Per-page breakdown -------------------------------------------------------------
+
+
+def test_per_page_is_a_list_ordered_by_page():
+    ground_truth = [unit(page=5), unit(page=1), unit(page=3)]
+
+    result = score([], ground_truth, iou_threshold=0.5)
+
+    assert [entry["page"] for entry in result["per_page"]] == [1, 3, 5]
+
+
+def test_page_entry_repeats_the_top_level_block_shape():
+    result = score([unit(page=2)], [unit(page=2)], iou_threshold=0.5)
+
+    assert result["per_page"] == [
+        {
+            "page": 2,
+            "counts": {"tp": 1, "fp": 0, "fn": 0},
+            "metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+            "per_type": {
+                CABINET: {
+                    "counts": {"tp": 1, "fp": 0, "fn": 0},
+                    "metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+                }
+            },
+        }
+    ]
+
+
+def test_per_page_covers_pages_seen_on_either_side():
+    result = score([unit(page=1)], [unit(page=2)], iou_threshold=0.5)
+
+    assert [entry["page"] for entry in result["per_page"]] == [1, 2]
+    assert result["per_page"][0]["counts"] == {"tp": 0, "fp": 1, "fn": 0}
+    assert result["per_page"][1]["counts"] == {"tp": 0, "fp": 0, "fn": 1}
+
+
+def test_page_entry_pools_every_type_on_that_page():
+    # page 1: 3 of 3 cabinets hit, 0 of 1 countertop. Macro over types 0.5, micro 3/4.
+    ground_truth = [
+        box(0, 0, 1, 1),
+        box(2, 0, 3, 1),
+        box(4, 0, 5, 1),
+        unit(object_type=COUNTERTOP),
+    ]
+    predictions = [box(0, 0, 1, 1), box(2, 0, 3, 1), box(4, 0, 5, 1)]
+
+    page = score(predictions, ground_truth, iou_threshold=0.5)["per_page"][0]
+
+    assert page["counts"] == {"tp": 3, "fp": 0, "fn": 1}
+    assert page["metrics"]["recall"] == 0.75
+
+
+def test_page_entry_says_which_type_failed_on_that_page():
+    # Same mix on both pages, so only the page's own per-type block localizes the failure.
+    ground_truth = [unit(object_type=COUNTERTOP, page=p) for p in (1, 2)] + [
+        unit(page=p) for p in (1, 2)
+    ]
+    predictions = [unit(object_type=COUNTERTOP, page=1), unit(page=1), unit(page=2)]
+
+    result = score(predictions, ground_truth, iou_threshold=0.5)
+    first, second = result["per_page"]
+
+    assert first["per_type"][COUNTERTOP]["counts"] == {"tp": 1, "fp": 0, "fn": 0}
+    assert second["per_type"][COUNTERTOP]["counts"] == {"tp": 0, "fp": 0, "fn": 1}
+    assert second["per_type"][CABINET]["counts"] == {"tp": 1, "fp": 0, "fn": 0}
+
+
+def test_page_values_survive_a_json_round_trip_as_integers():
+    # A page-keyed dict would come back keyed by the string "10" instead.
+    result = score([unit(page=10)], [unit(page=10)], iou_threshold=0.5)
+
+    reloaded = json.loads(json.dumps(result))
+
+    assert reloaded == result
+    assert reloaded["per_page"][0]["page"] == 10
+
+
 # --- Empty and zero-denominator inputs ----------------------------------------------
 
 
@@ -235,6 +370,8 @@ def test_both_sides_empty_yields_all_zero_counts():
 
     assert result["counts"] == {"tp": 0, "fp": 0, "fn": 0}
     assert result["metrics"] == {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+    assert result["per_type"] == {}
+    assert result["per_page"] == []
 
 
 # --- Degenerate predictions ---------------------------------------------------------

@@ -1,8 +1,9 @@
 from typing import Sequence
 
+from ._aggregation import per_page, per_type, pool, tally
 from ._matching import match
 from ._metrics import rates
-from ._types import Box, Counts, ScoreResult
+from ._types import Box, ScoreResult
 
 
 def score(
@@ -15,9 +16,18 @@ def score(
 
     Both sides are ``{"object_type", "bbox", "page"}`` items sharing one coordinate space;
     ``object_type`` is a match key tested for equality only, with no taxonomy behind it, and
-    there is no confidence anywhere. The result is a plain ``dict`` of the echoed threshold,
-    ``counts``, and micro-averaged ``metrics``, computed without touching the network, the
-    filesystem, or the caller's lists.
+    there is no confidence anywhere. The result is a plain ``dict``, computed without touching
+    the network, the filesystem, or the caller's lists::
+
+        {"iou_threshold": ..., "counts": {"tp", "fp", "fn"}, "metrics": {...},
+         "per_type": {<type>: {"counts", "metrics"}},
+         "per_page": [{"page": ..., "counts", "metrics", "per_type"}]}
+
+    **Every level is micro-averaged** — pooled tallies, rates computed once, never an average
+    of the rates below. ``per_page`` is a **list sorted by page, never a dict**: JSON object
+    keys are always strings, and scores get persisted as JSON. ``per_type`` keys are exactly
+    the types present on either side, with **no padding** to any taxonomy — the library holds
+    none, so a caller wanting a row per label pads at its own call site.
 
     Matching partitions both sides by ``(page, object_type)`` and takes pairs best-IoU-first,
     one-to-one, while both boxes are still free; ties resolve to the lowest prediction index
@@ -46,13 +56,12 @@ def score(
     That test is true if and only if ``ground_truth`` was empty.
     """
     matching = match(predictions, ground_truth, iou_threshold)
-    counts: Counts = {
-        "tp": len(matching.matched),
-        "fp": len(matching.unmatched_predictions),
-        "fn": len(matching.unmatched_ground_truth),
-    }
+    cells = tally(predictions, ground_truth, matching)
+    counts = pool(cells.values())
     return {
         "iou_threshold": iou_threshold,
         "counts": counts,
         "metrics": rates(counts),
+        "per_type": per_type(cells),
+        "per_page": per_page(cells),
     }
