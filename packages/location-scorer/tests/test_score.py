@@ -80,10 +80,6 @@ def test_result_is_a_plain_json_serializable_dict():
     assert json.loads(json.dumps(result)) == result
 
 
-def test_objects_breakdown_is_absent_when_not_requested():
-    assert "objects" not in score([unit()], [unit()], iou_threshold=0.5)
-
-
 # --- Threshold boundary -------------------------------------------------------------
 
 
@@ -348,6 +344,184 @@ def test_page_values_survive_a_json_round_trip_as_integers():
 
     assert reloaded == result
     assert reloaded["per_page"][0]["page"] == 10
+
+
+# --- Per-object breakdown -----------------------------------------------------------
+
+
+def test_objects_is_absent_rather_than_null_when_the_breakdown_is_not_requested():
+    # Absent, not `None`, so this stays distinguishable from the next test.
+    assert "objects" not in score([unit()], [unit()], iou_threshold=0.5)
+
+
+def test_a_requested_breakdown_with_nothing_to_report_is_present_and_empty():
+    result = score([], [], iou_threshold=0.5, include_objects=True)
+
+    assert result["objects"] == {"tp": [], "fp": [], "fn": []}
+
+
+def test_true_positive_entry_carries_both_indices_both_boxes_and_the_matching_iou():
+    result = score(
+        [overlapping(0.8)], [unit()], iou_threshold=0.5, include_objects=True
+    )
+
+    assert result["objects"]["tp"] == [
+        {
+            "page": 1,
+            "object_type": CABINET,
+            "prediction_index": 0,
+            "ground_truth_index": 0,
+            "prediction": [0, 0, 0.8, 1],
+            "ground_truth": [0, 0, 1, 1],
+            "iou": pytest.approx(0.8),
+        }
+    ]
+
+
+def test_false_positive_entry_carries_its_index_its_box_and_its_near_miss():
+    predictions = [
+        unit(),
+        overlapping(0.3),
+    ]  # the second is unmatched, IoU 0.3 with the GT
+
+    result = score(predictions, [unit()], iou_threshold=0.5, include_objects=True)
+
+    assert result["objects"]["fp"] == [
+        {
+            "page": 1,
+            "object_type": CABINET,
+            "prediction_index": 1,
+            "prediction": [0, 0, 0.3, 1],
+            "best_iou": pytest.approx(0.3),
+        }
+    ]
+
+
+def test_false_negative_entry_carries_its_index_its_box_and_its_near_miss():
+    result = score(
+        [overlapping(0.3)], [unit()], iou_threshold=0.5, include_objects=True
+    )
+
+    assert result["objects"]["fn"] == [
+        {
+            "page": 1,
+            "object_type": CABINET,
+            "ground_truth_index": 0,
+            "ground_truth": [0, 0, 1, 1],
+            "best_iou": pytest.approx(0.3),
+        }
+    ]
+
+
+def test_a_near_miss_and_a_hallucination_are_told_apart_by_their_near_miss_values():
+    # Page 1: a box just under the bar — 1 FP, 1 FN. Page 2: an invention — 1 FP. The two
+    # false positives count identically; only near-miss separates them.
+    predictions = [overlapping(0.49, page=1), unit(page=2)]
+
+    result = score(predictions, [unit(page=1)], iou_threshold=0.5, include_objects=True)
+
+    near_miss, hallucination = result["objects"]["fp"]
+    assert near_miss["best_iou"] == pytest.approx(0.49)
+    assert hallucination["best_iou"] == 0.0
+    assert result["objects"]["fn"][0]["best_iou"] == pytest.approx(0.49)
+
+
+def test_near_miss_counts_a_box_on_the_other_side_that_was_itself_matched():
+    # The second prediction's only neighbour is the box the first one just took. Skipping
+    # matched boxes would report 0.0 and make a duplicate detection read as a hallucination.
+    result = score([unit(), unit()], [unit()], iou_threshold=0.5, include_objects=True)
+
+    assert result["objects"]["fp"][0]["best_iou"] == 1.0
+
+
+def test_near_miss_is_zero_when_the_other_side_is_empty():
+    only_ground_truth = score([], [unit()], iou_threshold=0.5, include_objects=True)
+    only_predictions = score([unit()], [], iou_threshold=0.5, include_objects=True)
+
+    assert only_ground_truth["objects"]["fn"][0]["best_iou"] == 0.0
+    assert only_predictions["objects"]["fp"][0]["best_iou"] == 0.0
+
+
+def test_near_miss_is_zero_when_the_other_side_holds_only_boxes_that_miss_entirely():
+    result = score(
+        [box(9, 9, 10, 10)], [unit()], iou_threshold=0.5, include_objects=True
+    )
+
+    assert result["objects"]["fp"][0]["best_iou"] == 0.0
+    assert result["objects"]["fn"][0]["best_iou"] == 0.0
+
+
+def test_near_miss_ignores_a_box_on_another_page_or_of_another_type():
+    # Identical geometry that could never have matched: near-miss is scoped to the partition
+    # matching is scoped to.
+    other_page = score(
+        [unit(page=2)], [unit(page=1)], iou_threshold=0.5, include_objects=True
+    )
+    other_type = score(
+        [unit(object_type=COUNTERTOP)],
+        [unit()],
+        iou_threshold=0.5,
+        include_objects=True,
+    )
+
+    assert other_page["objects"]["fp"][0]["best_iou"] == 0.0
+    assert other_page["objects"]["fn"][0]["best_iou"] == 0.0
+    assert other_type["objects"]["fp"][0]["best_iou"] == 0.0
+    assert other_type["objects"]["fn"][0]["best_iou"] == 0.0
+
+
+def test_identical_boxes_stay_traceable_through_their_input_indices():
+    # Three byte-identical predictions: nothing but the index says which one matched.
+    result = score(
+        [unit(), unit(), unit()], [unit()], iou_threshold=0.5, include_objects=True
+    )
+
+    assert result["objects"]["tp"][0]["prediction_index"] == 0
+    assert [entry["prediction_index"] for entry in result["objects"]["fp"]] == [1, 2]
+
+
+def test_entry_counts_reconcile_with_the_top_level_counts():
+    ground_truth = [unit(), unit(page=2), unit(object_type=COUNTERTOP)]
+    predictions = [unit(), unit(), overlapping(0.2, page=2), unit(page=3)]
+
+    result = score(predictions, ground_truth, iou_threshold=0.5, include_objects=True)
+
+    counts = result["counts"]
+    assert counts == {"tp": 1, "fp": 3, "fn": 2}
+    assert len(result["objects"]["tp"]) == counts["tp"]
+    assert len(result["objects"]["fp"]) == counts["fp"]
+    assert len(result["objects"]["fn"]) == counts["fn"]
+
+
+def test_requesting_the_breakdown_changes_nothing_else_in_the_result():
+    ground_truth = [unit(), unit(page=2), unit(object_type=COUNTERTOP)]
+    predictions = [unit(), unit(), overlapping(0.2, page=2), unit(page=3)]
+
+    plain = score(predictions, ground_truth, iou_threshold=0.5)
+    with_objects = score(
+        predictions, ground_truth, iou_threshold=0.5, include_objects=True
+    )
+
+    assert {
+        key: value for key, value in with_objects.items() if key != "objects"
+    } == plain
+
+
+def test_the_breakdown_survives_a_json_round_trip():
+    predictions = [unit(), overlapping(0.2, page=2)]
+
+    result = score(predictions, [unit()], iou_threshold=0.5, include_objects=True)
+
+    assert json.loads(json.dumps(result)) == result
+
+
+def test_the_breakdown_does_not_alias_the_caller_s_boxes():
+    predictions, ground_truth = [unit()], [unit()]
+
+    result = score(predictions, ground_truth, iou_threshold=0.5, include_objects=True)
+    result["objects"]["tp"][0]["prediction"][0] = 99
+
+    assert predictions[0]["bbox"] == [0, 0, 1, 1]
 
 
 # --- Empty and zero-denominator inputs ----------------------------------------------

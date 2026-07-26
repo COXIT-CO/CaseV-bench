@@ -9,10 +9,22 @@ class Match(NamedTuple):
     iou: float
 
 
+class NearMiss(NamedTuple):
+    """Highest IoU each box reached against the other side, matched or not.
+
+    Indexed by input position; `0.0` where the other side holds no box of that cell. It falls
+    out of the IoU matrix built here, so it is returned rather than recomputed elsewhere.
+    """
+
+    predictions: list[float]
+    ground_truth: list[float]
+
+
 class Matching(NamedTuple):
     matched: list[Match]
     unmatched_predictions: list[int]
     unmatched_ground_truth: list[int]
+    near_miss: NearMiss
 
 
 def iou(a: Sequence[float], b: Sequence[float]) -> float:
@@ -38,17 +50,21 @@ def match(
     matched: list[Match] = []
     used_predictions: set[int] = set()
     used_ground_truth: set[int] = set()
+    best_prediction_iou = [0.0] * len(predictions)
+    best_ground_truth_iou = [0.0] * len(ground_truth)
 
     prediction_partitions = _partition_by_cell(predictions)
     ground_truth_partitions = _partition_by_cell(ground_truth)
 
     for key in sorted(prediction_partitions.keys() & ground_truth_partitions.keys()):
-        for candidate in _candidates(
+        candidates = _candidates(
             predictions,
             ground_truth,
             prediction_partitions[key],
             ground_truth_partitions[key],
-        ):
+        )
+        _record_near_miss(candidates, best_prediction_iou, best_ground_truth_iou)
+        for candidate in candidates:
             # The zero check is not redundant: it is what stops a threshold of 0.0 crediting
             # boxes that do not overlap at all.
             if candidate.iou < iou_threshold or candidate.iou == 0.0:
@@ -70,7 +86,23 @@ def match(
         unmatched_ground_truth=[
             i for i in range(len(ground_truth)) if i not in used_ground_truth
         ],
+        near_miss=NearMiss(
+            predictions=best_prediction_iou, ground_truth=best_ground_truth_iou
+        ),
     )
+
+
+def _record_near_miss(
+    candidates: Sequence[Match],
+    best_prediction_iou: list[float],
+    best_ground_truth_iou: list[float],
+) -> None:
+    # Every pair, not only the ones the greedy walk reaches: a neighbour counts whether or not
+    # it was itself matched, or ever cleared the threshold.
+    for candidate in candidates:
+        pi, gi = candidate.prediction_index, candidate.ground_truth_index
+        best_prediction_iou[pi] = max(best_prediction_iou[pi], candidate.iou)
+        best_ground_truth_iou[gi] = max(best_ground_truth_iou[gi], candidate.iou)
 
 
 def _candidates(

@@ -3,6 +3,7 @@ from typing import Sequence
 from ._aggregation import per_page, per_type, pool, tally
 from ._matching import match
 from ._metrics import rates
+from ._objects import breakdown
 from ._types import Box, ScoreResult
 from ._validation import validate_ground_truth
 
@@ -22,7 +23,8 @@ def score(
 
         {"iou_threshold": ..., "counts": {"tp", "fp", "fn"}, "metrics": {...},
          "per_type": {<type>: {"counts", "metrics"}},
-         "per_page": [{"page": ..., "counts", "metrics", "per_type"}]}
+         "per_page": [{"page": ..., "counts", "metrics", "per_type"}],
+         "objects": {"tp": [...], "fp": [...], "fn": [...]}}   # only if include_objects
 
     **Every level is micro-averaged** — pooled tallies, rates computed once, never an average
     of the rates below. ``per_page`` is a **list sorted by page, never a dict**: JSON object
@@ -43,7 +45,16 @@ def score(
 
     ``iou_threshold`` has no default on purpose — the same version scores differently at
     different operating points, so the choice belongs in every call site and every diff.
-    ``include_objects`` is reserved for the per-object breakdown and adds no key yet.
+
+    ``include_objects`` adds an ``objects`` key listing every true positive, false positive and
+    false negative one by one; the key is **absent rather than ``None``** when not requested,
+    and nothing else in the result changes. Each entry carries its **index in the caller's
+    list**, which is the only thing that tells two byte-identical boxes apart.
+
+    Every unmatched box also carries ``best_iou``: the highest IoU it reached against any
+    same-``(page, object_type)`` box on the other side, **matched or not**, and ``0.0`` when
+    there is none. It separates a box that landed just under the threshold from one the model
+    invented — otherwise both are simply one FP, or one FN.
 
     **Validation is asymmetric.** An inverted or zero-area *ground-truth* box raises
     ``ValueError`` naming its index and the condition, before any matching: nothing can ever
@@ -65,10 +76,13 @@ def score(
     matching = match(predictions, ground_truth, iou_threshold)
     cells = tally(predictions, ground_truth, matching)
     counts = pool(cells.values())
-    return {
+    result: ScoreResult = {
         "iou_threshold": iou_threshold,
         "counts": counts,
         "metrics": rates(counts),
         "per_type": per_type(cells),
         "per_page": per_page(cells),
     }
+    if include_objects:
+        result["objects"] = breakdown(predictions, ground_truth, matching)
+    return result

@@ -1,4 +1,4 @@
-from typing import NamedTuple, Sequence, TypedDict
+from typing import NamedTuple, NotRequired, Sequence, TypedDict
 
 
 class Box(TypedDict):
@@ -40,9 +40,42 @@ class PageScore(TypedDict):
     per_type: dict[str, TypeScore]
 
 
+class TruePositive(TypedDict):
+    page: int
+    object_type: str
+    prediction_index: int
+    ground_truth_index: int
+    prediction: list[float]
+    ground_truth: list[float]
+    iou: float
+
+
+class FalsePositive(TypedDict):
+    page: int
+    object_type: str
+    prediction_index: int
+    prediction: list[float]
+    best_iou: float
+
+
+class FalseNegative(TypedDict):
+    page: int
+    object_type: str
+    ground_truth_index: int
+    ground_truth: list[float]
+    best_iou: float
+
+
+class ObjectsBreakdown(TypedDict):
+    tp: list[TruePositive]
+    fp: list[FalsePositive]
+    fn: list[FalseNegative]
+
+
 class ScoreResult(TypedDict):
     iou_threshold: float
     counts: Counts
     metrics: Metrics
     per_type: dict[str, TypeScore]
     per_page: list[PageScore]  # a list, never a page-keyed dict — see `score()`
+    objects: NotRequired[ObjectsBreakdown]
