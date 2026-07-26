@@ -11,29 +11,14 @@ requires-python = ">=3.11"
 license = { text = "Proprietary" }
 authors = [{ name = "andrchmk" }]
 keywords = ["scoring", "iou", "object-detection", "benchmark"]
-# No runtime dependencies, ever: adopting this package must not be able to drag a dependency
-# conflict into a consumer's project. The 3.11 floor is what keeps that true for the
-# typing surface too — everything the result shape needs, `NotRequired` included, is stdlib
-# `typing` from 3.11 on, so no `typing_extensions` is ever required.
 dependencies = []
 
-# Dev tooling as a plain extra rather than the app's PEP 735 group, so the library installs
-# and tests with pip alone — no Poetry, no lockfile, nothing shared with the root project, which
-# is versioned and released separately from this one. Versions match the app's dev group so the
-# same file formats identically in either tree.
 [project.optional-dependencies]
 dev = ["black (>=26.5.1,<27.0.0)", "isort (>=8.0.1,<9.0.0)", "pytest (>=9.1.1,<10.0.0)"]
 
-# Pin black's target to the declared floor, for the same underlying reason as the root project:
-# left to infer targets from the running interpreter, black reaches for the newest grammar it
-# knows, and contributors run 3.14 locally while this package's CI job runs 3.11. Pinning the
-# *oldest* supported version (rather than the root project's full 3.11–3.14 list) yields the same
-# formatting — a construct is only reformatted when every target supports it, and 3.11 is always
-# in the set — while keeping black's AST safety check quiet when it runs on the 3.11 floor.
 [tool.black]
 target-version = ["py311"]
 
-# Keep isort's wrapping compatible with black so the two checks never disagree on an import.
 [tool.isort]
 profile = "black"
 

@@ -541,6 +541,19 @@ def test_no_ground_truth_returns_a_well_formed_result():
     assert result["metrics"] == {"precision": 0.0, "recall": 0.0, "f1": 0.0}
 
 
+def test_the_documented_empty_ground_truth_check_fires_only_on_empty_ground_truth():
+    # The README tells consumers to detect "no answer key" with `tp + fn == 0`, because the
+    # library returns a well-formed 0.0 rather than raising. The check is only safe if it is
+    # false whenever ground truth was present — including when every box of it was missed,
+    # which is the case that otherwise looks identical in the metrics.
+    missing_answer_key = score([unit()], [], iou_threshold=0.5)
+    everything_missed = score([], [unit()], iou_threshold=0.5)
+
+    assert missing_answer_key["counts"]["tp"] + missing_answer_key["counts"]["fn"] == 0
+    assert everything_missed["counts"]["tp"] + everything_missed["counts"]["fn"] != 0
+    assert missing_answer_key["metrics"] == everything_missed["metrics"]
+
+
 def test_both_sides_empty_yields_all_zero_counts():
     result = score([], [], iou_threshold=0.5)
 
@@ -680,3 +693,97 @@ def test_tuples_are_accepted_for_both_sides():
     result = score((unit(),), (unit(),), iou_threshold=0.5)
 
     assert result["counts"]["tp"] == 1
+
+
+# --- The worked example in the README -----------------------------------------------
+#
+# The README is what a consumer reads before installing, and an example whose numbers have
+# drifted teaches the wrong shape and the wrong reading. So the boxes and every number quoted
+# in its "Worked example" section live here, spelled out literally rather than built from the
+# helpers above, and the README cannot go stale without this failing.
+
+
+README_GROUND_TRUTH = [
+    {"object_type": "cabinet", "bbox": [0.10, 0.10, 0.30, 0.30], "page": 1},
+    {"object_type": "cabinet", "bbox": [0.50, 0.10, 0.70, 0.30], "page": 1},
+    {"object_type": "countertop", "bbox": [0.10, 0.60, 0.90, 0.70], "page": 1},
+    {"object_type": "cabinet", "bbox": [0.20, 0.20, 0.40, 0.40], "page": 2},
+]
+
+README_PREDICTIONS = [
+    {
+        "object_type": "cabinet",
+        "bbox": [0.10, 0.10, 0.30, 0.30],
+        "page": 1,
+    },  # exact hit
+    {"object_type": "cabinet", "bbox": [0.50, 0.10, 0.58, 0.30], "page": 1},  # IoU 0.4
+    {
+        "object_type": "cabinet",
+        "bbox": [0.10, 0.10, 0.30, 0.30],
+        "page": 1,
+    },  # duplicate
+    {
+        "object_type": "cabinet",
+        "bbox": [0.20, 0.20, 0.40, 0.40],
+        "page": 2,
+    },  # exact hit
+]  # the countertop is never predicted
+
+
+def readme_example():
+    return score(
+        README_PREDICTIONS, README_GROUND_TRUTH, iou_threshold=0.5, include_objects=True
+    )
+
+
+def test_the_readme_example_scores_as_documented():
+    result = readme_example()
+
+    assert result["iou_threshold"] == 0.5
+    assert result["counts"] == {"tp": 2, "fp": 2, "fn": 2}
+    assert result["metrics"] == {"precision": 0.5, "recall": 0.5, "f1": 0.5}
+
+
+def test_the_readme_example_breaks_down_by_type_as_documented():
+    per_type = readme_example()["per_type"]
+
+    assert per_type["cabinet"]["counts"] == {"tp": 2, "fp": 2, "fn": 1}
+    assert per_type["cabinet"]["metrics"]["recall"] == pytest.approx(2 / 3)
+    assert per_type["countertop"]["counts"] == {"tp": 0, "fp": 0, "fn": 1}
+    assert per_type["countertop"]["metrics"]["recall"] == 0.0
+
+
+def test_the_readme_example_breaks_down_by_page_as_documented():
+    page_one, page_two = readme_example()["per_page"]
+
+    assert page_one["page"] == 1
+    assert page_one["counts"] == {"tp": 1, "fp": 2, "fn": 2}
+    assert page_one["metrics"]["f1"] == pytest.approx(1 / 3)
+    assert page_two["page"] == 2
+    assert page_two["counts"] == {"tp": 1, "fp": 0, "fn": 0}
+    assert page_two["metrics"] == {"precision": 1.0, "recall": 1.0, "f1": 1.0}
+
+
+def test_the_readme_example_tells_a_duplicate_from_a_loose_box():
+    duplicate, loose = sorted(
+        readme_example()["objects"]["fp"], key=lambda fp: -fp["best_iou"]
+    )
+
+    assert duplicate["prediction_index"] == 2 and duplicate["best_iou"] == 1.0
+    assert loose["prediction_index"] == 1 and loose["best_iou"] == pytest.approx(0.4)
+
+
+def test_the_readme_example_tells_an_unseen_object_from_a_loosely_boxed_one():
+    never_seen, drawn_loosely = sorted(
+        readme_example()["objects"]["fn"], key=lambda fn: fn["best_iou"]
+    )
+
+    assert never_seen["object_type"] == "countertop" and never_seen["best_iou"] == 0.0
+    assert drawn_loosely["object_type"] == "cabinet"
+    assert drawn_loosely["best_iou"] == pytest.approx(0.4)
+
+
+def test_the_readme_example_credits_the_earlier_of_two_identical_predictions():
+    # Both are byte-identical and both reach IoU 1.0, so the documented tie-break — lowest
+    # prediction index — is the only thing deciding which one is the true positive.
+    assert readme_example()["objects"]["tp"][0]["prediction_index"] == 0
