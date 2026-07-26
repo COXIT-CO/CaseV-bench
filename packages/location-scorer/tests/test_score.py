@@ -74,7 +74,9 @@ def test_no_metric_is_named_accuracy():
 
 
 def test_result_is_a_plain_json_serializable_dict():
-    result = score([unit()], [unit()], iou_threshold=0.5)
+    # With the breakdown too, since that is the only part of the result holding a list of
+    # nested objects rather than a flat block of numbers.
+    result = score([unit()], [unit()], iou_threshold=0.5, include_objects=True)
 
     assert isinstance(result, dict)
     assert json.loads(json.dumps(result)) == result
@@ -305,20 +307,32 @@ def test_per_page_covers_pages_seen_on_either_side():
     assert result["per_page"][1]["counts"] == {"tp": 0, "fp": 0, "fn": 1}
 
 
-def test_page_entry_pools_every_type_on_that_page():
-    # page 1: 3 of 3 cabinets hit, 0 of 1 countertop. Macro over types 0.5, micro 3/4.
+def test_page_entry_pools_every_type_on_that_page_and_no_other():
+    # page 1: 3 of 3 cabinets hit, 0 of 1 countertop -> macro over types 0.5, micro 3/4.
+    # page 2: a countertop predicted where a cabinet was -> nothing hit.
+    # Pooled over both pages recall is 3/5, so a page entry carrying 3/4 is proof it pools
+    # its own types and stops there.
     ground_truth = [
         box(0, 0, 1, 1),
         box(2, 0, 3, 1),
         box(4, 0, 5, 1),
         unit(object_type=COUNTERTOP),
+        unit(page=2),
     ]
-    predictions = [box(0, 0, 1, 1), box(2, 0, 3, 1), box(4, 0, 5, 1)]
+    predictions = [
+        box(0, 0, 1, 1),
+        box(2, 0, 3, 1),
+        box(4, 0, 5, 1),
+        unit(object_type=COUNTERTOP, page=2),
+    ]
 
-    page = score(predictions, ground_truth, iou_threshold=0.5)["per_page"][0]
+    result = score(predictions, ground_truth, iou_threshold=0.5)
+    first, second = result["per_page"]
 
-    assert page["counts"] == {"tp": 3, "fp": 0, "fn": 1}
-    assert page["metrics"]["recall"] == 0.75
+    assert first["counts"] == {"tp": 3, "fp": 0, "fn": 1}
+    assert first["metrics"]["recall"] == 0.75
+    assert second["counts"] == {"tp": 0, "fp": 1, "fn": 1}
+    assert result["metrics"]["recall"] == 0.6
 
 
 def test_page_entry_says_which_type_failed_on_that_page():
@@ -507,14 +521,6 @@ def test_requesting_the_breakdown_changes_nothing_else_in_the_result():
     } == plain
 
 
-def test_the_breakdown_survives_a_json_round_trip():
-    predictions = [unit(), overlapping(0.2, page=2)]
-
-    result = score(predictions, [unit()], iou_threshold=0.5, include_objects=True)
-
-    assert json.loads(json.dumps(result)) == result
-
-
 def test_the_breakdown_does_not_alias_the_caller_s_boxes():
     predictions, ground_truth = [unit()], [unit()]
 
@@ -566,12 +572,6 @@ def test_both_sides_empty_yields_all_zero_counts():
 # --- Degenerate predictions: lenient, never rejected --------------------------------
 
 
-def test_zero_area_prediction_is_a_false_positive_rather_than_a_match():
-    result = score([box(0, 0, 0, 0)], [unit()], iou_threshold=0.5)
-
-    assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
-
-
 def test_zero_iou_is_never_a_match_even_at_a_zero_threshold():
     # `IoU >= threshold` alone would credit a prediction that misses entirely once the
     # threshold reaches 0.0; the zero-IoU floor is what stops that, and it is documented
@@ -581,24 +581,20 @@ def test_zero_iou_is_never_a_match_even_at_a_zero_threshold():
     assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
 
 
-def test_inverted_prediction_is_a_false_positive_rather_than_a_match():
-    result = score([box(1, 1, 0, 0)], [unit()], iou_threshold=0.5)
-
-    assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
-
-
 @pytest.mark.parametrize(
     "malformed",
     [
         pytest.param(box(1, 0, 0, 1), id="inverted-horizontally"),
         pytest.param(box(0, 1, 1, 0), id="inverted-vertically"),
+        pytest.param(box(1, 1, 0, 0), id="inverted-both-ways"),
         pytest.param(box(0.5, 0, 0.5, 1), id="zero-width"),
         pytest.param(box(0, 0.5, 1, 0.5), id="zero-height"),
+        pytest.param(box(0, 0, 0, 0), id="zero-area"),
     ],
 )
 def test_a_degenerate_prediction_cannot_match_even_at_the_loosest_threshold(malformed):
     # 0.0 is the most permissive operating point there is, so no threshold admits what it
-    # rejects.
+    # rejects — which is why this one case stands in for every threshold.
     result = score([malformed], [unit()], iou_threshold=0.0)
 
     assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
@@ -698,9 +694,10 @@ def test_tuples_are_accepted_for_both_sides():
 # --- The worked example in the README -----------------------------------------------
 #
 # The README is what a consumer reads before installing, and an example whose numbers have
-# drifted teaches the wrong shape and the wrong reading. So the boxes and every number quoted
-# in its "Worked example" section live here, spelled out literally rather than built from the
-# helpers above, and the README cannot go stale without this failing.
+# drifted teaches the wrong shape and the wrong reading. Its boxes are spelled out literally
+# rather than built from the helpers above, and the two tests below assert its two printed
+# blocks whole, so the README cannot go stale without one of them failing. Every individual
+# behaviour they touch is already covered above; what is under test here is the documentation.
 
 
 README_GROUND_TRUTH = [
@@ -711,22 +708,14 @@ README_GROUND_TRUTH = [
 ]
 
 README_PREDICTIONS = [
-    {
-        "object_type": "cabinet",
-        "bbox": [0.10, 0.10, 0.30, 0.30],
-        "page": 1,
-    },  # exact hit
+    {"object_type": "cabinet", "bbox": [0.10, 0.10, 0.30, 0.30], "page": 1},  # hit
     {"object_type": "cabinet", "bbox": [0.50, 0.10, 0.58, 0.30], "page": 1},  # IoU 0.4
     {
         "object_type": "cabinet",
         "bbox": [0.10, 0.10, 0.30, 0.30],
         "page": 1,
     },  # duplicate
-    {
-        "object_type": "cabinet",
-        "bbox": [0.20, 0.20, 0.40, 0.40],
-        "page": 2,
-    },  # exact hit
+    {"object_type": "cabinet", "bbox": [0.20, 0.20, 0.40, 0.40], "page": 2},  # hit
 ]  # the countertop is never predicted
 
 
@@ -736,54 +725,119 @@ def readme_example():
     )
 
 
-def test_the_readme_example_scores_as_documented():
+def test_the_readme_example_scores_exactly_as_printed():
     result = readme_example()
+    del result["objects"]  # asserted separately, against the README's second block
 
-    assert result["iou_threshold"] == 0.5
-    assert result["counts"] == {"tp": 2, "fp": 2, "fn": 2}
-    assert result["metrics"] == {"precision": 0.5, "recall": 0.5, "f1": 0.5}
+    assert result == {
+        "iou_threshold": 0.5,
+        "counts": {"tp": 2, "fp": 2, "fn": 2},
+        "metrics": {"precision": 0.5, "recall": 0.5, "f1": 0.5},
+        "per_type": {
+            CABINET: {
+                "counts": {"tp": 2, "fp": 2, "fn": 1},
+                "metrics": {
+                    "precision": 0.5,
+                    "recall": pytest.approx(0.667, abs=0.001),
+                    "f1": pytest.approx(0.571, abs=0.001),
+                },
+            },
+            COUNTERTOP: {
+                "counts": {"tp": 0, "fp": 0, "fn": 1},
+                "metrics": {"precision": 0.0, "recall": 0.0, "f1": 0.0},
+            },
+        },
+        "per_page": [
+            {
+                "page": 1,
+                "counts": {"tp": 1, "fp": 2, "fn": 2},
+                "metrics": {
+                    "precision": pytest.approx(0.333, abs=0.001),
+                    "recall": pytest.approx(0.333, abs=0.001),
+                    "f1": pytest.approx(0.333, abs=0.001),
+                },
+                "per_type": {
+                    CABINET: {
+                        "counts": {"tp": 1, "fp": 2, "fn": 1},
+                        "metrics": {
+                            "precision": pytest.approx(0.333, abs=0.001),
+                            "recall": 0.5,
+                            "f1": pytest.approx(0.4),
+                        },
+                    },
+                    COUNTERTOP: {
+                        "counts": {"tp": 0, "fp": 0, "fn": 1},
+                        "metrics": {"precision": 0.0, "recall": 0.0, "f1": 0.0},
+                    },
+                },
+            },
+            {
+                "page": 2,
+                "counts": {"tp": 1, "fp": 0, "fn": 0},
+                "metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+                "per_type": {
+                    CABINET: {
+                        "counts": {"tp": 1, "fp": 0, "fn": 0},
+                        "metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+                    }
+                },
+            },
+        ],
+    }
 
 
-def test_the_readme_example_breaks_down_by_type_as_documented():
-    per_type = readme_example()["per_type"]
-
-    assert per_type["cabinet"]["counts"] == {"tp": 2, "fp": 2, "fn": 1}
-    assert per_type["cabinet"]["metrics"]["recall"] == pytest.approx(2 / 3)
-    assert per_type["countertop"]["counts"] == {"tp": 0, "fp": 0, "fn": 1}
-    assert per_type["countertop"]["metrics"]["recall"] == 0.0
-
-
-def test_the_readme_example_breaks_down_by_page_as_documented():
-    page_one, page_two = readme_example()["per_page"]
-
-    assert page_one["page"] == 1
-    assert page_one["counts"] == {"tp": 1, "fp": 2, "fn": 2}
-    assert page_one["metrics"]["f1"] == pytest.approx(1 / 3)
-    assert page_two["page"] == 2
-    assert page_two["counts"] == {"tp": 1, "fp": 0, "fn": 0}
-    assert page_two["metrics"] == {"precision": 1.0, "recall": 1.0, "f1": 1.0}
-
-
-def test_the_readme_example_tells_a_duplicate_from_a_loose_box():
-    duplicate, loose = sorted(
-        readme_example()["objects"]["fp"], key=lambda fp: -fp["best_iou"]
-    )
-
-    assert duplicate["prediction_index"] == 2 and duplicate["best_iou"] == 1.0
-    assert loose["prediction_index"] == 1 and loose["best_iou"] == pytest.approx(0.4)
-
-
-def test_the_readme_example_tells_an_unseen_object_from_a_loosely_boxed_one():
-    never_seen, drawn_loosely = sorted(
-        readme_example()["objects"]["fn"], key=lambda fn: fn["best_iou"]
-    )
-
-    assert never_seen["object_type"] == "countertop" and never_seen["best_iou"] == 0.0
-    assert drawn_loosely["object_type"] == "cabinet"
-    assert drawn_loosely["best_iou"] == pytest.approx(0.4)
-
-
-def test_the_readme_example_credits_the_earlier_of_two_identical_predictions():
-    # Both are byte-identical and both reach IoU 1.0, so the documented tie-break — lowest
-    # prediction index — is the only thing deciding which one is the true positive.
-    assert readme_example()["objects"]["tp"][0]["prediction_index"] == 0
+def test_the_readme_example_breaks_down_by_object_exactly_as_printed():
+    assert readme_example()["objects"] == {
+        "tp": [
+            {
+                "page": 1,
+                "object_type": CABINET,
+                "prediction_index": 0,
+                "ground_truth_index": 0,
+                "prediction": [0.10, 0.10, 0.30, 0.30],
+                "ground_truth": [0.10, 0.10, 0.30, 0.30],
+                "iou": 1.0,
+            },
+            {
+                "page": 2,
+                "object_type": CABINET,
+                "prediction_index": 3,
+                "ground_truth_index": 3,
+                "prediction": [0.20, 0.20, 0.40, 0.40],
+                "ground_truth": [0.20, 0.20, 0.40, 0.40],
+                "iou": 1.0,
+            },
+        ],
+        "fp": [
+            {  # the loose box: it just missed the threshold
+                "page": 1,
+                "object_type": CABINET,
+                "prediction_index": 1,
+                "prediction": [0.50, 0.10, 0.58, 0.30],
+                "best_iou": pytest.approx(0.4),
+            },
+            {  # the duplicate: its neighbour was taken by prediction 0
+                "page": 1,
+                "object_type": CABINET,
+                "prediction_index": 2,
+                "prediction": [0.10, 0.10, 0.30, 0.30],
+                "best_iou": 1.0,
+            },
+        ],
+        "fn": [
+            {  # found, but boxed too loosely to count
+                "page": 1,
+                "object_type": CABINET,
+                "ground_truth_index": 1,
+                "ground_truth": [0.50, 0.10, 0.70, 0.30],
+                "best_iou": pytest.approx(0.4),
+            },
+            {  # never seen at all
+                "page": 1,
+                "object_type": COUNTERTOP,
+                "ground_truth_index": 2,
+                "ground_truth": [0.10, 0.60, 0.90, 0.70],
+                "best_iou": 0.0,
+            },
+        ],
+    }

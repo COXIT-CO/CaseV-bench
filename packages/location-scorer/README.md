@@ -33,7 +33,7 @@ Predictions and ground truth are lists of the same item:
   space. (Teams standardize on 0–1 floats with a top-left origin at the call site; the scorer
   does not enforce it.)
 - **`page`** — required on every item. Matching is partitioned by `(page, object_type)`, so a box
-  on page 1 can never be credited against one on page 5. Single-page data passes a constant
+  on page 1 can never be credited against one on page 5. Single-page data passes a constant.
 
 `iou_threshold` is **required and has no default**: the same version scores differently at
 different operating points, so the choice belongs in every call site and every diff rather than
