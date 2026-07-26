@@ -13,6 +13,8 @@ width has ``intersection = w``, ``union = 1``, and therefore ``IoU = w``.
 
 import json
 
+import pytest
+
 from location_scorer import score
 
 CABINET = "cabinet"
@@ -374,7 +376,7 @@ def test_both_sides_empty_yields_all_zero_counts():
     assert result["per_page"] == []
 
 
-# --- Degenerate predictions ---------------------------------------------------------
+# --- Degenerate predictions: lenient, never rejected --------------------------------
 
 
 def test_zero_area_prediction_is_a_false_positive_rather_than_a_match():
@@ -392,19 +394,86 @@ def test_zero_iou_is_never_a_match_even_at_a_zero_threshold():
     assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
 
 
-def test_identical_zero_area_boxes_do_not_match():
-    # The union is zero, so IoU is 0.0 rather than an undefined 0/0 "perfect" overlap.
-    result = score(
-        [box(0.5, 0.5, 0.5, 0.5)], [box(0.5, 0.5, 0.5, 0.5)], iou_threshold=0.5
-    )
-
-    assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
-
-
 def test_inverted_prediction_is_a_false_positive_rather_than_a_match():
     result = score([box(1, 1, 0, 0)], [unit()], iou_threshold=0.5)
 
     assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        pytest.param(box(1, 0, 0, 1), id="inverted-horizontally"),
+        pytest.param(box(0, 1, 1, 0), id="inverted-vertically"),
+        pytest.param(box(0.5, 0, 0.5, 1), id="zero-width"),
+        pytest.param(box(0, 0.5, 1, 0.5), id="zero-height"),
+    ],
+)
+def test_a_degenerate_prediction_cannot_match_even_at_the_loosest_threshold(malformed):
+    # 0.0 is the most permissive operating point there is, so no threshold admits what it
+    # rejects.
+    result = score([malformed], [unit()], iou_threshold=0.0)
+
+    assert result["counts"] == {"tp": 0, "fp": 1, "fn": 1}
+
+
+def test_a_batch_peppered_with_malformed_predictions_still_scores():
+    # One bad box must not abort a whole run — salvaged predictions are scored (ADR 0027).
+    ground_truth = [box(i, 0, i + 1, 1) for i in range(100)]
+    predictions = [
+        box(i, 0, i, 1) if i % 10 == 0 else box(i, 0, i + 1, 1) for i in range(100)
+    ]
+
+    result = score(predictions, ground_truth, iou_threshold=0.5)
+
+    assert result["counts"] == {"tp": 90, "fp": 10, "fn": 10}
+    assert result["metrics"]["f1"] == 0.9
+
+
+# --- Degenerate ground truth: strict, raises ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "malformed, condition",
+    [
+        pytest.param(box(1, 0, 0, 1), "inverted", id="inverted-horizontally"),
+        pytest.param(box(0, 1, 1, 0), "inverted", id="inverted-vertically"),
+        pytest.param(box(0.5, 0, 0.5, 1), "zero width", id="zero-width"),
+        pytest.param(box(0, 0.5, 1, 0.5), "zero height", id="zero-height"),
+    ],
+)
+def test_a_degenerate_ground_truth_box_raises(malformed, condition):
+    # Unmatchable by anything, so left alone it is an invisible permanent FN (ADR 0031).
+    with pytest.raises(ValueError) as raised:
+        score([unit()], [malformed], iou_threshold=0.5)
+
+    assert condition in str(raised.value)
+
+
+def test_the_error_names_the_offending_index_so_it_can_be_found_in_the_source_data():
+    ground_truth = [unit(), unit(page=2), box(1, 1, 0, 0, page=3)]
+
+    with pytest.raises(ValueError) as raised:
+        score([], ground_truth, iou_threshold=0.5)
+
+    assert "ground_truth[2]" in str(raised.value)
+
+
+def test_a_ground_truth_box_is_validated_even_where_nothing_was_predicted():
+    # Page 3 has no prediction, so a check folded into the matcher would never reach it and
+    # the defect would hide behind a clean score for pages 1 and 2.
+    ground_truth = [unit(), unit(page=2), box(0.5, 0.5, 0.5, 0.5, page=3)]
+    predictions = [unit(), unit(page=2)]
+
+    with pytest.raises(ValueError):
+        score(predictions, ground_truth, iou_threshold=0.5)
+
+
+def test_identical_zero_area_boxes_raise_rather_than_matching_each_other():
+    # Their union is zero, so only the ground-truth check stands between them and an
+    # undefined 0/0 read as a "perfect" overlap.
+    with pytest.raises(ValueError):
+        score([box(0.5, 0.5, 0.5, 0.5)], [box(0.5, 0.5, 0.5, 0.5)], iou_threshold=0.5)
 
 
 # --- Purity -------------------------------------------------------------------------

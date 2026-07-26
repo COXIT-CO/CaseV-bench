@@ -4,6 +4,7 @@ from ._aggregation import per_page, per_type, pool, tally
 from ._matching import match
 from ._metrics import rates
 from ._types import Box, ScoreResult
+from ._validation import validate_ground_truth
 
 
 def score(
@@ -42,9 +43,14 @@ def score(
 
     ``iou_threshold`` has no default on purpose — the same version scores differently at
     different operating points, so the choice belongs in every call site and every diff.
-    Predictions are never rejected: a malformed box is just a false positive, because one bad
-    box from an unreliable model must not stop a run. ``include_objects`` is reserved for the
-    per-object breakdown and adds no key yet.
+    ``include_objects`` is reserved for the per-object breakdown and adds no key yet.
+
+    **Validation is asymmetric.** An inverted or zero-area *ground-truth* box raises
+    ``ValueError`` naming its index and the condition, before any matching: nothing can ever
+    match it, so it would otherwise be a permanent false negative capping recall below 1.0
+    with nothing in the numbers explaining why. The same geometry in a *prediction* never
+    raises — zero area, IoU 0, a false positive — because one malformed box from an
+    unreliable model must not stop a run.
 
     One trap. **Empty ground truth returns a well-formed F1 of 0.0, not ``None``** — that zero
     means "nothing to find", not "found nothing", so a caller that ranks results has to detect
@@ -55,6 +61,7 @@ def score(
 
     That test is true if and only if ``ground_truth`` was empty.
     """
+    validate_ground_truth(ground_truth)
     matching = match(predictions, ground_truth, iou_threshold)
     cells = tally(predictions, ground_truth, matching)
     counts = pool(cells.values())
