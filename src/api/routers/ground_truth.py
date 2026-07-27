@@ -42,7 +42,8 @@ class CountingGroundTruthResponse(BaseModel):
 class ImportProblemOut(BaseModel):
     """One object the native import reported rather than silently dropped: an off-taxonomy
     category (``unmapped_label``), a reference to a page the Drawing lacks (``unknown_page``),
-    or a box that grossly overflows its page's native frame (``out_of_frame``)."""
+    a box that grossly overflows its page's native frame (``out_of_frame``), or one enclosing
+    no area — zero width/height or inverted coordinates (``degenerate_box``)."""
 
     kind: str
     detail: str

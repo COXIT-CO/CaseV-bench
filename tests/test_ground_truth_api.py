@@ -164,8 +164,9 @@ def test_counting_put_unknown_drawing_is_404(client):
 
 def _objects(page_dims: dict[int, tuple[float, float]]) -> dict:
     """A native ``objects`` doc with one valid cabinet box on page 1, one off-taxonomy
-    category, one box on a page the drawing does not have, and one box that grossly overflows
-    the page's native frame — so a single import exercises created + all three problem kinds.
+    category, one box on a page the drawing does not have, one box that grossly overflows the
+    page's native frame, and one enclosing no area — so a single import exercises created +
+    all four problem kinds.
     """
     width, height = page_dims[1]
     return {
@@ -195,6 +196,12 @@ def _objects(page_dims: dict[int, tuple[float, float]]) -> dict:
                 "page": 1,
                 "bbox": {"x": 0, "y": 0, "width": width * 2, "height": height * 2},
             },
+            {  # encloses no area → degenerate_box
+                "id": "e",
+                "category": "cabinet",
+                "page": 1,
+                "bbox": {"x": 5, "y": 5, "width": 0, "height": 5},
+            },
         ],
     }
 
@@ -223,7 +230,12 @@ def test_location_import_creates_boxes_and_reports_problems(
     body = response.json()
     assert body["created"] == 1
     kinds = sorted(problem["kind"] for problem in body["problems"])
-    assert kinds == ["out_of_frame", "unknown_page", "unmapped_label"]
+    assert kinds == [
+        "degenerate_box",
+        "out_of_frame",
+        "unknown_page",
+        "unmapped_label",
+    ]
 
     # The valid box actually landed via the service (recompute-on-read makes rows scored).
     with Session(engine) as session:

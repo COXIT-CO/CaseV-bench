@@ -16,6 +16,7 @@ from sqlmodel import Session
 from api.app import create_app
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
 from core.db import init_db, make_engine
+from core.models.drawing import Drawing, Page
 from core.services.pdf_processing import page_image_filename
 
 
@@ -33,6 +34,37 @@ def seed_page_images(base_dir: Path, n_pages: int, size=(64, 64)) -> list[Path]:
         Image.new("RGB", size, "white").save(path)
         paths.append(path)
     return paths
+
+
+def make_drawing_with_pages(
+    session: Session, native_dims: list[tuple[int, int]], name: str = "d"
+) -> Drawing:
+    """A Drawing with one Page per native ``(width_pt, height_pt)``, numbered from 1.
+
+    Each Page's full-resolution pixel dims are set to a different (larger) frame than its
+    native point dims, so a test that passes when code normalizes by the **native** dims (the
+    frame the expert labeled against — ADR 0022) would fail if it wrongly normalized by the
+    pixel dims.
+    """
+    drawing = Drawing(name=name)
+    session.add(drawing)
+    session.commit()
+    session.refresh(drawing)
+    for page_number, (native_w, native_h) in enumerate(native_dims, start=1):
+        session.add(
+            Page(
+                drawing_id=drawing.id,
+                page_number=page_number,
+                image_path=f"page_{page_number:04d}_downsampled.png",
+                width_px=native_w * 4,
+                height_px=native_h * 4,
+                native_width_pt=float(native_w),
+                native_height_pt=float(native_h),
+            )
+        )
+    session.commit()
+    session.refresh(drawing)
+    return drawing
 
 
 class StubOpenRouterAdapter:

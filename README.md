@@ -15,7 +15,7 @@ root. See [`docs/adr/`](docs/adr/) for the decision record and
 src/
   app/    React + Vite + TypeScript SPA (the Prompt & Config Lab)   → ADR-0010
   api/    FastAPI web layer — routers/ + thin wiring, no business logic
-  core/   Domain engine — services, adapters, models, prompts, db, config, cli
+  core/   Domain engine — services, adapters, models, prompts, db, config, cli, audits
 data/     Local data root (CASEV_DATA_ROOT); only data/input/ fixtures are tracked
 docs/     ADRs, specs, runbooks, glossary
 tests/    pytest suite (JSON-API contract + service tests)
@@ -98,6 +98,20 @@ docker run --rm -p 8000:8000 \
 The `-v …:/data` mount is the local stand-in for the Railway Volume: state written there
 survives `docker rm` and a re-run, exactly as it survives a redeploy in production. The
 container defaults `CASEV_DATA_ROOT=/data`.
+
+## Auditing a store
+
+Read-only data checks an operator runs against whatever store `CASEV_DATA_ROOT` points at —
+a local checkout, the container mount, or the production Volume over `railway ssh`:
+
+```bash
+PYTHONPATH=src poetry run python -m core.audit
+```
+
+It **exits non-zero when it finds anything**, so it can gate a migration. Currently one check:
+location ground-truth boxes that enclose no area
+([ADR-0031](docs/adr/0031-strict-gt-lenient-predictions.md)) — such a box can never be matched,
+so it silently caps a Drawing's recall below 1.0.
 
 ## Running the tests
 

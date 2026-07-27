@@ -424,10 +424,11 @@ export interface CountingGroundTruthResponse {
 export type CountingGtSaveRequest = Record<string, number>;
 
 /** One object the native import reported rather than silently dropped: an off-taxonomy
- * category, a reference to a page the Drawing lacks, or a box that grossly overflows its
- * page's native frame (src/api/routers/ground_truth.py::ImportProblemOut). */
+ * category, a reference to a page the Drawing lacks, a box that grossly overflows its page's
+ * native frame, or one enclosing no area — zero width/height or inverted coordinates
+ * (src/api/routers/ground_truth.py::ImportProblemOut). */
 export interface LocationImportProblem {
-  kind: "unmapped_label" | "unknown_page" | "out_of_frame";
+  kind: "unmapped_label" | "unknown_page" | "out_of_frame" | "degenerate_box";
   detail: string;
 }
 

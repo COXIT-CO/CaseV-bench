@@ -4,50 +4,24 @@ Pure-ish service tests over a temp SQLite DB: a native ``objects`` JSON's absolu
 boxes are converted to normalized 0-1 boxes on the correct Pages, normalized by each Page's
 **native point dimensions** (the source PDF's ``page.rect``, captured at ingest), and anything
 that can't be imported — an off-taxonomy category, a page the Drawing lacks, a box that
-grossly overflows its native frame — is reported rather than silently dropped. The importer
-never calls a model, so no adapter seam is involved.
+grossly overflows its native frame, a box enclosing no area — is reported rather than silently
+dropped. The importer never calls a model, so no adapter seam is involved.
 """
 
 import pytest
+from conftest import make_drawing_with_pages
 from sqlmodel import select
 
-from core.models.drawing import Drawing, Page
+from core.models.drawing import Drawing
 from core.models.location_ground_truth import LocationGroundTruth
 from core.services.counting_ground_truth import CountingGroundTruthService
 from core.services.location_ground_truth import (
+    DEGENERATE_BOX,
     OUT_OF_FRAME,
     UNKNOWN_PAGE,
     UNMAPPED_LABEL,
     LocationGroundTruthService,
 )
-
-
-def _make_drawing_with_pages(session, native_dims: list[tuple[int, int]]) -> Drawing:
-    """A Drawing with one Page per native ``(width_pt, height_pt)``, numbered from 1.
-
-    The Page's full-resolution pixel dims are set to a different (larger) frame than its
-    native point dims, so a test that passes when the importer normalizes by the native
-    dims would fail if it wrongly normalized by the pixel dims.
-    """
-    drawing = Drawing(name="d")
-    session.add(drawing)
-    session.commit()
-    session.refresh(drawing)
-    for page_number, (native_w, native_h) in enumerate(native_dims, start=1):
-        session.add(
-            Page(
-                drawing_id=drawing.id,
-                page_number=page_number,
-                image_path=f"page_{page_number:04d}_downsampled.png",
-                width_px=native_w * 4,
-                height_px=native_h * 4,
-                native_width_pt=float(native_w),
-                native_height_pt=float(native_h),
-            )
-        )
-    session.commit()
-    session.refresh(drawing)
-    return drawing
 
 
 def _boxes_by_page(session, drawing: Drawing) -> dict[int, list[LocationGroundTruth]]:
@@ -70,7 +44,7 @@ def _obj(category: str, page: int, x: int, y: int, width: int, height: int) -> d
 
 
 def test_import_creates_normalized_boxes_on_correct_pages(session):
-    drawing = _make_drawing_with_pages(session, [(1000, 2000), (500, 400)])
+    drawing = make_drawing_with_pages(session, [(1000, 2000), (500, 400)])
     document = {
         "project_id": "prj1",
         "objects": [
@@ -107,7 +81,7 @@ def test_import_creates_normalized_boxes_on_correct_pages(session):
 def test_normalization_uses_native_point_dims_not_pixel_dims(session):
     # The Page's native point dims are authoritative for GT (ADR 0022). The helper sets the
     # pixel dims to 4x the native frame; normalization must still divide by the native dims.
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {"objects": [_obj("cabinet", 1, 100, 100, 200, 200)]}
 
     LocationGroundTruthService(session).import_objects(drawing.id, document)
@@ -121,7 +95,7 @@ def test_normalization_uses_native_point_dims_not_pixel_dims(session):
 def test_project_id_is_ignored(session):
     # The Drawing the import is launched from is authoritative; the file's project_id, even a
     # mismatched one, is read past.
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {
         "project_id": "some-other-project",
         "objects": [_obj("cabinet", 1, 0, 0, 100, 100)],
@@ -134,7 +108,7 @@ def test_project_id_is_ignored(session):
 
 
 def test_off_taxonomy_category_is_reported_not_dropped(session):
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {
         "objects": [
             _obj("cabinet", 1, 0, 0, 100, 100),
@@ -153,7 +127,7 @@ def test_off_taxonomy_category_is_reported_not_dropped(session):
 
 
 def test_unknown_page_is_reported_not_dropped(session):
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])  # only page 1 exists
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])  # only page 1 exists
     document = {
         "objects": [
             _obj("cabinet", 1, 0, 0, 100, 100),
@@ -171,7 +145,7 @@ def test_unknown_page_is_reported_not_dropped(session):
 
 
 def test_gross_overflow_is_reported_out_of_frame_and_skipped(session):
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {
         "objects": [
             _obj("cabinet", 1, 0, 0, 100, 100),  # well inside the frame
@@ -191,7 +165,7 @@ def test_gross_overflow_is_reported_out_of_frame_and_skipped(session):
 def test_within_tolerance_overflow_is_clamped_and_accepted(session):
     # A flush-to-edge annotation that spills over by <= ~0.5% is accepted and clamped to the
     # unit square, not rejected as an error.
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     # x_max = 1004 / 1000 = 1.004 -> within 0.5% tolerance -> clamp to 1.0.
     document = {"objects": [_obj("cabinet", 1, 0, 0, 1004, 1004)]}
 
@@ -205,8 +179,107 @@ def test_within_tolerance_overflow_is_clamped_and_accepted(session):
     assert box.x_min == pytest.approx(0.0)
 
 
+# --- degenerate boxes (adoption ticket 01, ADR 0031) ----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "named"),
+    [
+        (0, 100, "zero width"),
+        (100, 0, "zero height"),
+        (0, 0, "zero width"),
+        (-100, 100, "inverted"),
+        (100, -100, "inverted"),
+    ],
+)
+def test_degenerate_box_is_reported_and_skipped(session, width, height, named):
+    # A zero-area or inverted GT box can never be matched, so it would be a permanent,
+    # invisible false negative capping the Drawing's recall (ADR 0031). It is skipped with
+    # its own named reason rather than stored.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("cabinet", 1, 400, 400, width, height)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    assert len(result.problems) == 1
+    problem = result.problems[0]
+    assert problem.kind == DEGENERATE_BOX
+    # The reason names the condition, so the box is findable in the source file.
+    assert named in problem.detail
+    assert _boxes_by_page(session, drawing)[1] == []
+
+
+def test_box_that_clamping_collapses_is_reported_not_stored(session):
+    # A box lying entirely outside an edge but within the frame tolerance passes the frame
+    # check, and then *both* its corners clamp onto the same edge — so a well-formed source
+    # box would land as a zero-width row. The degeneracy is what matters, so it is re-checked
+    # on the clamped corners, not only on the source extents.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    # x spans -0.004 -> -0.002 normalized: inside the 0.5% tolerance, entirely left of the
+    # page, and clamps to 0.0 -> 0.0.
+    document = {"objects": [_obj("cabinet", 1, -4, 100, 2, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    assert [problem.kind for problem in result.problems] == [DEGENERATE_BOX]
+    assert _boxes_by_page(session, drawing)[1] == []
+
+
+def test_degenerate_box_does_not_fail_the_rest_of_the_import(session):
+    # One bad object is a per-box skip, not a whole-file reject — the valid boxes around it
+    # still land.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("cabinet", 1, 400, 400, 0, 100),  # zero width
+            _obj("countertop", 1, 600, 600, 100, 100),
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 2
+    assert [problem.kind for problem in result.problems] == [DEGENERATE_BOX]
+    assert sorted(box.label for box in _boxes_by_page(session, drawing)[1]) == [
+        "cabinet",
+        "countertop",
+    ]
+
+
+def test_inverted_box_reports_degeneracy_rather_than_out_of_frame(session):
+    # An inverted box can also land outside the unit square once normalized (here x_max is
+    # negative). The degeneracy is the accurate diagnosis, so it is checked first — reporting
+    # ``out_of_frame`` would send the author looking for the wrong defect.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("cabinet", 1, 100, 100, -300, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert [problem.kind for problem in result.problems] == [DEGENERATE_BOX]
+
+
+def test_degenerate_box_is_not_tallied_into_derived_counting(session):
+    # A skipped box never counts toward an opt-in derived counting total (ADR 0025).
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("cabinet", 1, 400, 400, 100, 0),  # zero height, skipped
+        ],
+    }
+
+    LocationGroundTruthService(session).import_objects(
+        drawing.id, document, derive_counting=True
+    )
+
+    assert CountingGroundTruthService(session).get_totals(drawing.id) == {"cabinet": 1}
+
+
 def test_each_distinct_problem_is_reported_once(session):
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {
         "objects": [
             _obj("windows", 1, 0, 0, 100, 100),  # unmapped, twice
@@ -225,7 +298,7 @@ def test_each_distinct_problem_is_reported_once(session):
 
 
 def test_reimport_replaces_rather_than_duplicates(session):
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {"objects": [_obj("cabinet", 1, 0, 0, 100, 100)]}
     service = LocationGroundTruthService(session)
 
@@ -243,7 +316,7 @@ def test_derive_counting_sets_totals_from_box_tallies(session):
     # writes the counting GT through the counting service — the total for each covered label
     # equals its box tally. A label with no accepted box is left untouched (not zeroed), so
     # the derivation never fabricates a "zero of this object" the boxes did not state.
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {
         "objects": [
             _obj("cabinet", 1, 0, 0, 100, 100),
@@ -266,7 +339,7 @@ def test_derive_counting_leaves_uncovered_labels_untouched(session):
     # A label the boxes do not cover is not asserted as zero — a pre-existing total for it
     # survives the derive, since an objects file need not localize every object type (ADR
     # 0025: counting may legitimately include objects that were not localized).
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     CountingGroundTruthService(session).save(drawing.id, {"elevation": 5})
     document = {"objects": [_obj("cabinet", 1, 0, 0, 100, 100)]}
 
@@ -282,7 +355,7 @@ def test_derive_counting_leaves_uncovered_labels_untouched(session):
 def test_derive_counting_off_leaves_existing_counting_untouched(session):
     # The flag is off by default; a location import then touches only LocationGroundTruth and
     # any existing counting total is preserved (ADR 0025 default-off).
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     CountingGroundTruthService(session).save(drawing.id, {"cabinet": 9, "elevation": 3})
     document = {"objects": [_obj("cabinet", 1, 0, 0, 100, 100)]}
 
@@ -298,7 +371,7 @@ def test_derive_counting_off_leaves_existing_counting_untouched(session):
 def test_derive_counting_tallies_only_accepted_boxes(session):
     # Only boxes that actually landed count toward the totals — an out-of-frame box that was
     # reported and skipped does not inflate the derived total.
-    drawing = _make_drawing_with_pages(session, [(1000, 1000)])
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
     document = {
         "objects": [
             _obj("cabinet", 1, 0, 0, 100, 100),  # accepted
