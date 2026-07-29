@@ -37,13 +37,16 @@ testpaths = ["tests"]
 # 3.14 write `except A, B:` without parentheses, so black would strip them — output that is a
 # SyntaxError on 3.11–3.13. Listing the whole supported set forces black to emit code valid on
 # all of them (parens kept) and makes local + CI formatting deterministic (ADR-0017).
+
 [tool.black]
 target-version = ["py311", "py312", "py313", "py314"]
+force-exclude = "^/src/packages/"
 
 # Keep isort's multi-line import formatting compatible with black, so the two CI checks
 # (isort --check + black --check, ADR-0017) never disagree on a wrapped import.
 [tool.isort]
 profile = "black"
+extend_skip_glob = ["src/packages/*"]
 
 [dependency-groups]
 dev = [
