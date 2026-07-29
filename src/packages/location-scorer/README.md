@@ -8,7 +8,7 @@ Python 3.11+, no runtime dependencies, no network, no filesystem, no global stat
 ## Install
 
 ```bash
-pip install "location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=packages/location-scorer"
+pip install "location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=src/packages/location-scorer"
 ```
 
 **Pin the tag, not a branch.** Releases are tagged `location-scorer-vX.Y.Z`, versioned
@@ -224,7 +224,7 @@ nothing resolves against local application code:
 
 ```bash
 cd "$(mktemp -d)" && python3.11 -m venv .venv && . .venv/bin/activate
-pip install "location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=packages/location-scorer"
+pip install "location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=src/packages/location-scorer"
 python -c "import location_scorer as s; print(s.score([], [], iou_threshold=0.5)['counts'])"
 ```
 
@@ -240,7 +240,7 @@ precisely so a score movement can't be mistaken for a port bug.
 ## Develop
 
 ```bash
-cd packages/location-scorer
+cd src/packages/location-scorer
 python3.11 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 pytest && black --check . && isort --check-only .
