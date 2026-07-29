@@ -11,6 +11,11 @@ Two pieces around one pure seam:
   ``Score`` row (recomputed against current GT so a GT edit is reflected without a
   re-run, ADR 0004), and builds the Leaderboard — Results as prompt-version × model
   rows, filtered by Task + Drawing, sorted by a chosen metric best-first.
+
+Location scoring lives in the shared ``location-scorer`` library (ADR 0028), consumed
+here as a pinned release tag; ``score_location`` keeps its signature and is now the
+adapter around it. Counting scoring stays local — absolute error and an exact-match flag
+leave no semantic room for two teams to disagree.
 """
 
 import json
@@ -18,6 +23,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
+from location_scorer import score as score_boxes
 from sqlmodel import Session, select
 
 from core.models.prompt import Prompt, Task
@@ -103,47 +109,31 @@ def score_counting(
 LocationBox = LabeledBox
 
 
-def _iou(a: LocationBox, b: LocationBox) -> float:
-    """Intersection-over-union of two normalized boxes; 0 when they don't overlap or
-    either is degenerate (zero-area union)."""
-    inter_w = max(0.0, min(a.x_max, b.x_max) - max(a.x_min, b.x_min))
-    inter_h = max(0.0, min(a.y_max, b.y_max) - max(a.y_min, b.y_min))
-    intersection = inter_w * inter_h
-    area_a = max(0.0, a.x_max - a.x_min) * max(0.0, a.y_max - a.y_min)
-    area_b = max(0.0, b.x_max - b.x_min) * max(0.0, b.y_max - b.y_min)
-    union = area_a + area_b - intersection
-    return intersection / union if union > 0 else 0.0
+def _scorer_items(boxes_by_page: Mapping[int, Sequence[LocationBox]]) -> list[dict]:
+    """Page-keyed ``LocationBox`` lists flattened into the library's item shape — one
+    flat sequence whose entries each carry their page, with our label as the
+    ``object_type`` match key (the library holds no taxonomy and only tests it for
+    equality).
 
-
-def _match_count(
-    predicted: Sequence[LocationBox],
-    gt: Sequence[LocationBox],
-    iou_threshold: float,
-) -> int:
-    """True positives among same-label boxes on one page: greedily pair predictions to
-    GT boxes best-IoU-first, each box used at most once, counting pairs at or above the
-    threshold. Greedy-by-descending-IoU is the standard 1:1 detection match and is exact
-    for the small per-page, per-label box counts here."""
-    candidates = sorted(
-        (
-            (_iou(p, g), pi, gi)
-            for pi, p in enumerate(predicted)
-            for gi, g in enumerate(gt)
-        ),
-        reverse=True,
-    )
-    used_pred: set[int] = set()
-    used_gt: set[int] = set()
-    matched = 0
-    for iou, pi, gi in candidates:
-        if iou < iou_threshold:
-            break  # sorted descending: nothing later can clear the bar either
-        if pi in used_pred or gi in used_gt:
-            continue
-        used_pred.add(pi)
-        used_gt.add(gi)
-        matched += 1
-    return matched
+    Off-taxonomy boxes are dropped on both sides, which is what the pre-port
+    ``for label in OBJECT_LABELS`` loop did implicitly. It matters because the library
+    pools *every* label it is handed into the aggregate while our breakdown only pads out
+    the fixed taxonomy: forwarding a stray label would move precision and F1 while being
+    invisible in every per-label row, so the two would stop reconciling. ``LocationBox``
+    types its label as a plain ``str``, so this is the boundary that holds the taxonomy —
+    both current sources (a ``LocationResult`` parsed against the ``ObjectLabel`` literal,
+    and the GT importer's own taxonomy filter) already only produce known labels.
+    """
+    return [
+        {
+            "object_type": box.label,
+            "bbox": [box.x_min, box.y_min, box.x_max, box.y_max],
+            "page": page,
+        }
+        for page, boxes in boxes_by_page.items()
+        for box in boxes
+        if box.label in OBJECT_LABELS
+    ]
 
 
 @dataclass(frozen=True)
@@ -159,43 +149,23 @@ class LabelLocationScore:
     f1: float
 
 
-def _rates(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
-    """precision / recall / F1 from a tally, each 0.0 when its denominator is 0 (no
-    predictions → precision 0; no GT for the label → recall 0)."""
-    precision = tp / (tp + fp) if tp + fp else 0.0
-    recall = tp / (tp + fn) if tp + fn else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-    return precision, recall, f1
-
-
 @dataclass(frozen=True)
 class LocationScore:
     """A location Result's score: per-label IoU@0.5 tallies plus a **micro-averaged**
-    Result aggregate (TP/FP/FN summed across every page and label, then rated). Micro so
+    Result aggregate (TP/FP/FN pooled across every page and label, then rated). Micro so
     a perfect prediction scores 1.0 whatever the label distribution, and a false positive
-    on any label is visible in the aggregate."""
+    on any label is visible in the aggregate.
+
+    The aggregate is a stored field rather than a sum over ``per_label``, because the
+    library now owns every rate and the app keeps no second implementation to re-derive it
+    with (ADR 0028). Both come out of one ``score()`` call over one set of items, so they
+    describe the same tallies — see ``_scorer_items`` for the one boundary that keeps that
+    true."""
 
     per_label: list[LabelLocationScore]
-
-    @property
-    def _totals(self) -> tuple[int, int, int]:
-        return (
-            sum(ls.tp for ls in self.per_label),
-            sum(ls.fp for ls in self.per_label),
-            sum(ls.fn for ls in self.per_label),
-        )
-
-    @property
-    def precision(self) -> float:
-        return _rates(*self._totals)[0]
-
-    @property
-    def recall(self) -> float:
-        return _rates(*self._totals)[1]
-
-    @property
-    def f1(self) -> float:
-        return _rates(*self._totals)[2]
+    precision: float
+    recall: float
+    f1: float
 
     def to_json(self) -> str:
         return json.dumps(
@@ -214,6 +184,28 @@ class LocationScore:
         )
 
 
+_EMPTY_TYPE_SCORE = {
+    "counts": {"tp": 0, "fp": 0, "fn": 0},
+    "metrics": {"precision": 0.0, "recall": 0.0, "f1": 0.0},
+}
+
+
+def _label_score(label: str, per_type: Mapping[str, dict]) -> LabelLocationScore:
+    """One taxonomy label's row, padding the library's ``per_type`` out to our fixed
+    taxonomy: a label neither predicted nor in GT is absent there, but keeps an all-zero
+    row here so the stored breakdown and its drill-down never lose a label."""
+    entry = per_type.get(label, _EMPTY_TYPE_SCORE)
+    return LabelLocationScore(
+        label=label,
+        tp=entry["counts"]["tp"],
+        fp=entry["counts"]["fp"],
+        fn=entry["counts"]["fn"],
+        precision=entry["metrics"]["precision"],
+        recall=entry["metrics"]["recall"],
+        f1=entry["metrics"]["f1"],
+    )
+
+
 def score_location(
     predicted_by_page: Mapping[int, Sequence[LocationBox]],
     gt_by_page: Mapping[int, Sequence[LocationBox]],
@@ -221,39 +213,49 @@ def score_location(
 ) -> LocationScore | None:
     """Score predicted boxes against location GT, both keyed by page (ADR 0004).
 
-    Predictions are matched to GT **within the same page and label** at IoU ≥
-    ``iou_threshold``; unmatched predictions are false positives and unmatched GT boxes
-    false negatives. Returns per-label tallies + rates over the fixed taxonomy, or
-    ``None`` when the Drawing has no GT at all (unscored, not zero — spec: Runs 33). A
-    page with predictions but no GT contributes pure false positives, and vice-versa.
+    A thin adapter over the shared ``location-scorer`` library (ADR 0028), which owns the
+    matching and the arithmetic: predictions pair with GT **within the same page and
+    label** at IoU ≥ ``iou_threshold``, one-to-one, best-IoU-first; unmatched predictions
+    are false positives and unmatched GT boxes false negatives. Everything CaseV-specific
+    stays here — flattening the page-keyed maps into library items, padding the per-label
+    breakdown back out to the fixed taxonomy (the library holds no taxonomy, so it only
+    reports labels actually present), and the guard below.
+
+    Returns per-label tallies + rates plus the micro-averaged aggregate, or ``None`` when
+    the Drawing has no GT at all (unscored, not zero — spec: Runs 33; the library instead
+    returns a well-formed F1 of 0.0, which would let a missing answer key outrank a real
+    Score). A page with predictions but no GT contributes pure false positives, and
+    vice-versa.
+
+    ``iou_threshold`` keeps its 0.5 default even though the library deliberately has none
+    ("the choice belongs in every call site and every diff"). CaseV has exactly one
+    operating point, fixed by ADR 0004 and printed in the Report, so a per-call choice here
+    would be a second place for it to drift from the one the Leaderboard was built on.
+    Re-anchoring it is a dated decision of its own (ADR 0030), never a caller's.
+
+    A degenerate GT box (zero-area or inverted) raises ``ValueError`` from the library —
+    nothing can ever match it, so it would otherwise cap recall below 1.0 with nothing in
+    the numbers saying why (ADR 0031). The importer rejects such boxes (scope 7, ticket
+    01), so a raise here means a store predating that guard. It is deliberately not caught:
+    scoring runs per Result inside a Leaderboard build, so this fails the whole board rather
+    than quietly ranking one Drawing against a broken answer key. ``python -m core.audit``
+    names the offending boxes; the fix is re-importing that Drawing from a corrected source.
     """
     if not gt_by_page:
         return None
 
-    pages = set(predicted_by_page) | set(gt_by_page)
-    per_label: list[LabelLocationScore] = []
-    for label in OBJECT_LABELS:
-        tp = fp = fn = 0
-        for page in pages:
-            preds = [b for b in predicted_by_page.get(page, []) if b.label == label]
-            gts = [b for b in gt_by_page.get(page, []) if b.label == label]
-            matched = _match_count(preds, gts, iou_threshold)
-            tp += matched
-            fp += len(preds) - matched
-            fn += len(gts) - matched
-        precision, recall, f1 = _rates(tp, fp, fn)
-        per_label.append(
-            LabelLocationScore(
-                label=label,
-                tp=tp,
-                fp=fp,
-                fn=fn,
-                precision=precision,
-                recall=recall,
-                f1=f1,
-            )
-        )
-    return LocationScore(per_label=per_label)
+    scored = score_boxes(
+        _scorer_items(predicted_by_page),
+        _scorer_items(gt_by_page),
+        iou_threshold=iou_threshold,
+    )
+
+    return LocationScore(
+        per_label=[_label_score(label, scored["per_type"]) for label in OBJECT_LABELS],
+        precision=scored["metrics"]["precision"],
+        recall=scored["metrics"]["recall"],
+        f1=scored["metrics"]["f1"],
+    )
 
 
 class LeaderboardMetric(str, Enum):

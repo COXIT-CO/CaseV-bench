@@ -414,6 +414,26 @@ files = [
 colors = ["colorama"]
 
 [[package]]
+name = "location-scorer"
+version = "0.1.0"
+description = "Pure, dependency-free scoring of localization predictions against ground truth."
+optional = false
+python-versions = ">=3.11"
+groups = ["main"]
+files = []
+develop = false
+
+[package.extras]
+dev = ["black (>=26.5.1,<27.0.0)", "isort (>=8.0.1,<9.0.0)", "pytest (>=9.1.1,<10.0.0)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/COXIT-CO/CaseV-bench.git"
+reference = "location-scorer-v0.1.0"
+resolved_reference = "6b2a610e79e11a214b0e79d0b1f63e04962bd075"
+subdirectory = "src/packages/location-scorer"
+
+[[package]]
 name = "mypy-extensions"
 version = "1.1.0"
 description = "Type system extensions for programs checked with the mypy type checker."
@@ -1480,4 +1500,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11"
-content-hash = "8b6302246cc6c80e363a37badbba934d762604885a3f637e8ba23b01711a5312"
+content-hash = "18e4a887d93afe98f4cce7d5563774fe2a31e391f4f6ae1b60936c4b598771aa"

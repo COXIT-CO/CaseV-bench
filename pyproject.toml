@@ -17,7 +17,12 @@ dependencies = [
     "uvicorn[standard] (>=0.51.0,<0.52.0)",
     "sqlmodel (>=0.0.39,<0.0.40)",
     "python-multipart (>=0.0.20,<0.0.21)",
-    "pydantic-settings (>=2.0,<3.0)"
+    "pydantic-settings (>=2.0,<3.0)",
+    # Location scoring, consumed as a pinned release tag exactly like any external team
+    # would (ADR-0028) — not the sibling path under src/packages, which would make this
+    # app the one place a scorer change could silently move published numbers. Bumping is
+    # a deliberate edit here plus a lockfile change, visible in the diff.
+    "location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=src/packages/location-scorer",
 ]
 
 

@@ -44,6 +44,15 @@ poetry install --with dev --no-root
 `--no-root` because the project ships as a `pythonpath` source tree (`pyproject` sets
 `pythonpath = ["src"]`), not an installed package.
 
+This step fetches `location-scorer` from a pinned git tag
+([ADR-0028](docs/adr/0028-extract-location-scorer-library.md)), so it needs network access to
+GitHub. If Poetry's bundled git client fails the TLS handshake (`CERTIFICATE_VERIFY_FAILED`
+behind a proxy or on a Python without a system trust store), rerun it through your own `git`:
+
+```bash
+POETRY_SYSTEM_GIT_CLIENT=true poetry install --with dev --no-root
+```
+
 **Frontend**:
 
 ```bash
