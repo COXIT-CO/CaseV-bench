@@ -1,5 +1,6 @@
-"""Downloadable standalone HTML run report — endpoint contract, self-contained output, and
-layout invariants (ADR 0026, spec-run-report, ticket 02).
+"""Downloadable standalone HTML run report — endpoint contract, self-contained output, layout
+invariants, and the Operating-point stamp its frozen metrics are read against (ADR 0026,
+spec-run-report; spec-scorer-library-implementation, "Stating the operating point").
 
 ``GET /api/runs/{id}/report`` assembles one location Run's per-model Results into a single
 self-contained HTML file streamed as a download. Results/Predictions are seeded directly so the
@@ -8,6 +9,7 @@ report can base64-inline them.
 """
 
 import re
+from importlib.metadata import version
 
 from PIL import Image
 from sqlmodel import Session
@@ -17,6 +19,8 @@ from core.models.location_ground_truth import LocationGroundTruth
 from core.models.prompt import Prompt, Task
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
+from core.models.score import Score
+from core.services.scoring import LOCATION_IOU_THRESHOLD, score_location
 
 GOOD = "anthropic/claude-sonnet-4.5"
 SALVAGED = "openai/gpt-5-mini"
@@ -335,6 +339,110 @@ def test_report_without_ground_truth_is_visual_only(client, engine, tmp_path):
     # Every model still appears as a column.
     for model in (GOOD, SALVAGED, FAILED):
         assert model in html
+
+
+# --- operating-point stamp (scorer-library adoption, ticket 03) ----------------------
+
+
+def test_report_stamps_iou_threshold_and_scorer_version_by_the_verdict(
+    client, engine, tmp_path
+):
+    """A downloaded report outlives the code that made it, so it states the Operating point its
+    metrics were computed under — the IoU threshold and the scorer version — where a reader
+    meets the headline metric, not in a footer."""
+    run_id = _seed_report_run(engine, tmp_path)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    assert f"IoU ≥ {LOCATION_IOU_THRESHOLD:.2f}" in html
+    assert f"location-scorer v{version('location-scorer')}" in html
+
+    # Near the headline verdict: after it, and well before the first page section.
+    assert html.index("Best model:") < html.index("IoU ≥") < html.index("Page 1")
+
+
+def test_report_scorer_version_is_read_from_installed_package_metadata(
+    client, engine, tmp_path, monkeypatch
+):
+    """The version is whatever the installed distribution reports, not a literal in the
+    renderer — a hardcoded string would keep printing the old version after a bump."""
+    monkeypatch.setattr(
+        "core.services.report.scorer_version", lambda: "9.9.9-from-metadata"
+    )
+    run_id = _seed_report_run(engine, tmp_path)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    assert "location-scorer v9.9.9-from-metadata" in html
+
+
+def test_report_stamp_is_in_the_downloaded_bytes(client, engine, tmp_path):
+    """The stamp is markup in the attachment itself, so it survives on a file:// copy that has
+    no access to the running application (self-containment at large: test_report_is_self_
+    contained)."""
+    run_id = _seed_report_run(engine, tmp_path)
+    resp = client.get(f"/api/runs/{run_id}/report")
+
+    assert "attachment" in resp.headers["content-disposition"]
+    body = resp.content.decode("utf-8")
+    assert "IoU ≥" in body and "location-scorer v" in body
+
+
+def test_report_stamps_the_threshold_the_scorer_echoed_back(
+    client, engine, tmp_path, monkeypatch
+):
+    """The stamped threshold is the one the library echoed back with the rates it produced, not
+    a constant re-read at render time: score the same Run at a different operating point and the
+    stamp moves with it. A stamp read from a constant would keep printing 0.50 here."""
+
+    def scored_at_0_75(predicted, gt, iou_threshold=0.75):
+        return score_location(predicted, gt, iou_threshold)
+
+    monkeypatch.setattr("core.services.report.score_location", scored_at_0_75)
+    run_id = _seed_report_run(engine, tmp_path)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    assert "IoU ≥ 0.75" in html
+    assert f"IoU ≥ {LOCATION_IOU_THRESHOLD:.2f}" not in html
+
+
+def test_report_without_ground_truth_has_no_operating_point(client, engine, tmp_path):
+    """Nothing scored means no Operating point exists to state, and no metrics for it to
+    qualify — the line is omitted rather than invented."""
+    run_id = _seed_report_run(engine, tmp_path, with_gt=False)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    assert "IoU ≥" not in html
+    assert "location-scorer v" not in html
+
+
+def test_report_drops_the_version_clause_when_metadata_is_absent(
+    client, engine, tmp_path, monkeypatch
+):
+    """A path/PYTHONPATH install has no distribution metadata. The report then says nothing
+    about the version rather than inventing one — and still states the threshold, and still
+    downloads."""
+    monkeypatch.setattr("core.services.report.scorer_version", lambda: None)
+    run_id = _seed_report_run(engine, tmp_path)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    assert f"IoU ≥ {LOCATION_IOU_THRESHOLD:.2f}" in html
+    assert "location-scorer" not in html
+
+
+def test_score_table_gains_no_threshold_column():
+    """Live Scores recompute on read, so they are current-code by construction; provenance
+    belongs only on the frozen artifact. Asserted as the exact column set rather than a
+    "threshold" substring scan, so any provenance column — whatever it gets called — fails
+    here."""
+    assert set(Score.model_fields) == {
+        "id",
+        "result_id",
+        "total_absolute_error",
+        "exact_match_count",
+        "precision",
+        "recall",
+        "f1",
+        "per_label_json",
+    }
 
 
 def _seed_single_model_run(engine, tmp_path, *, parsed_json, status) -> int:

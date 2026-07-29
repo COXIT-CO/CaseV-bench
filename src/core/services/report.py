@@ -16,6 +16,11 @@ then a column per model), and a per-label breakdown table.
 Per-page and aggregate F1 are recomputed at generation time from the **salvage-inclusive**
 seam ``ScoringService.predicted_boxes_by_page`` (ADR 0027) and the pure ``score_location``
 matcher, so the report's numbers match the Leaderboard.
+
+Because the file is frozen while live Scores recompute on read, the summary also stamps the
+Operating point those numbers were computed under — the IoU threshold the scorer echoed back
+and the installed ``location-scorer`` version (spec-scorer-library-implementation, "Stating
+the operating point").
 """
 
 import base64
@@ -34,7 +39,13 @@ from core.models.prompt import Prompt
 from core.models.results import OBJECT_LABELS
 from core.models.run import Prediction, PredictionStatus, Result, Run
 from core.services.location_ground_truth import LocationGroundTruthService
-from core.services.scoring import LocationBox, ScoringService, score_location
+from core.services.scoring import (
+    SCORER_DISTRIBUTION,
+    LocationBox,
+    ScoringService,
+    score_location,
+    scorer_version,
+)
 from core.utils import LABEL_COLORS, color_for_label, ground_truth_overlay_png
 
 
@@ -61,8 +72,9 @@ class _Cell:
 @dataclass
 class _ModelReport:
     """One model column across the whole Run: its aggregate rates (``None`` when the Drawing
-    has no GT at all), its per-label F1, its per-page cells, whether any page salvaged, and
-    whether it produced no detections at all (a failed/empty model, ranked last)."""
+    has no GT at all), the IoU threshold those rates came back from, its per-label F1, its
+    per-page cells, whether any page salvaged, and whether it produced no detections at all
+    (a failed/empty model, ranked last)."""
 
     model: str
     result_id: int
@@ -70,6 +82,7 @@ class _ModelReport:
     f1: float | None
     precision: float | None
     recall: float | None
+    iou_threshold: float | None
     per_label_f1: dict[str, float]
     cells_by_page: dict[int, _Cell]
     salvaged: bool
@@ -198,6 +211,7 @@ class ReportService:
                     f1=aggregate.f1 if aggregate else None,
                     precision=aggregate.precision if aggregate else None,
                     recall=aggregate.recall if aggregate else None,
+                    iou_threshold=aggregate.iou_threshold if aggregate else None,
                     per_label_f1=per_label_f1,
                     cells_by_page=cells,
                     salvaged=any_salvaged,
@@ -300,6 +314,7 @@ class ReportService:
                 "No ground truth for this drawing — visual comparison only, no scores"
             )
         coverage = f"Scored on {n} of {m} page(s)"
+        operating_point = _render_operating_point(models)
 
         rows = []
         for i, model in enumerate(models):
@@ -330,6 +345,7 @@ class ReportService:
             '<section class="summary">'
             f'<p class="verdict">{verdict}</p>'
             f'<p class="coverage">{_esc(coverage)}</p>'
+            f"{operating_point}"
             '<table class="ranking"><thead><tr>'
             "<th>#</th><th>Model</th><th>F1</th><th>Precision</th><th>Recall</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
@@ -410,6 +426,34 @@ class ReportService:
         )
 
 
+def _render_operating_point(models: list[_ModelReport]) -> str:
+    """The Operating point line, stamped beside the metrics it qualifies.
+
+    The report file outlives the code that made it, so "F1 0.73" needs the threshold that
+    decided what counted as a match and the scorer version that decided how. Live Scores
+    recompute on read, so two reports exported either side of a threshold change would
+    otherwise disagree about the same Run with nothing on either page saying why.
+
+    The threshold is the one every scored model's ``LocationScore`` came back carrying, not a
+    constant re-read here, so the stamp cannot drift from the numbers above it. Nothing scored
+    (no Ground Truth) means no operating point exists to state — and no metrics for it to
+    qualify — so the line is omitted rather than invented. The version clause drops out on its
+    own when the installed distribution reports no version.
+    """
+    thresholds = {m.iou_threshold for m in models if m.iou_threshold is not None}
+    if not thresholds:
+        return ""
+    # One Run scores every model through the same call, so this set is a singleton; min() just
+    # refuses to guess if that ever stops being true.
+    threshold = min(thresholds)
+    version = scorer_version()
+    scorer = f" · scored by {SCORER_DISTRIBUTION} v{_esc(version)}" if version else ""
+    return (
+        f'<p class="operating-point">Matches counted at '
+        f"IoU ≥ {threshold:.2f}{scorer}</p>"
+    )
+
+
 def _render_legend() -> str:
     items = "".join(
         f'<li><span class="swatch" style="background:{color}"></span>{_esc(label)}</li>'
@@ -478,7 +522,9 @@ section { margin-bottom: 8px; }
 .summary { background: #fff; border: 1px solid #e3e3e6; border-radius: 8px;
   padding: 16px; }
 .verdict { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
-.coverage { color: #555; font-size: 13px; margin: 0 0 12px; }
+.coverage { color: #555; font-size: 13px; margin: 0; }
+.operating-point { color: #6b6b70; font-size: 12px; margin: 4px 0 0; }
+.summary .ranking { margin-top: 12px; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #ececef; }
 th { color: #555; font-weight: 600; }

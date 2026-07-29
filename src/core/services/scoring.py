@@ -16,12 +16,18 @@ Location scoring lives in the shared ``location-scorer`` library (ADR 0028), con
 here as a pinned release tag; ``score_location`` keeps its signature and is now the
 adapter around it. Counting scoring stays local — absolute error and an exact-match flag
 leave no semantic room for two teams to disagree.
+
+Two smaller seams serve the Operating point a downloaded Report has to stamp:
+``LOCATION_IOU_THRESHOLD`` (the single threshold every Location score is computed at, and
+``score_location``'s default) and ``scorer_version`` (the installed library version, read
+from distribution metadata).
 """
 
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from importlib.metadata import PackageNotFoundError, version
 
 from location_scorer import score as score_boxes
 from sqlmodel import Session, select
@@ -160,12 +166,20 @@ class LocationScore:
     library now owns every rate and the app keeps no second implementation to re-derive it
     with (ADR 0028). Both come out of one ``score()`` call over one set of items, so they
     describe the same tallies — see ``_scorer_items`` for the one boundary that keeps that
-    true."""
+    true.
+
+    ``iou_threshold`` is the library's **echo** of the operating point these rates were
+    computed at, carried back rather than re-read from a constant: ADR 0030 makes
+    ``(scorer version, iou_threshold)`` the reproducibility anchor and has ``score()`` echo
+    it "for exactly this reason". A Report stamps this value, so anything that stamped a
+    constant instead would keep printing 0.50 beside numbers scored at something else.
+    """
 
     per_label: list[LabelLocationScore]
     precision: float
     recall: float
     f1: float
+    iou_threshold: float
 
     def to_json(self) -> str:
         return json.dumps(
@@ -206,10 +220,35 @@ def _label_score(label: str, per_type: Mapping[str, dict]) -> LabelLocationScore
     )
 
 
+# CaseV's single Location Operating point (ADR 0004, parity on adoption — ADR 0030). Named
+# rather than inlined so the one place it is chosen is also the one place it is defaulted;
+# what gets *displayed* is never this constant but the threshold the library echoed back
+# (``LocationScore.iou_threshold``), so a stamp can never disagree with its own numbers.
+LOCATION_IOU_THRESHOLD = 0.5
+
+SCORER_DISTRIBUTION = "location-scorer"
+
+
+def scorer_version() -> str | None:
+    """The installed ``location-scorer`` version, read from distribution metadata so it cannot
+    drift from the code that actually scored — a literal here would keep printing the old
+    version after a dependency bump.
+
+    ``None`` when the library is importable but has no distribution metadata (a
+    path/PYTHONPATH install). Scoring is unaffected by that, so a Report drops the version
+    clause and keeps the rest rather than failing the download — and it says nothing rather
+    than inventing a version it cannot vouch for.
+    """
+    try:
+        return version(SCORER_DISTRIBUTION)
+    except PackageNotFoundError:
+        return None
+
+
 def score_location(
     predicted_by_page: Mapping[int, Sequence[LocationBox]],
     gt_by_page: Mapping[int, Sequence[LocationBox]],
-    iou_threshold: float = 0.5,
+    iou_threshold: float = LOCATION_IOU_THRESHOLD,
 ) -> LocationScore | None:
     """Score predicted boxes against location GT, both keyed by page (ADR 0004).
 
@@ -227,11 +266,11 @@ def score_location(
     Score). A page with predictions but no GT contributes pure false positives, and
     vice-versa.
 
-    ``iou_threshold`` keeps its 0.5 default even though the library deliberately has none
-    ("the choice belongs in every call site and every diff"). CaseV has exactly one
-    operating point, fixed by ADR 0004 and printed in the Report, so a per-call choice here
-    would be a second place for it to drift from the one the Leaderboard was built on.
-    Re-anchoring it is a dated decision of its own (ADR 0030), never a caller's.
+    ``iou_threshold`` keeps its ``LOCATION_IOU_THRESHOLD`` default even though the library
+    deliberately has none ("the choice belongs in every call site and every diff"). CaseV has
+    exactly one operating point, fixed by ADR 0004 and stamped on the Report, so a per-call
+    choice here would be a second place for it to drift from the one the Leaderboard was built
+    on. Re-anchoring it is a dated decision of its own (ADR 0030), never a caller's.
 
     A degenerate GT box (zero-area or inverted) raises ``ValueError`` from the library —
     nothing can ever match it, so it would otherwise cap recall below 1.0 with nothing in
@@ -255,6 +294,9 @@ def score_location(
         precision=scored["metrics"]["precision"],
         recall=scored["metrics"]["recall"],
         f1=scored["metrics"]["f1"],
+        # The library's echo, not the argument above — so the operating point travels with
+        # the rates it produced and a Report can stamp it (ADR 0030).
+        iou_threshold=scored["iou_threshold"],
     )
 
 
