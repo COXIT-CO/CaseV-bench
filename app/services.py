@@ -19,6 +19,7 @@ from app.crop_prompts import CABINET_COUNTERTOP_SYSTEM_PROMPT, CABINET_COUNTERTO
 from app.crop_utils import crop_image_to_box, remap_crop_box_to_full
 from app.extensions import db
 from app.models import Prompt, PromptRun, PromptStatus
+from app.location_scoring import is_bbox_ground_truth, score_location
 from app.pdf_procesing import extract_images_from_folder
 from app.result_parser import (
     CANONICAL_LABELS,
@@ -505,6 +506,33 @@ def process_prompt_run(run_id: int) -> None:
 
         expected = normalize_expected(json.loads(run.prompt.expected_json)) if run.prompt.expected_json else None
         comparison = build_comparison(total_counts, expected)
+
+        location_score = None
+        if run.workflow in ('locate', 'locate_2pass') and run.prompt.expected_json:
+            raw_expected = json.loads(run.prompt.expected_json)
+            if is_bbox_ground_truth(raw_expected):
+                try:
+                    location_score = score_location(
+                        merged_objects, raw_expected,
+                        iou_threshold=current_app.config['SCORING_IOU_THRESHOLD'],
+                    )
+                except ValueError as exc:
+                    # malformed ground-truth box — surface it, don't crash the whole run
+                    errors.append(f"Ground truth scoring failed: {exc}")
+                else:
+                    if location_score['counts']['tp'] == 0 and merged_objects and raw_expected:
+                        # Zero true positives despite non-empty predictions and ground truth
+                        # almost always means the two sides aren't aligned, not that the model
+                        # found nothing: either the "page" numbers in expected_json don't match
+                        # image_index (0-based), or the bbox coordinates aren't in the same
+                        # 0..1000 scale as the app's own detections.
+                        errors.append(
+                            "Location score shows zero true positives despite non-empty "
+                            "predictions and ground truth — check that 'page' numbers in "
+                            "expected_json match image_index (0-based) exactly, and that bbox "
+                            "coordinates are normalized 0..1000 (not 0..1)."
+                        )
+
         result = {
             "run_id": run.id,
             "created_at": datetime.now(UTC).isoformat(),
@@ -519,6 +547,7 @@ def process_prompt_run(run_id: int) -> None:
             "objects": merged_objects if run.workflow in ('locate', 'locate_2pass') else [],
             "expected_summary": expected,
             "comparison": comparison,
+            "location_score": location_score,
             "errors": errors,
         }
         result_path = os.path.join(root, 'result.json')

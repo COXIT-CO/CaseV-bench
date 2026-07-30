@@ -20,6 +20,11 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 
 LLM_MODELS = getenv('MODELS', '')
 
+# Operating point for location_scorer (IoU match threshold for locate/locate_2pass runs).
+# The score is only comparable across runs at the same threshold — see location-scorer's
+# README ("the reproducibility anchor is the version *and* the IoU threshold together").
+SCORING_IOU_THRESHOLD = 0.2
+
 SECRET_KEY = secrets.token_hex(32)
 PERMANENT_SESSION_LIFETIME = timedelta(hours=1)
 
