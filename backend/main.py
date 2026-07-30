@@ -86,6 +86,134 @@ def model_reasoning_kind(model_name: str) -> str:
 
 
 # ===========================================================================
+# Two-stage detection (elevation-first, then crop-and-detail)
+# ===========================================================================
+# A separate, single-model workflow: (1) detect "elevation" frames AND
+# "elevation_callout" symbols on the full page, (2) a human reviews/approves
+# the elevations in the UI (callouts need no review — nothing gets cropped
+# from them), then (3) each APPROVED elevation is cropped out of the
+# original full-res page and sent as its own request asking only for
+# cabinet/countertop within that crop. Coordinates coming back from a crop
+# are relative to the crop, so they're transformed back into the full
+# page's own 0-1000 space before being merged with the elevation boxes and
+# the untouched callouts into one final result, in the exact same
+# {"summary":..., "objects":[...]} shape /api/generate uses.
+
+def normalize_box(box, width, height):
+    """Same pixel-vs-normalized safety net used in /api/generate's run_batch
+    (see the comment there) — pulled out standalone here since the two-stage
+    endpoints call it from more than one place (full page + every crop)."""
+    if max(box) <= 1000:
+        return [max(0, min(1000, v)) for v in box]
+    if not width or not height:
+        return [max(0, min(1000, v)) for v in box]
+    x0, y0, x1, y1 = box
+    return [
+        max(0, min(1000, round((x0 / width) * 1000))),
+        max(0, min(1000, round((y0 / height) * 1000))),
+        max(0, min(1000, round((x1 / width) * 1000))),
+        max(0, min(1000, round((y1 / height) * 1000))),
+    ]
+
+
+def render_pdf_page(pdf_bytes: bytes, page_num: int, dpi: int):
+    """Renders exactly one 1-indexed page of a PDF at the given DPI —
+    used instead of convert_from_bytes-for-every-page since the two-stage
+    flow only ever needs one specific page at a time."""
+    images = convert_from_bytes(pdf_bytes, dpi=dpi, first_page=page_num, last_page=page_num, fmt="png")
+    if not images:
+        raise HTTPException(status_code=400, detail=f"Page {page_num} not found in this PDF")
+    return images[0]
+
+
+def image_to_b64(img) -> str:
+    buffered = BytesIO()
+    img.save(buffered, format="PNG", optimize=True)
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
+async def call_model_for_objects(model_name: str, system_prompt: str, user_prompt: str,
+                                  image_b64: str, width: int, height: int,
+                                  allowed_labels: set, override_note: str) -> list:
+    """Sends ONE image to a model with a given system+user prompt, parses the
+    {"objects":[...]} response, keeps only entries whose label is in
+    allowed_labels, and normalizes every box to 0-1000 relative to
+    (width, height). Shared by both stages of the two-stage flow — same
+    parsing/repair/normalization discipline as the main /api/generate path,
+    just scoped to a single image and a restricted label set per call."""
+    final_system_instruction = system_prompt + f"""
+
+    [SYSTEM OVERRIDE - CRITICAL]
+    You have been provided with EXACTLY 1 image. image_index is always 0.
+    {override_note}
+    """
+
+    reasoning_kind = model_reasoning_kind(model_name)
+    extra_body = {}
+    if reasoning_kind == "mandatory":
+        extra_body["reasoning"] = {"effort": "low"}
+    elif reasoning_kind == "optional":
+        extra_body["reasoning"] = {"enabled": False}
+    max_response_tokens = 16000 if reasoning_kind == "mandatory" else 10000
+
+    messages = [
+        {"role": "system", "content": final_system_instruction},
+        {"role": "user", "content": [
+            {"type": "text", "text": user_prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+        ]}
+    ]
+
+    response = await client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        temperature=0,
+        top_p=0.1,
+        max_tokens=max_response_tokens,
+        extra_body=extra_body,
+    )
+
+    if not response.choices:
+        raise Exception("Model returned no choices")
+    message = response.choices[0].message
+    if message is None:
+        raise Exception("Model returned empty message")
+    response_text = message.content
+    print(response_text)
+    if not response_text:
+        raise Exception(f"Model returned empty content. Finish reason: {response.choices[0].finish_reason}")
+
+    response_text = response_text.replace("```json", "").replace("```", "").strip()
+    try:
+        parsed_json = json.loads(response_text)
+    except json.JSONDecodeError:
+        parsed_json = json.loads(repair_json(response_text))
+
+    if isinstance(parsed_json, list):
+        parsed_json = {"objects": parsed_json}
+    elif not isinstance(parsed_json, dict):
+        raise Exception(f"Unexpected top-level JSON type from model: {type(parsed_json).__name__}")
+
+    raw_objects = parsed_json.get("objects", [])
+    if not isinstance(raw_objects, list):
+        raw_objects = []
+
+    valid_objects = []
+    for obj in raw_objects:
+        if not isinstance(obj, dict):
+            continue
+        label = obj.get("label")
+        if label not in allowed_labels:
+            continue
+        box = obj.get("box")
+        if not (isinstance(box, list) and len(box) == 4 and all(isinstance(v, (int, float)) for v in box)):
+            continue
+        valid_objects.append({"label": label, "box": normalize_box(box, width, height)})
+
+    return valid_objects
+
+
+# ===========================================================================
 # Execution model
 # ===========================================================================
 # The old version always packed EVERY page of EVERY file into a single user
@@ -665,9 +793,13 @@ async def get_history_image(run_id: str, filename: str, size: str = "display"):
 
 
 @app.get("/api/history")
-async def list_history():
+async def list_history(run_type: Optional[str] = None):
     """Lightweight list for the history browser — omits full page lists and
-    full raw responses to keep this fast even with many past runs."""
+    full raw responses to keep this fast even with many past runs.
+
+    run_type filters to "single" (regular benchmark runs) or "two_stage"
+    (elevation-first runs) — the Benchmark and Two-Stage tabs each only
+    ever ask for their own kind, so their history lists never mix."""
     if not os.path.isdir(HISTORY_DIR):
         return {"runs": []}
 
@@ -687,6 +819,10 @@ async def list_history():
         except (json.JSONDecodeError, OSError):
             continue
 
+        meta_run_type = meta.get("run_type", "single")
+        if run_type and meta_run_type != run_type:
+            continue
+
         first_page = (meta.get("pages") or [{}])[0]
         first_image_url = first_page.get("image_url")
         thumbnail_url = None
@@ -697,7 +833,10 @@ async def list_history():
         runs.append({
             "run_id": meta.get("run_id", run_id),
             "created_at": meta.get("created_at"),
+            "run_type": meta_run_type,
             "dpi": meta.get("dpi"),
+            "stage1_dpi": meta.get("stage1_dpi"),
+            "stage2_dpi": meta.get("stage2_dpi"),
             "execution_settings": meta.get("execution_settings"),
             "files": meta.get("files", []),
             "page_count": len(meta.get("pages", [])),
@@ -783,3 +922,380 @@ async def delete_history_run(run_id: str):
 
     shutil.rmtree(run_dir, ignore_errors=True)
     return {"deleted": run_id}
+
+
+# ===============================
+# Two-stage detection API
+# ===============================
+# Mirrors the file/page execution controls from /api/generate (see the
+# "Execution model" note above run_batches_in_group): every uploaded file's
+# pages are still sent one image per request (stage 1 needs one full-page
+# image, stage 2 needs one crop per approved elevation) - there is no
+# "grouping" axis here, only ordering/concurrency of those independent
+# per-page requests, controlled by file_execution_mode / page_execution_mode
+# ("sequential" | "parallel").
+#
+# "elevation_callout" is detected in STAGE 1, not stage 2: callouts live on
+# floor plans/RCPs (never inside an elevation), so the same full-page image
+# stage 1 already renders to find "elevation" frames is exactly what's
+# needed to find them too - asking for both labels in that one request
+# avoids a second full-page model call per page purely for callouts. They
+# don't need human review the way elevations do (nothing gets cropped from
+# them), so they're carried straight through stage 2 into the final result.
+
+def normalize_exec_mode(value, default="sequential"):
+    value = (value or default).strip().lower()
+    return value if value in ("sequential", "parallel") else default
+
+
+@app.post("/api/two-stage/elevations")
+async def two_stage_detect_elevations(
+        files: List[UploadFile] = File(...),
+        stage1_dpi: int = Form(200),
+        model: str = Form(...),
+        system_prompt_stage1: str = Form(...),
+        elevation_prompt: str = Form(...),
+        file_execution_mode: str = Form("sequential"),
+        page_execution_mode: str = Form("sequential"),
+):
+    """Stage 1: find 'elevation' frames AND 'elevation_callout' symbols, on
+    EVERY page of EVERY uploaded file, in one pass per page. Elevations come
+    back grouped by (file_index, page_num) with generated ids so the
+    frontend can let a human include/exclude each one, per page, before
+    stage 2 ever runs on that page. Callouts come back alongside them, with
+    no id/review step, since stage 2 just carries them through untouched."""
+    stage1_dpi = max(72, min(600, stage1_dpi))
+    file_execution_mode = normalize_exec_mode(file_execution_mode)
+    page_execution_mode = normalize_exec_mode(page_execution_mode)
+
+    override_note = (
+        'STAGE 1 OF 2 - ELEVATIONS AND PLAN-LEVEL CALLOUTS: for this '
+        'request, find and report objects with label "elevation" (the '
+        'full framed elevation drawings) AND label "elevation_callout" '
+        '(small reference symbols that appear on floor plans/RCPs, '
+        'pointing at an elevation - never inside an elevation drawing '
+        'itself). Do not report cabinet or countertop in this pass - '
+        'those live inside each elevation and are handled in a separate, '
+        'later request, once every elevation frame found here has been '
+        'reviewed and confirmed by a human.'
+    )
+
+    async def process_page(f_idx: int, file_name: str, page_num: int, img):
+        width, height = img.size
+        image_b64 = image_to_b64(img)
+        try:
+            objects = await call_model_for_objects(
+                model, system_prompt_stage1, elevation_prompt, image_b64, width, height,
+                allowed_labels={"elevation", "elevation_callout"}, override_note=override_note,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Model error on {file_name} page {page_num}: {e}",
+            )
+        elevations = [
+            {"id": f"f{f_idx}-p{page_num}-elev-{i}", "box": obj["box"]}
+            for i, obj in enumerate(o for o in objects if o["label"] == "elevation")
+        ]
+        callouts = [
+            {"box": obj["box"]}
+            for obj in objects if obj["label"] == "elevation_callout"
+        ]
+        return {
+            "file_index": f_idx, "file_name": file_name, "page_num": page_num,
+            "page_width": width, "page_height": height,
+            "elevations": elevations, "callouts": callouts,
+        }
+
+    async def process_file(f_idx: int, file: UploadFile):
+        pdf_bytes = await file.read()
+        images = convert_from_bytes(pdf_bytes, dpi=stage1_dpi, fmt="png")
+        pages = list(enumerate(images, start=1))
+        if page_execution_mode == "parallel":
+            return await asyncio.gather(*[
+                process_page(f_idx, file.filename, p_num, img) for p_num, img in pages
+            ])
+        results = []
+        for p_num, img in pages:
+            results.append(await process_page(f_idx, file.filename, p_num, img))
+        return results
+
+    if file_execution_mode == "parallel":
+        per_file_results = await asyncio.gather(*[
+            process_file(i, f) for i, f in enumerate(files)
+        ])
+    else:
+        per_file_results = []
+        for i, f in enumerate(files):
+            per_file_results.append(await process_file(i, f))
+
+    results = [page_result for file_results in per_file_results for page_result in file_results]
+    return {"results": results}
+
+
+@app.post("/api/two-stage/details")
+async def two_stage_detect_details(
+        files: List[UploadFile] = File(...),
+        stage1_dpi: int = Form(200),
+        stage2_dpi: int = Form(300),
+        stage2_concurrency: int = Form(3),
+        model: str = Form(...),
+        system_prompt_stage1: str = Form(""),
+        system_prompt_stage2: str = Form(...),
+        elevation_prompt: str = Form(""),
+        detail_prompt: str = Form(...),
+        # JSON-encoded list of {file_index, page_num, elevations: [{id, box}],
+        # callouts: [{box}]} — one entry per page a human reviewed in stage
+        # 1: whatever elevations it approved for that page (possibly none),
+        # plus whatever elevation_callouts stage 1 already found there
+        # (carried through untouched, no model call needed for them here).
+        targets: str = Form(...),
+        file_execution_mode: str = Form("sequential"),
+        page_execution_mode: str = Form("sequential"),
+):
+    """Stage 2: for every reviewed (file, page), crop each APPROVED
+    elevation out of that page — RE-RENDERED from the original PDF at
+    stage2_dpi, which is deliberately independent from whatever DPI stage 1
+    used, since a close-up crop benefits from more detail than scanning a
+    whole page for elevation frames needs. The 0-1000 elevation box from
+    stage 1 maps onto this new render exactly the same way regardless of
+    resolution, since it's a fraction of the page, not a pixel count. Every
+    object returned from a crop is transformed from crop-relative back to
+    full-page-relative 0-1000 coordinates before merging with the approved
+    elevation boxes into one final result — same {"summary","objects"}
+    shape as a normal /api/generate result entry, just spanning every
+    reviewed page instead of one."""
+    stage2_dpi = max(72, min(600, stage2_dpi))
+    stage1_dpi = max(72, min(600, stage1_dpi))
+    stage2_concurrency = max(1, min(20, stage2_concurrency))
+    file_execution_mode = normalize_exec_mode(file_execution_mode)
+    page_execution_mode = normalize_exec_mode(page_execution_mode)
+
+    try:
+        target_list = json.loads(targets)
+        if not isinstance(target_list, list):
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid targets payload")
+
+    targets_by_file: dict = {}
+    for t in target_list:
+        if not isinstance(t, dict):
+            continue
+        f_idx = t.get("file_index")
+        page_num = t.get("page_num")
+        if not isinstance(f_idx, int) or not isinstance(page_num, int):
+            continue
+        elevations = t.get("elevations")
+        callouts = t.get("callouts")
+        targets_by_file.setdefault(f_idx, []).append({
+            "page_num": page_num,
+            "elevations": elevations if isinstance(elevations, list) else [],
+            "callouts": callouts if isinstance(callouts, list) else [],
+        })
+
+    # Configurable concurrency: run at most stage2_concurrency crop requests
+    # (across every page and file in this request) at once, instead of
+    # either strictly one-at-a-time or fully unbounded parallel — a batch
+    # with many elevations across many pages shouldn't fire off dozens of
+    # simultaneous requests just because it can.
+    semaphore = asyncio.Semaphore(stage2_concurrency)
+
+    override_note = (
+        'STAGE 2 OF 2 - DETAILS WITHIN ONE ELEVATION: this image is a '
+        'CROPPED close-up of a single elevation drawing that a human has '
+        'already reviewed and confirmed. Find and report ONLY cabinet and '
+        'countertop objects visible within it - do not report "elevation" '
+        'or "elevation_callout", since those were already handled in a '
+        'separate, earlier pass.'
+    )
+
+    async def process_target_page(f_idx: int, file_name: str, pdf_bytes: bytes, target: dict):
+        page_num = target["page_num"]
+        approved = target["elevations"]
+        callouts = target["callouts"]
+        page_img = render_pdf_page(pdf_bytes, page_num, stage2_dpi)
+        page_w, page_h = page_img.size
+
+        async def process_one(elev):
+            box = elev.get("box")
+            if not (isinstance(box, list) and len(box) == 4
+                    and all(isinstance(v, (int, float)) for v in box)):
+                return []
+
+            ex0, ey0, ex1, ey1 = box
+            left = max(0, min(page_w - 1, round((ex0 / 1000) * page_w)))
+            top = max(0, min(page_h - 1, round((ey0 / 1000) * page_h)))
+            right = max(left + 1, min(page_w, round((ex1 / 1000) * page_w)))
+            bottom = max(top + 1, min(page_h, round((ey1 / 1000) * page_h)))
+
+            crop = page_img.crop((left, top, right, bottom))
+            crop_w, crop_h = crop.size
+            crop_b64 = image_to_b64(crop)
+
+            try:
+                async with semaphore:
+                    crop_objects = await call_model_for_objects(
+                        model, system_prompt_stage2, detail_prompt, crop_b64, crop_w, crop_h,
+                        allowed_labels={"cabinet", "countertop"},
+                        override_note=override_note,
+                    )
+            except Exception as e:
+                print(f"[two-stage] details failed for {file_name} page {page_num} "
+                      f"elevation {elev.get('id')}: {e}")
+                return []
+
+            # Map each crop-relative 0-1000 box back into the full page's own
+            # 0-1000 space, using this elevation's own box as the linear window.
+            e_width = ex1 - ex0
+            e_height = ey1 - ey0
+            transformed = []
+            for obj in crop_objects:
+                cx0, cy0, cx1, cy1 = obj["box"]
+                transformed.append({
+                    "label": obj["label"],
+                    "box": [
+                        max(0, min(1000, round(ex0 + (cx0 / 1000) * e_width))),
+                        max(0, min(1000, round(ey0 + (cy0 / 1000) * e_height))),
+                        max(0, min(1000, round(ex0 + (cx1 / 1000) * e_width))),
+                        max(0, min(1000, round(ey0 + (cy1 / 1000) * e_height))),
+                    ],
+                    "file_index": f_idx,
+                    "page_num": page_num,
+                })
+            return transformed
+
+        per_elevation_results = await asyncio.gather(*[process_one(e) for e in approved])
+
+        page_objects = [
+            {"label": "elevation", "box": e["box"], "file_index": f_idx, "page_num": page_num}
+            for e in approved
+            if isinstance(e.get("box"), list) and len(e["box"]) == 4
+        ]
+        for r in per_elevation_results:
+            page_objects.extend(r)
+        # elevation_callout was already found in Stage 1's full-page scan —
+        # carried through as-is rather than re-scanning the page here.
+        page_objects.extend([
+            {"label": "elevation_callout", "box": c["box"], "file_index": f_idx, "page_num": page_num}
+            for c in callouts
+            if isinstance(c.get("box"), list) and len(c["box"]) == 4
+        ])
+
+        return {
+            "file_index": f_idx, "file_name": file_name, "page_num": page_num,
+            "page_img": page_img, "objects": page_objects,
+        }
+
+    async def process_file(f_idx: int, file: UploadFile):
+        file_targets = targets_by_file.get(f_idx, [])
+        if not file_targets:
+            return []
+        pdf_bytes = await file.read()
+        if page_execution_mode == "parallel":
+            return await asyncio.gather(*[
+                process_target_page(f_idx, file.filename, pdf_bytes, t) for t in file_targets
+            ])
+        results = []
+        for t in file_targets:
+            results.append(await process_target_page(f_idx, file.filename, pdf_bytes, t))
+        return results
+
+    if file_execution_mode == "parallel":
+        per_file_results = await asyncio.gather(*[
+            process_file(i, f) for i, f in enumerate(files)
+        ])
+    else:
+        per_file_results = []
+        for i, f in enumerate(files):
+            per_file_results.append(await process_file(i, f))
+
+    page_records = [rec for file_results in per_file_results for rec in file_results]
+
+    final_objects = []
+    for rec in page_records:
+        final_objects.extend(rec["objects"])
+
+    summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0}
+    for obj in final_objects:
+        key = LABEL_TO_SUMMARY_KEY.get(obj.get("label"))
+        if key:
+            summary[key] += 1
+
+    response_payload = {"summary": summary, "objects": final_objects}
+    response_text = json.dumps(response_payload, ensure_ascii=False)
+
+    try:
+        save_two_stage_history(
+            page_records=page_records, file_names=[f.filename for f in files],
+            stage1_dpi=stage1_dpi, stage2_dpi=stage2_dpi, stage2_concurrency=stage2_concurrency,
+            model=model, system_prompt_stage1=system_prompt_stage1, system_prompt_stage2=system_prompt_stage2,
+            elevation_prompt=elevation_prompt, detail_prompt=detail_prompt,
+            response_text=response_text,
+        )
+        prune_history()
+    except Exception as e:
+        # History is a nice-to-have here — never let a save/prune failure
+        # take down an otherwise-successful detection result.
+        print(f"[two-stage] failed to save history: {e}")
+
+    return {"model": model, "response": response_text}
+
+
+def save_two_stage_history(page_records, file_names, stage1_dpi, stage2_dpi, stage2_concurrency,
+                            model, system_prompt_stage1, system_prompt_stage2,
+                            elevation_prompt, detail_prompt, response_text):
+    """Persists a completed two-stage run using the SAME history format and
+    storage the regular /api/generate path uses (same meta.json shape, same
+    images/ layout — including possibly-multiple pages/files), just tagged
+    with run_type="two_stage" and a single result entry — so the existing
+    History modal, list, detail view, and /api/history* endpoints all work
+    for these runs with no separate UI. The image saved per page is the
+    stage2_dpi render, since that's the one the final boxes are actually
+    being drawn against."""
+    run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    run_dir = os.path.join(HISTORY_DIR, run_id)
+    images_dir = os.path.join(run_dir, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    pages_meta = []
+    for rec in page_records:
+        image_filename = f"{rec['file_index']}_{rec['page_num']}.png"
+        rec["page_img"].save(os.path.join(images_dir, image_filename), format="PNG", optimize=True)
+        pages_meta.append({
+            "file_index": rec["file_index"],
+            "file_name": rec["file_name"],
+            "page_num": rec["page_num"],
+            "image_url": f"/history-files/{run_id}/images/{image_filename}",
+        })
+
+    combined_prompt = (
+        f"[Stage 1 — elevations]\n{elevation_prompt}\n\n"
+        f"[Stage 2 — details within each elevation]\n{detail_prompt}"
+    )
+
+    meta = {
+        "run_id": run_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "run_type": "two_stage",
+        "system_prompt": system_prompt_stage1,  # generic field, kept for any older UI path that reads it
+        "system_prompt_stage1": system_prompt_stage1,
+        "system_prompt_stage2": system_prompt_stage2,
+        "dpi": stage2_dpi,  # generic field, kept for any older UI path that reads it
+        "stage1_dpi": stage1_dpi,
+        "stage2_dpi": stage2_dpi,
+        "stage2_concurrency": stage2_concurrency,
+        "execution_settings": None,
+        "files": file_names,
+        "pages": pages_meta,
+        "results": [{
+            "model": model,
+            "prompt": combined_prompt,
+            "response": response_text,
+            "counts": compute_counts(response_text),
+            "expected_summary": None,
+        }],
+    }
+
+    with open(os.path.join(run_dir, "meta.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)

@@ -172,6 +172,10 @@ Rules:
 // runnable out of the box without requiring manual typing.
 const defaultUserPrompt = `This request contains every page from every uploaded PDF, sent together as one document set — nothing is split across separate requests. Go through the pages in order and find every cabinet, countertop, elevation drawing, and elevation callout, exactly as defined in your instructions. Before answering, double-check the image_index you assign to each object. Respond with the JSON object only — no explanation, no markdown.`;
 
+const defaultElevationPrompt = `This is one full sheet. Scan it thoroughly and find every "elevation" frame — a flat, straight-on drawing of a wall or built-in casework run, in its own rectangular frame — AND every "elevation_callout" symbol elsewhere on the page (small reference bubbles on floor plans/RCPs, never inside an elevation drawing itself), exactly as defined in your instructions. Report ONLY elevation and elevation_callout objects for this request; ignore cabinets and countertops entirely, they are handled separately afterward. Respond with the JSON object only — no explanation, no markdown.`;
+
+const defaultDetailPrompt = `This image is a cropped close-up of a single elevation drawing, already confirmed by a human reviewer. Find every cabinet and countertop visible within it, exactly as defined in your instructions. Do not report "elevation" or "elevation_callout" — those have already been handled in an earlier pass. Respond with the JSON object only — no explanation, no markdown.`;
+
 // Safe initialization: wait for the page to fully load
 document.addEventListener('DOMContentLoaded', () => {
     const systemPromptEl = document.getElementById('system-prompt');
@@ -181,6 +185,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     modelPrompts.forEach(p => { p.value = defaultUserPrompt; });
     if (globalPrompt) globalPrompt.value = defaultUserPrompt;
+
+    const tsElevationPromptEl = document.getElementById('ts-elevation-prompt');
+    if (tsElevationPromptEl) tsElevationPromptEl.value = defaultElevationPrompt;
+    const tsDetailPromptEl = document.getElementById('ts-detail-prompt');
+    if (tsDetailPromptEl) tsDetailPromptEl.value = defaultDetailPrompt;
+
+    const tsModalSharedEl = document.getElementById('ts-modal-system-prompt-shared');
+    if (tsModalSharedEl) tsModalSharedEl.value = defaultSystemPrompt;
+    const tsModalStage1El = document.getElementById('ts-modal-system-prompt-1');
+    if (tsModalStage1El) tsModalStage1El.value = defaultSystemPrompt;
+    const tsModalStage2El = document.getElementById('ts-modal-system-prompt-2');
+    if (tsModalStage2El) tsModalStage2El.value = defaultSystemPrompt;
 
     if (modelCountSelect) {
         updateActiveModels();
@@ -752,13 +768,64 @@ async function replayRun(runId) {
             if (!res.ok) throw new Error('Run not found');
             run = await res.json();
         }
-        applyRunToForm(run);
+        if (run.run_type === 'two_stage') {
+            applyTwoStageRunToForm(run);
+            tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === 'twostage'));
+            tabPanels.forEach((p) => p.classList.toggle('active', p.id === 'tab-twostage'));
+        } else {
+            applyRunToForm(run);
+            tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === 'benchmark'));
+            tabPanels.forEach((p) => p.classList.toggle('active', p.id === 'tab-benchmark'));
+        }
         closeHistoryModal();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
         console.error(e);
         alert('Failed to load this run for replay.');
     }
+}
+
+// Repopulates the Two-Stage tab's config (model, both DPIs, concurrency,
+// system prompt mode, and both stage prompts) from a saved two-stage run.
+// The source PDF is re-uploaded by the person, same as the benchmark tab.
+function applyTwoStageRunToForm(run) {
+    const r = (run.results || [])[0];
+    if (!r) return;
+
+    const modelEl = document.getElementById('ts-model-name');
+    if (modelEl) modelEl.value = r.model || '';
+
+    const dpi1El = document.getElementById('ts-dpi-stage1');
+    if (dpi1El && run.stage1_dpi) dpi1El.value = run.stage1_dpi;
+    const dpi2El = document.getElementById('ts-dpi-stage2');
+    if (dpi2El && run.stage2_dpi) dpi2El.value = run.stage2_dpi;
+    const concurrencyEl = document.getElementById('ts-stage2-concurrency');
+    if (concurrencyEl && run.stage2_concurrency) concurrencyEl.value = run.stage2_concurrency;
+
+    // Split the combined "[Stage 1 — elevations]\n...\n\n[Stage 2 — details...]\n..."
+    // prompt string back into its two parts.
+    const combined = r.prompt || '';
+    const stage1Match = combined.match(/\[Stage 1[^\]]*\]\n([\s\S]*?)\n\n\[Stage 2/);
+    const stage2Match = combined.match(/\[Stage 2[^\]]*\]\n([\s\S]*)$/);
+    const elevationPromptEl = document.getElementById('ts-elevation-prompt');
+    if (elevationPromptEl) elevationPromptEl.value = stage1Match ? stage1Match[1] : combined;
+    const detailPromptEl = document.getElementById('ts-detail-prompt');
+    if (detailPromptEl) detailPromptEl.value = stage2Match ? stage2Match[1] : '';
+
+    const sys1 = run.system_prompt_stage1 || run.system_prompt || '';
+    const sys2 = run.system_prompt_stage2 || run.system_prompt || '';
+    const sameSystemPrompt = sys1.trim() === sys2.trim();
+
+    if (tsModalUseSharedSystemPrompt) {
+        tsModalUseSharedSystemPrompt.checked = sameSystemPrompt;
+        if (tsModalSharedBlock) tsModalSharedBlock.style.display = sameSystemPrompt ? 'block' : 'none';
+        if (tsModalSeparateBlock) tsModalSeparateBlock.style.display = sameSystemPrompt ? 'none' : 'block';
+    }
+    if (tsModalSystemPromptShared) tsModalSystemPromptShared.value = sameSystemPrompt ? sys1 : (tsModalSystemPromptShared.value || defaultSystemPrompt);
+    if (tsModalSystemPrompt1) tsModalSystemPrompt1.value = sys1;
+    if (tsModalSystemPrompt2) tsModalSystemPrompt2.value = sys2;
+
+    tsResetStageUI();
 }
 
 // Repopulates the main run form (system prompt, DPI, model cards, execution
@@ -824,7 +891,7 @@ function applyRunToForm(run) {
 async function fetchHistoryList() {
     historyListEl.innerHTML = '<p class="history-empty">Loading…</p>';
     try {
-        const res = await fetch('/api/history');
+        const res = await fetch(`/api/history?run_type=${encodeURIComponent(historyFilterType)}`);
         const data = await res.json();
         historyRunsCache = data.runs || [];
         renderHistoryList();
@@ -858,7 +925,7 @@ function renderHistoryList() {
         card.innerHTML = `
             ${run.thumbnail_url ? `<img class="history-run-thumb" src="${escapeHtml(run.thumbnail_url)}" alt="" loading="lazy">` : '<div class="history-run-thumb"></div>'}
             <div class="history-run-info">
-                <div class="history-run-date">${escapeHtml(formatHistoryDate(run.created_at))}</div>
+                <div class="history-run-date">${escapeHtml(formatHistoryDate(run.created_at))}${run.run_type === 'two_stage' ? ' <span class="history-run-badge">Two-Stage</span>' : ''}</div>
                 <div class="history-run-meta" title="${escapeHtml(fileNames)}">${escapeHtml(fileNames)} · ${run.page_count} pg · ${escapeHtml(run.dpi)} DPI</div>
                 <div class="history-run-chips">${chips}</div>
             </div>
@@ -920,7 +987,16 @@ function renderHistoryDetail() {
     if (!run) return;
 
     const settings = run.execution_settings || {};
-    const settingsHtml = `
+    const settingsHtml = run.run_type === 'two_stage' ? `
+        <div class="history-settings-grid">
+            <div><b>Model:</b> ${escapeHtml((run.results || []).map(r => r.model).join(', '))}</div>
+            <div><b>Stage 1 DPI:</b> ${escapeHtml(run.stage1_dpi)}</div>
+            <div><b>Stage 2 DPI:</b> ${escapeHtml(run.stage2_dpi)}</div>
+            <div><b>Max concurrent requests:</b> ${escapeHtml(run.stage2_concurrency)}</div>
+            <div><b>System prompt:</b> ${run.system_prompt_stage1 && run.system_prompt_stage2 && run.system_prompt_stage1.trim() !== run.system_prompt_stage2.trim() ? 'separate per stage' : 'shared'}</div>
+        </div>
+        <button type="button" class="run-button history-replay-btn" id="history-detail-replay">↻ Replay this run's setup</button>
+    ` : `
         <div class="history-settings-grid">
             <div><b>DPI:</b> ${escapeHtml(run.dpi)}</div>
             <div><b>Models:</b> ${escapeHtml((run.results || []).map(r => r.model).join(', '))}</div>
@@ -1151,8 +1227,13 @@ async function drawHistoryPage() {
     }
 }
 
-function openHistoryModal() {
+let historyFilterType = 'single';
+
+function openHistoryModal(filterType) {
     if (!historyOverlay) return;
+    historyFilterType = filterType || 'single';
+    const titleEl = document.getElementById('history-modal-title');
+    if (titleEl) titleEl.textContent = historyFilterType === 'two_stage' ? 'Two-Stage Run History' : 'Run History';
     historyOverlay.classList.add('open');
     historyOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -1166,7 +1247,7 @@ function closeHistoryModal() {
     document.body.style.overflow = '';
 }
 
-if (openHistoryBtn) openHistoryBtn.addEventListener('click', openHistoryModal);
+if (openHistoryBtn) openHistoryBtn.addEventListener('click', () => openHistoryModal('single'));
 if (closeHistoryBtn) closeHistoryBtn.addEventListener('click', closeHistoryModal);
 if (historyOverlay) {
     historyOverlay.addEventListener('click', (e) => {
@@ -1217,9 +1298,59 @@ function fitFullViewToContainer() {
     applyFullViewTransform();
 }
 
+function isTwoStageTabActive() {
+    const panel = document.getElementById('tab-twostage');
+    return !!(panel && panel.classList.contains('active'));
+}
+
+// Full Page View is shared between both tabs — this is the one place that
+// decides which document/page/overlay boxes it should be looking at,
+// depending on which tab was active when it was opened.
+function getActiveViewerContext() {
+    if (isTwoStageTabActive()) {
+        return {
+            doc: tsFiles[tsFileIdx] && tsFiles[tsFileIdx].pdf,
+            page: tsPageNum,
+            hasModelSelector: false,
+            getOverlayBoxes: () => {
+                if (tsFinalObjects) {
+                    return tsFinalObjects.filter((o) => o.file_index === tsFileIdx && o.page_num === tsPageNum);
+                }
+                const entry = tsCurrentPageEntry();
+                const elevations = entry ? entry.elevations : [];
+                const callouts = entry ? (entry.callouts || []) : [];
+                return [
+                    ...elevations.filter((e) => e.included).map((e) => ({ label: 'elevation', box: e.box })),
+                    ...callouts.map((c) => ({ label: 'elevation_callout', box: c.box })),
+                ];
+            },
+        };
+    }
+    return {
+        doc: currentDoc,
+        page: pageNum,
+        hasModelSelector: true,
+        getOverlayBoxes: () => {
+            const selectedModel = fvBboxSelector ? fvBboxSelector.value : 'none';
+            if (selectedModel === 'none' || llmResultsData.length === 0) return [];
+            const resultData = llmResultsData.find((r) => r.model === selectedModel);
+            if (!resultData) return [];
+            const currentFileIndex = fileSelector ? parseInt(fileSelector.value) : 0;
+            try {
+                const data = JSON.parse(resultData.response);
+                if (!data.objects || !Array.isArray(data.objects)) return [];
+                return data.objects.filter((o) => o.file_index === currentFileIndex && o.page_num === pageNum);
+            } catch (e) {
+                return [];
+            }
+        },
+    };
+}
+
 async function renderFullView() {
-    if (!currentDoc || !fvCtx) return;
-    const page = await currentDoc.getPage(pageNum);
+    const vc = getActiveViewerContext();
+    if (!vc.doc || !fvCtx) return;
+    const page = await vc.doc.getPage(vc.page);
     const viewport = page.getViewport({ scale: FV_BASE_SCALE });
 
     fvCanvas.width = viewport.width;
@@ -1242,48 +1373,31 @@ async function renderFullView() {
 
 function drawFullViewBoundingBoxes() {
     if (!fvCtx || !fvCanvas) return;
-    const selectedModel = fvBboxSelector ? fvBboxSelector.value : 'none';
-    if (selectedModel === 'none' || llmResultsData.length === 0) return;
+    const objects = sortObjectsForDrawing(getActiveViewerContext().getOverlayBoxes());
+    objects.forEach(obj => {
+        const [xMin, yMin, xMax, yMax] = obj.box;
+        const x = (xMin / 1000) * fvCanvas.width;
+        const y = (yMin / 1000) * fvCanvas.height;
+        const w = ((xMax - xMin) / 1000) * fvCanvas.width;
+        const h = ((yMax - yMin) / 1000) * fvCanvas.height;
 
-    const resultData = llmResultsData.find(r => r.model === selectedModel);
-    if (!resultData) return;
-
-    const currentFileIndex = fileSelector ? parseInt(fileSelector.value) : 0;
-
-    try {
-        const data = JSON.parse(resultData.response);
-        if (data.objects && Array.isArray(data.objects)) {
-            const objects = sortObjectsForDrawing(data.objects);
-            objects.forEach(obj => {
-                if (obj.file_index === currentFileIndex && obj.page_num === pageNum) {
-                    const [xMin, yMin, xMax, yMax] = obj.box;
-                    const x = (xMin / 1000) * fvCanvas.width;
-                    const y = (yMin / 1000) * fvCanvas.height;
-                    const w = ((xMax - xMin) / 1000) * fvCanvas.width;
-                    const h = ((yMax - yMin) / 1000) * fvCanvas.height;
-
-                    const style = styleForLabel(obj.label);
-                    fvCtx.lineWidth = style.lineWidth * 1.5;
-                    fvCtx.strokeStyle = style.stroke;
-                    if (style.fill && !outlineOnlyMode) {
-                        fvCtx.fillStyle = style.fill;
-                        fvCtx.fillRect(x, y, w, h);
-                    }
-                    fvCtx.strokeRect(x, y, w, h);
-
-                    const textY = y > 28 ? y - 10 : y + 28;
-                    fvCtx.font = 'bold 22px Arial';
-                    fvCtx.fillStyle = '#0f111a';
-                    fvCtx.fillRect(x, textY - 20, fvCtx.measureText(obj.label).width + 16, 26);
-
-                    fvCtx.fillStyle = style.stroke;
-                    fvCtx.fillText(obj.label, x + 8, textY);
-                }
-            });
+        const style = styleForLabel(obj.label);
+        fvCtx.lineWidth = style.lineWidth * 1.5;
+        fvCtx.strokeStyle = style.stroke;
+        if (style.fill && !outlineOnlyMode) {
+            fvCtx.fillStyle = style.fill;
+            fvCtx.fillRect(x, y, w, h);
         }
-    } catch (e) {
-        // Response isn't valid JSON yet (still streaming/edited) — skip overlay silently.
-    }
+        fvCtx.strokeRect(x, y, w, h);
+
+        const textY = y > 28 ? y - 10 : y + 28;
+        fvCtx.font = 'bold 22px Arial';
+        fvCtx.fillStyle = '#0f111a';
+        fvCtx.fillRect(x, textY - 20, fvCtx.measureText(obj.label).width + 16, 26);
+
+        fvCtx.fillStyle = style.stroke;
+        fvCtx.fillText(obj.label, x + 8, textY);
+    });
 }
 
 function syncFullViewBboxOptions() {
@@ -1295,8 +1409,20 @@ function syncFullViewBboxOptions() {
 }
 
 function openFullViewModal() {
-    if (!fullviewOverlay || !currentDoc) return;
-    syncFullViewBboxOptions();
+    const vc = getActiveViewerContext();
+    if (!fullviewOverlay || !vc.doc) return;
+
+    const fvSelectorGroup = fvBboxSelector ? fvBboxSelector.closest('.control-group') : null;
+    if (vc.hasModelSelector) {
+        if (fvSelectorGroup) fvSelectorGroup.style.display = '';
+        syncFullViewBboxOptions();
+    } else {
+        // Two-stage has exactly one result state to show (whatever stage is
+        // current) — no "which model" to pick, so hide that control rather
+        // than show a selector with nothing meaningful to choose.
+        if (fvSelectorGroup) fvSelectorGroup.style.display = 'none';
+    }
+
     fullviewOverlay.classList.add('open');
     fullviewOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -1319,6 +1445,9 @@ function closeFullViewModal() {
 
 if (openFullviewBtn) openFullviewBtn.addEventListener('click', openFullViewModal);
 if (closeFullviewBtn) closeFullviewBtn.addEventListener('click', closeFullViewModal);
+
+const tsOpenFullviewBtn = document.getElementById('ts-open-fullview');
+if (tsOpenFullviewBtn) tsOpenFullviewBtn.addEventListener('click', openFullViewModal);
 
 if (fullviewOverlay) {
     fullviewOverlay.addEventListener('click', (e) => {
@@ -1522,5 +1651,580 @@ if (exportBtn) {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    });
+}
+
+// ============================================================
+// Tab switcher
+// ============================================================
+
+const tabButtons = document.querySelectorAll('.tab-btn');
+const tabPanels = document.querySelectorAll('.tab-panel');
+tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const target = btn.dataset.tab;
+        tabButtons.forEach((b) => b.classList.toggle('active', b === btn));
+        tabPanels.forEach((p) => p.classList.toggle('active', p.id === `tab-${target}`));
+        // Canvas sizing can end up wrong if a page was ever rendered while
+        // its tab was hidden (display:none) — force a re-render on switch
+        // so the preview is never stuck blank/mis-sized after a tab change.
+        if (target === 'twostage' && tsFiles[tsFileIdx]) {
+            tsRenderPage(tsPageNum);
+        } else if (target === 'benchmark' && currentDoc) {
+            renderPage(pageNum);
+        }
+    });
+});
+
+const tsOpenHistoryBtn = document.getElementById('ts-open-history');
+if (tsOpenHistoryBtn) tsOpenHistoryBtn.addEventListener('click', () => openHistoryModal('two_stage'));
+
+// (Two-Stage's "⚙ System Prompt" button opens its own dedicated modal —
+// bound further down, near tsGetSystemPrompt/tsOpenSystemPromptModal.)
+
+// ============================================================
+// Two-Stage Detection (elevation-first, human-reviewed, then details)
+// ============================================================
+// Own PDF viewer, isolated from the main benchmark tab's state entirely
+// (separate pdf.js documents, canvas, page number, etc.) so switching tabs
+// never disturbs whatever's loaded on the other one.
+//
+// Unlike the main tab, this flow never batches multiple pages into one
+// model request — Stage 1 always needs one full-page image and Stage 2
+// always needs one crop (or one full-page callout scan), so every page of
+// every uploaded file is still its own independent request. What IS
+// configurable (mirroring the main tab's Execution Settings) is only the
+// ORDER those independent requests run in: file-by-file or all files at
+// once, page-by-page or all pages of a file at once. See
+// tsExecutionSettings / the "Execution Settings" modal below.
+
+let tsFiles = [];        // [{name, pdf, rawFile}] — every uploaded PDF
+let tsFileIdx = 0;       // which file is currently shown in the viewer
+let tsPageNum = 1;       // which page of that file is currently shown
+let tsScale = 1.5;
+let tsRenderTask = null;
+
+// One entry per (file_index, page_num) that Stage 1 has run on:
+// "f:p" -> { pageWidth, pageHeight, elevations: [{id, box, included}] }
+let tsElevationsMap = new Map();
+// Flat list of every final object (label, box, file_index, page_num) across
+// every processed page, set once Stage 2 completes; null before that.
+let tsFinalObjects = null;
+
+function tsPageKey(fileIdx, pageNum) { return `${fileIdx}:${pageNum}`; }
+function tsCurrentPageEntry() { return tsElevationsMap.get(tsPageKey(tsFileIdx, tsPageNum)); }
+
+const tsDropZone = document.getElementById('ts-drop-zone');
+const tsUploadInput = document.getElementById('ts-pdf-upload');
+const tsCanvas = document.getElementById('ts-pdf-canvas');
+const tsCtx = tsCanvas ? tsCanvas.getContext('2d') : null;
+const tsPdfNav = document.getElementById('ts-pdf-nav');
+const tsFileSelector = document.getElementById('ts-file-selector');
+const tsZoomInBtn = document.getElementById('ts-zoom-in');
+const tsZoomOutBtn = document.getElementById('ts-zoom-out');
+const tsZoomLevelEl = document.getElementById('ts-zoom-level');
+const tsPrevBtn = document.getElementById('ts-prev-page');
+const tsNextBtn = document.getElementById('ts-next-page');
+const tsRunStage1Btn = document.getElementById('ts-run-stage1');
+const tsRunStage2Btn = document.getElementById('ts-run-stage2');
+const tsResetBtn = document.getElementById('ts-reset');
+const tsElevationReview = document.getElementById('ts-elevation-review');
+const tsElevationList = document.getElementById('ts-elevation-list');
+const tsElevationSummary = document.getElementById('ts-elevation-summary');
+const tsResultBlock = document.getElementById('ts-result-block');
+const tsResponseBox = document.getElementById('ts-response-box');
+
+if (tsDropZone && tsUploadInput) {
+    tsDropZone.addEventListener('click', (e) => { if (e.target !== tsUploadInput) tsUploadInput.click(); });
+    tsDropZone.addEventListener('dragover', (e) => { e.preventDefault(); tsDropZone.classList.add('dragover'); });
+    tsDropZone.addEventListener('dragleave', () => tsDropZone.classList.remove('dragover'));
+    tsDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tsDropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) tsHandleFiles(e.dataTransfer.files);
+    });
+    tsUploadInput.addEventListener('change', (e) => {
+        if (e.target.files.length) tsHandleFiles(e.target.files);
+    });
+}
+
+async function tsHandleFiles(fileList) {
+    if (!tsFileSelector) return;
+    const loaded = [];
+    for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        if (file.type !== 'application/pdf') continue;
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            loaded.push({ name: file.name, pdf, rawFile: file });
+        } catch (err) { console.error(err); }
+    }
+    if (loaded.length === 0) { alert('Please upload at least one PDF file.'); return; }
+
+    tsFiles = loaded;
+    tsFileSelector.innerHTML = '';
+    tsFiles.forEach((f, i) => {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = f.name;
+        tsFileSelector.appendChild(option);
+    });
+
+    if (tsPdfNav) tsPdfNav.style.display = 'flex';
+    tsResetStageUI();
+    await tsLoadFile(0);
+}
+
+async function tsLoadFile(idx) {
+    tsFileIdx = idx;
+    tsPageNum = 1;
+    if (tsFileSelector) tsFileSelector.value = String(idx);
+    const pageCountEl = document.getElementById('ts-page-count');
+    if (pageCountEl) pageCountEl.textContent = tsFiles[idx].pdf.numPages;
+    await tsRenderPage(tsPageNum);
+    tsRenderElevationList();
+}
+
+if (tsFileSelector) tsFileSelector.addEventListener('change', (e) => tsLoadFile(parseInt(e.target.value, 10)));
+
+async function tsRenderPage(num) {
+    const doc = tsFiles[tsFileIdx] && tsFiles[tsFileIdx].pdf;
+    if (!doc || !tsCtx) return;
+    const page = await doc.getPage(num);
+    const viewport = page.getViewport({ scale: tsScale });
+
+    tsCanvas.height = viewport.height;
+    tsCanvas.width = viewport.width;
+    tsCanvas.style.width = `${viewport.width}px`;
+    tsCanvas.style.height = `${viewport.height}px`;
+
+    if (tsRenderTask) tsRenderTask.cancel();
+
+    try {
+        tsRenderTask = page.render({ canvasContext: tsCtx, viewport });
+        await tsRenderTask.promise;
+        tsRenderTask = null;
+        const pageNumEl = document.getElementById('ts-page-num');
+        if (pageNumEl) pageNumEl.textContent = num;
+        tsDrawOverlay();
+    } catch (err) {
+        if (err.name !== 'RenderingCancelledException') console.error('ts render error:', err);
+    }
+}
+
+if (tsZoomInBtn) tsZoomInBtn.addEventListener('click', () => {
+    tsScale += 0.25;
+    if (tsZoomLevelEl) tsZoomLevelEl.textContent = `${Math.round(tsScale * 100)}%`;
+    tsRenderPage(tsPageNum);
+});
+if (tsZoomOutBtn) tsZoomOutBtn.addEventListener('click', () => {
+    if (tsScale <= 0.5) return;
+    tsScale -= 0.25;
+    if (tsZoomLevelEl) tsZoomLevelEl.textContent = `${Math.round(tsScale * 100)}%`;
+    tsRenderPage(tsPageNum);
+});
+// Navigating pages/files only changes what's SHOWN — it never clears
+// tsElevationsMap/tsFinalObjects, so review checkboxes and final results
+// already computed for other pages survive moving around while reviewing.
+if (tsPrevBtn) tsPrevBtn.addEventListener('click', () => {
+    if (tsPageNum > 1) { tsPageNum--; tsRenderPage(tsPageNum); tsRenderElevationList(); }
+});
+if (tsNextBtn) tsNextBtn.addEventListener('click', () => {
+    const doc = tsFiles[tsFileIdx] && tsFiles[tsFileIdx].pdf;
+    if (doc && tsPageNum < doc.numPages) { tsPageNum++; tsRenderPage(tsPageNum); tsRenderElevationList(); }
+});
+
+function tsDrawBox(box, labelText, style) {
+    if (!tsCtx) return;
+    const [xMin, yMin, xMax, yMax] = box;
+    const x = (xMin / 1000) * tsCanvas.width;
+    const y = (yMin / 1000) * tsCanvas.height;
+    const w = ((xMax - xMin) / 1000) * tsCanvas.width;
+    const h = ((yMax - yMin) / 1000) * tsCanvas.height;
+
+    tsCtx.lineWidth = style.lineWidth;
+    tsCtx.strokeStyle = style.stroke;
+    if (style.fill) {
+        tsCtx.fillStyle = style.fill;
+        tsCtx.fillRect(x, y, w, h);
+    }
+    tsCtx.strokeRect(x, y, w, h);
+
+    const textY = y > 20 ? y - 8 : y + 20;
+    tsCtx.font = 'bold 16px Arial';
+    tsCtx.fillStyle = '#0f111a';
+    tsCtx.fillRect(x, textY - 14, tsCtx.measureText(labelText).width + 10, 18);
+    tsCtx.fillStyle = style.stroke;
+    tsCtx.fillText(labelText, x + 5, textY);
+}
+
+// Draws whichever stage's results are current, filtered to the CURRENTLY
+// VIEWED (file, page): the final merged objects (elevation + cabinet +
+// countertop + elevation_callout) once Stage 2 has run, otherwise the
+// Stage 1 elevation boxes for this page being reviewed (dimmed if
+// unchecked), otherwise nothing.
+function tsDrawOverlay() {
+    if (!tsCtx) return;
+    if (tsFinalObjects) {
+        const pageObjects = tsFinalObjects.filter(
+            (o) => o.file_index === tsFileIdx && o.page_num === tsPageNum
+        );
+        sortObjectsForDrawing(pageObjects).forEach((obj) => {
+            tsDrawBox(obj.box, obj.label, styleForLabel(obj.label));
+        });
+        return;
+    }
+    const entry = tsCurrentPageEntry();
+    const elevations = entry ? entry.elevations : [];
+    const callouts = entry ? (entry.callouts || []) : [];
+    elevations.forEach((elev, i) => {
+        const style = elev.included
+            ? styleForLabel('elevation')
+            : { stroke: '#666a7d', fill: null, lineWidth: 2 };
+        tsDrawBox(elev.box, `${i + 1}`, style);
+    });
+    // Callouts found alongside the elevations in this same Stage 1 pass —
+    // shown for visibility only, they aren't reviewable/checkable here.
+    callouts.forEach((c) => {
+        tsDrawBox(c.box, 'elevation_callout', styleForLabel('elevation_callout'));
+    });
+}
+
+function tsResetStageUI() {
+    tsElevationsMap = new Map();
+    tsFinalObjects = null;
+    if (tsElevationReview) tsElevationReview.style.display = 'none';
+    if (tsElevationList) tsElevationList.innerHTML = '';
+    if (tsElevationSummary) tsElevationSummary.textContent = '';
+    if (tsResultBlock) tsResultBlock.style.display = 'none';
+    if (tsResponseBox) tsResponseBox.textContent = '';
+    if (tsRunStage2Btn) tsRunStage2Btn.disabled = true;
+    tsDrawOverlay();
+}
+
+if (tsResetBtn) {
+    tsResetBtn.addEventListener('click', () => { tsResetStageUI(); if (tsFiles[tsFileIdx]) tsRenderPage(tsPageNum); });
+}
+
+function tsGetSystemPrompt(stage) {
+    const useShared = document.getElementById('ts-modal-use-shared-system-prompt');
+    if (!useShared || useShared.checked) {
+        const el = document.getElementById('ts-modal-system-prompt-shared');
+        const v = el ? el.value.trim() : '';
+        return v !== '' ? v : defaultSystemPrompt;
+    }
+    const el = document.getElementById(stage === 1 ? 'ts-modal-system-prompt-1' : 'ts-modal-system-prompt-2');
+    const v = el ? el.value.trim() : '';
+    return v !== '' ? v : defaultSystemPrompt;
+}
+
+const tsSystemPromptOverlay = document.getElementById('ts-system-prompt-overlay');
+const tsOpenSystemPromptBtnRef = document.getElementById('ts-open-system-prompt');
+const tsCloseSystemPromptBtn = document.getElementById('ts-close-system-prompt');
+const tsSaveSystemPromptBtn = document.getElementById('ts-save-system-prompt');
+const tsResetSystemPromptBtn = document.getElementById('ts-reset-system-prompt');
+const tsModalUseSharedSystemPrompt = document.getElementById('ts-modal-use-shared-system-prompt');
+const tsModalSharedBlock = document.getElementById('ts-modal-shared-block');
+const tsModalSeparateBlock = document.getElementById('ts-modal-separate-block');
+const tsModalSystemPromptShared = document.getElementById('ts-modal-system-prompt-shared');
+const tsModalSystemPrompt1 = document.getElementById('ts-modal-system-prompt-1');
+const tsModalSystemPrompt2 = document.getElementById('ts-modal-system-prompt-2');
+
+function tsOpenSystemPromptModal() {
+    if (!tsSystemPromptOverlay) return;
+    tsSystemPromptOverlay.classList.add('open');
+    tsSystemPromptOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    (tsModalUseSharedSystemPrompt && tsModalUseSharedSystemPrompt.checked
+        ? tsModalSystemPromptShared : tsModalSystemPrompt1)?.focus();
+}
+
+function tsCloseSystemPromptModal() {
+    if (!tsSystemPromptOverlay) return;
+    tsSystemPromptOverlay.classList.remove('open');
+    tsSystemPromptOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+if (tsModalUseSharedSystemPrompt) {
+    tsModalUseSharedSystemPrompt.addEventListener('change', (e) => {
+        const separate = !e.target.checked;
+        if (tsModalSharedBlock) tsModalSharedBlock.style.display = separate ? 'none' : 'block';
+        if (tsModalSeparateBlock) tsModalSeparateBlock.style.display = separate ? 'block' : 'none';
+        // Prefill both stage fields with the shared value the first time,
+        // so switching to "separate" doesn't start from blank fields.
+        if (separate) {
+            const sharedValue = tsModalSystemPromptShared ? tsModalSystemPromptShared.value.trim() : '';
+            if (tsModalSystemPrompt1 && !tsModalSystemPrompt1.value.trim()) tsModalSystemPrompt1.value = sharedValue || defaultSystemPrompt;
+            if (tsModalSystemPrompt2 && !tsModalSystemPrompt2.value.trim()) tsModalSystemPrompt2.value = sharedValue || defaultSystemPrompt;
+        }
+    });
+}
+
+if (tsOpenSystemPromptBtnRef) tsOpenSystemPromptBtnRef.addEventListener('click', tsOpenSystemPromptModal);
+if (tsCloseSystemPromptBtn) tsCloseSystemPromptBtn.addEventListener('click', tsCloseSystemPromptModal);
+if (tsSaveSystemPromptBtn) tsSaveSystemPromptBtn.addEventListener('click', tsCloseSystemPromptModal);
+if (tsSystemPromptOverlay) {
+    tsSystemPromptOverlay.addEventListener('click', (e) => {
+        if (e.target === tsSystemPromptOverlay) tsCloseSystemPromptModal();
+    });
+}
+
+if (tsResetSystemPromptBtn) {
+    tsResetSystemPromptBtn.addEventListener('click', () => {
+        if (tsModalUseSharedSystemPrompt && tsModalUseSharedSystemPrompt.checked) {
+            if (tsModalSystemPromptShared) tsModalSystemPromptShared.value = defaultSystemPrompt;
+        } else {
+            if (tsModalSystemPrompt1) tsModalSystemPrompt1.value = defaultSystemPrompt;
+            if (tsModalSystemPrompt2) tsModalSystemPrompt2.value = defaultSystemPrompt;
+        }
+    });
+}
+
+// ---------------- Two-Stage execution settings modal ----------------
+// Same "sequential vs parallel" idea as the main tab's Execution Settings,
+// but only a File axis and a Page axis — there's no grouping axis here
+// since every page is always its own request (see the note above tsFiles).
+
+const tsExecutionSettingsOverlay = document.getElementById('ts-execution-settings-overlay');
+const tsOpenExecutionSettingsBtn = document.getElementById('ts-open-execution-settings');
+const tsCloseExecutionSettingsBtn = document.getElementById('ts-close-execution-settings');
+const tsSaveExecutionSettingsBtn = document.getElementById('ts-save-execution-settings');
+const tsResetExecutionSettingsBtn = document.getElementById('ts-reset-execution-settings');
+const tsFileExecutionModeSelect = document.getElementById('ts-file-execution-mode');
+const tsPageExecutionModeSelect = document.getElementById('ts-page-execution-mode');
+
+const tsDefaultExecutionSettings = { fileExecutionMode: 'sequential', pageExecutionMode: 'sequential' };
+let tsExecutionSettings = { ...tsDefaultExecutionSettings };
+
+function tsApplyExecutionSettingsToForm(settings) {
+    if (tsFileExecutionModeSelect) tsFileExecutionModeSelect.value = settings.fileExecutionMode;
+    if (tsPageExecutionModeSelect) tsPageExecutionModeSelect.value = settings.pageExecutionMode;
+}
+
+function tsOpenExecutionSettingsModal() {
+    if (!tsExecutionSettingsOverlay) return;
+    tsApplyExecutionSettingsToForm(tsExecutionSettings);
+    tsExecutionSettingsOverlay.classList.add('open');
+    tsExecutionSettingsOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function tsCloseExecutionSettingsModal() {
+    if (!tsExecutionSettingsOverlay) return;
+    tsExecutionSettingsOverlay.classList.remove('open');
+    tsExecutionSettingsOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+if (tsOpenExecutionSettingsBtn) tsOpenExecutionSettingsBtn.addEventListener('click', tsOpenExecutionSettingsModal);
+if (tsCloseExecutionSettingsBtn) tsCloseExecutionSettingsBtn.addEventListener('click', tsCloseExecutionSettingsModal);
+
+if (tsResetExecutionSettingsBtn) {
+    tsResetExecutionSettingsBtn.addEventListener('click', () => {
+        tsApplyExecutionSettingsToForm(tsDefaultExecutionSettings);
+    });
+}
+
+if (tsSaveExecutionSettingsBtn) {
+    tsSaveExecutionSettingsBtn.addEventListener('click', () => {
+        tsExecutionSettings = {
+            fileExecutionMode: tsFileExecutionModeSelect ? tsFileExecutionModeSelect.value : tsDefaultExecutionSettings.fileExecutionMode,
+            pageExecutionMode: tsPageExecutionModeSelect ? tsPageExecutionModeSelect.value : tsDefaultExecutionSettings.pageExecutionMode,
+        };
+        tsCloseExecutionSettingsModal();
+    });
+}
+
+if (tsExecutionSettingsOverlay) {
+    tsExecutionSettingsOverlay.addEventListener('click', (e) => {
+        if (e.target === tsExecutionSettingsOverlay) tsCloseExecutionSettingsModal();
+    });
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && tsExecutionSettingsOverlay && tsExecutionSettingsOverlay.classList.contains('open')) {
+        tsCloseExecutionSettingsModal();
+    }
+});
+
+// Shows the checklist for whichever (file, page) is CURRENTLY VIEWED, plus
+// a running total across every page Stage 1 has touched so far — since
+// review now spans potentially many pages/files, not just one.
+function tsRenderElevationList() {
+    if (!tsElevationList) return;
+
+    let totalFound = 0;
+    let totalApproved = 0;
+    let totalCallouts = 0;
+    tsElevationsMap.forEach((v) => {
+        totalFound += v.elevations.length;
+        totalApproved += v.elevations.filter((e) => e.included).length;
+        totalCallouts += (v.callouts || []).length;
+    });
+    if (tsElevationSummary) {
+        const currentFile = tsFiles[tsFileIdx] ? tsFiles[tsFileIdx].name : '';
+        tsElevationSummary.textContent = tsElevationsMap.size > 0
+            ? `${totalApproved} of ${totalFound} elevation(s) approved, ${totalCallouts} elevation_callout(s) found, across ${tsElevationsMap.size} page(s). Viewing: ${currentFile} — page ${tsPageNum}.`
+            : '';
+    }
+
+    const entry = tsCurrentPageEntry();
+    const elevations = entry ? entry.elevations : [];
+
+    if (elevations.length === 0) {
+        tsElevationList.innerHTML = tsElevationsMap.size > 0
+            ? '<p class="ts-hint">No elevations detected on this page. Use Prev/Next or the file selector above to review other pages.</p>'
+            : '';
+        return;
+    }
+
+    tsElevationList.innerHTML = elevations.map((elev, i) => `
+        <div class="ts-elevation-row">
+            <input type="checkbox" data-ts-elev-idx="${i}" ${elev.included ? 'checked' : ''}>
+            <span class="ts-elevation-swatch"></span>
+            <span>Elevation ${i + 1}</span>
+            <span class="ts-elevation-coords">[${elev.box.map((v) => Math.round(v)).join(', ')}]</span>
+        </div>
+    `).join('');
+    tsElevationList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.addEventListener('change', (e) => {
+            const idx = parseInt(e.target.dataset.tsElevIdx, 10);
+            elevations[idx].included = e.target.checked;
+            tsRenderElevationList();
+            tsRenderPage(tsPageNum);
+        });
+    });
+}
+
+if (tsRunStage1Btn) {
+    tsRunStage1Btn.addEventListener('click', async () => {
+        if (tsFiles.length === 0) { alert('Upload at least one PDF first.'); return; }
+        const modelName = document.getElementById('ts-model-name').value.trim();
+        const elevationPrompt = document.getElementById('ts-elevation-prompt').value.trim();
+        if (!modelName || !elevationPrompt) { alert('Fill in the model and the Stage 1 prompt.'); return; }
+
+        tsRunStage1Btn.disabled = true;
+        tsRunStage1Btn.textContent = '⏳ Detecting…';
+        tsResetStageUI();
+
+        const stage1Dpi = parseInt(document.getElementById('ts-dpi-stage1').value, 10) || 200;
+
+        try {
+            const formData = new FormData();
+            tsFiles.forEach((f) => formData.append('files', f.rawFile));
+            formData.append('stage1_dpi', stage1Dpi);
+            formData.append('model', modelName);
+            formData.append('system_prompt_stage1', tsGetSystemPrompt(1));
+            formData.append('elevation_prompt', elevationPrompt);
+            formData.append('file_execution_mode', tsExecutionSettings.fileExecutionMode);
+            formData.append('page_execution_mode', tsExecutionSettings.pageExecutionMode);
+
+            const res = await fetch('/api/two-stage/elevations', { method: 'POST', body: formData });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Request failed (${res.status})`);
+            }
+            const data = await res.json();
+
+            let totalElevations = 0;
+            let totalCallouts = 0;
+            (data.results || []).forEach((r) => {
+                const elevations = (r.elevations || []).map((e) => ({ ...e, included: true }));
+                const callouts = r.callouts || [];
+                totalElevations += elevations.length;
+                totalCallouts += callouts.length;
+                tsElevationsMap.set(tsPageKey(r.file_index, r.page_num), {
+                    pageWidth: r.page_width,
+                    pageHeight: r.page_height,
+                    elevations,
+                    callouts,
+                });
+            });
+
+            if (totalElevations === 0 && totalCallouts === 0) {
+                alert('Nothing was detected on any page.');
+            } else {
+                if (tsElevationReview) tsElevationReview.style.display = 'block';
+                if (tsRunStage2Btn) tsRunStage2Btn.disabled = false;
+            }
+            tsRenderElevationList();
+            await tsRenderPage(tsPageNum);
+        } catch (err) {
+            console.error(err);
+            alert(`Stage 1 failed: ${err.message}`);
+        } finally {
+            tsRunStage1Btn.disabled = false;
+            tsRunStage1Btn.textContent = '① Detect Elevations';
+        }
+    });
+}
+
+if (tsRunStage2Btn) {
+    tsRunStage2Btn.addEventListener('click', async () => {
+        if (tsElevationsMap.size === 0) { alert('Run Stage 1 first.'); return; }
+        const modelName = document.getElementById('ts-model-name').value.trim();
+        const detailPrompt = document.getElementById('ts-detail-prompt').value.trim();
+        if (!modelName || !detailPrompt) { alert('Fill in the model and the Stage 2 prompt.'); return; }
+
+        tsRunStage2Btn.disabled = true;
+        tsRunStage2Btn.textContent = '⏳ Detecting…';
+
+        const stage1Dpi = parseInt(document.getElementById('ts-dpi-stage1').value, 10) || 200;
+        const stage2Dpi = parseInt(document.getElementById('ts-dpi-stage2').value, 10) || 300;
+        const concurrency = parseInt(document.getElementById('ts-stage2-concurrency').value, 10) || 3;
+
+        // Every page Stage 1 touched gets its own target: whatever
+        // elevations were approved (get cropped and re-detected), plus
+        // whatever elevation_callouts Stage 1 already found there — those
+        // just get carried straight into the final result, no re-detection.
+        const targets = [];
+        tsElevationsMap.forEach((entry, key) => {
+            const [fileIdxStr, pageNumStr] = key.split(':');
+            targets.push({
+                file_index: parseInt(fileIdxStr, 10),
+                page_num: parseInt(pageNumStr, 10),
+                elevations: entry.elevations.filter((e) => e.included).map((e) => ({ id: e.id, box: e.box })),
+                callouts: entry.callouts || [],
+            });
+        });
+
+        try {
+            const formData = new FormData();
+            tsFiles.forEach((f) => formData.append('files', f.rawFile));
+            formData.append('stage1_dpi', stage1Dpi);
+            formData.append('stage2_dpi', stage2Dpi);
+            formData.append('stage2_concurrency', concurrency);
+            formData.append('model', modelName);
+            formData.append('system_prompt_stage1', tsGetSystemPrompt(1));
+            formData.append('system_prompt_stage2', tsGetSystemPrompt(2));
+            formData.append('elevation_prompt', document.getElementById('ts-elevation-prompt').value.trim());
+            formData.append('detail_prompt', detailPrompt);
+            formData.append('targets', JSON.stringify(targets));
+            formData.append('file_execution_mode', tsExecutionSettings.fileExecutionMode);
+            formData.append('page_execution_mode', tsExecutionSettings.pageExecutionMode);
+
+            const res = await fetch('/api/two-stage/details', { method: 'POST', body: formData });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Request failed (${res.status})`);
+            }
+            const data = await res.json();
+            const parsed = JSON.parse(data.response);
+            tsFinalObjects = parsed.objects || [];
+
+            if (tsResponseBox) tsResponseBox.textContent = JSON.stringify(parsed, null, 2);
+            if (tsResultBlock) tsResultBlock.style.display = 'block';
+            if (tsElevationReview) tsElevationReview.style.display = 'none';
+
+            await tsRenderPage(tsPageNum);
+        } catch (err) {
+            console.error(err);
+            alert(`Stage 2 failed: ${err.message}`);
+        } finally {
+            tsRunStage2Btn.disabled = false;
+            tsRunStage2Btn.textContent = '② Looks good — Detect Details';
+        }
     });
 }
