@@ -67,12 +67,23 @@ LABEL_TO_SUMMARY_KEY = {
     "elevation_callout": "elevation_callouts",
 }
 
-# Models whose vision head is natively trained on Google's grounding format
-# [y_min, x_min, y_max, x_max]. The prompt asks these models for their
-# native yxyx format via named fields (left/top/right/bottom), which are
-# assembled into "box" already in canonical xyxy order by the model itself
-# — so no coordinate swap is needed here. Kept only for token-budget tuning
-# (these models also carry a mandatory internal "reasoning" pass).
+# Every model has its own native box-order bias (Gemini's vision head is
+# trained on Google's grounding format [y_min, x_min, y_max, x_max]; most
+# others default to [x_min, y_min, x_max, y_max]; a few invent their own).
+# Rather than trust any one model to self-assemble "box" in the right order,
+# the prompt asks for four independently-named fields instead
+# (left/top/right/bottom, each unambiguous regardless of a model's internal
+# training convention) — see resolve_box() below, which is what actually
+# reconstructs "box" from them in code. This makes the box-order guarantee
+# hold for ANY model, not just ones that happen to assemble arrays the way
+# Gemini does.
+#
+# Kept for token-budget/reasoning tuning: "mandatory" models always run an
+# internal reasoning pass they can't turn off; "optional" models CAN reason
+# but don't by default. Both are given the same "low effort" nudge and the
+# same larger token budget below — full sheet scans (elevations especially)
+# are the kind of task that benefits from at least a little reasoning, and
+# a model that's allowed none tends to under-scan exactly those pages.
 MANDATORY_REASONING_SUBSTR = ("gemini-3", "gemini-2.5")
 OPTIONAL_REASONING_SUBSTR = ("claude-sonnet", "claude-opus", "claude-haiku", "gpt-5")
 
@@ -83,6 +94,25 @@ def model_reasoning_kind(model_name: str) -> str:
     if any(s in name for s in OPTIONAL_REASONING_SUBSTR):
         return "optional"
     return "none"
+
+
+def resolve_box(obj: dict):
+    """Returns the best available [x_min, y_min, x_max, y_max] box for a raw
+    object dict from a model response. Prefers the independently-named
+    left/top/right/bottom fields (when present and internally consistent —
+    right > left, bottom > top) over the model's own self-assembled "box"
+    array, since the whole point of asking for named fields is to not have
+    to trust that assembly step. Falls back to "box" directly for models/
+    prompts that only ever produce that field."""
+    left, top, right, bottom = (obj.get("left"), obj.get("top"), obj.get("right"), obj.get("bottom"))
+    if (all(isinstance(v, (int, float)) for v in (left, top, right, bottom))
+            and right > left and bottom > top):
+        return [left, top, right, bottom]
+
+    box = obj.get("box")
+    if isinstance(box, list) and len(box) == 4 and all(isinstance(v, (int, float)) for v in box):
+        return box
+    return None
 
 
 # ===========================================================================
@@ -150,11 +180,9 @@ async def call_model_for_objects(model_name: str, system_prompt: str, user_promp
 
     reasoning_kind = model_reasoning_kind(model_name)
     extra_body = {}
-    if reasoning_kind == "mandatory":
+    if reasoning_kind in ("mandatory", "optional"):
         extra_body["reasoning"] = {"effort": "low"}
-    elif reasoning_kind == "optional":
-        extra_body["reasoning"] = {"enabled": False}
-    max_response_tokens = 16000 if reasoning_kind == "mandatory" else 10000
+    max_response_tokens = 16000 if reasoning_kind in ("mandatory", "optional") else 10000
 
     messages = [
         {"role": "system", "content": final_system_instruction},
@@ -205,8 +233,8 @@ async def call_model_for_objects(model_name: str, system_prompt: str, user_promp
         label = obj.get("label")
         if label not in allowed_labels:
             continue
-        box = obj.get("box")
-        if not (isinstance(box, list) and len(box) == 4 and all(isinstance(v, (int, float)) for v in box)):
+        box = resolve_box(obj)
+        if box is None:
             continue
         valid_objects.append({"label": label, "box": normalize_box(box, width, height)})
 
@@ -534,24 +562,24 @@ async def generate_responses(
         # Output grows with OBJECT COUNT on the page, not page count in the
         # batch — with page_grouping_mode=split, n is almost always 1, so a
         # formula that only scales with n stays flat regardless of sheet
-        # density. The detailed left/top/right/bottom+box schema is verbose
-        # per object, so even non-reasoning models need real headroom on a
-        # dense sheet, not just the old flat ~4-5k tokens.
-        base_tokens = 12000 if reasoning_kind == "mandatory" else 8000
+        # density. The detailed left/top/right/bottom schema is verbose per
+        # object, so even non-reasoning models need real headroom on a dense
+        # sheet, not just the old flat ~4-5k tokens. "mandatory" and
+        # "optional" reasoning models get the same larger budget, since both
+        # now spend some of it on an actual low-effort reasoning pass.
+        base_tokens = 12000 if reasoning_kind in ("mandatory", "optional") else 8000
         max_response_tokens = min(32000, base_tokens + n * 2000)
 
         extra_body = {}
-        if reasoning_kind == "mandatory":
-            # Cannot fully disable thinking on these models, but "low"
-            # effort leaves much more of max_tokens for the actual JSON
-            # instead of being consumed by internal reasoning.
+        if reasoning_kind in ("mandatory", "optional"):
+            # "mandatory" models can't fully disable thinking anyway,
+            # "optional" ones (gpt-5, claude) used to have it forced off —
+            # but a full-sheet scan (finding every elevation on a dense,
+            # busy drawing) is exactly the kind of task a model does worse
+            # on with zero reasoning. "low" effort gives it a little room to
+            # actually scan systematically without the runaway/empty-content
+            # failure mode a fully default (uncapped) reasoning pass caused.
             extra_body["reasoning"] = {"effort": "low"}
-        elif reasoning_kind == "optional":
-            # Off by default, but can silently switch on and consume the
-            # ENTIRE max_tokens budget before writing any visible content
-            # — observed as finish_reason "length" with empty content.
-            # Force it off explicitly rather than relying on the default.
-            extra_body["reasoning"] = {"enabled": False}
 
         messages = [
             {"role": "system", "content": final_system_instruction},
@@ -615,9 +643,8 @@ async def generate_responses(
                 if label not in VALID_LABELS:
                     continue
 
-                box = obj.get("box")
-                if not (isinstance(box, list) and len(box) == 4
-                        and all(isinstance(v, (int, float)) for v in box)):
+                box = resolve_box(obj)
+                if box is None:
                     continue  # malformed box — skip rather than pass garbage downstream
 
                 img_idx = obj.get("image_index")

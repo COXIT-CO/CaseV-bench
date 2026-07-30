@@ -146,11 +146,16 @@ Required output:
  "objects":[
    {
     "label":"elevation",
-    "box":[x_min, y_min, x_max, y_max],
+    "left":0,
+    "top":0,
+    "right":0,
+    "bottom":0,
     "image_index":0
    }
  ]
 }
+
+For each object, report four independently-named fields for its position — "left" (smaller x), "top" (smaller y), "right" (greater than left), "bottom" (greater than top) — not a single combined array. Determine each one directly from the object's own on-screen edge; do not guess one from another.
 
 Rules:
 - Every object MUST contain image_index.
@@ -166,7 +171,7 @@ Rules:
 - "elevation_callout" = the small circular/hexagonal reference bubble on a plan or RCP drawing, never the elevation drawing it points to.
 - The "summary" counts MUST equal the number of objects with that label in "objects".
 - CRITICAL: "image_index" is a KEY, NOT a label value! Never put "image_index" inside the "label" field.
-- CRITICAL: The "box" coordinates MUST be normalized to a 0-1000 scale, where [0, 0] is the top-left and [1000, 1000] is the bottom-right. Do NOT output absolute pixels.`;
+- CRITICAL: left/top/right/bottom MUST be normalized to a 0-1000 scale, where [0, 0] is the top-left and [1000, 1000] is the bottom-right of THIS image. Do NOT output absolute pixels. A value above 1000 or below 0 is never valid — it means you reported a pixel coordinate instead of the 0-1000 fraction.`;
 
 // Default user-role prompt, pre-filled into every model card so the tool is
 // runnable out of the box without requiring manual typing.
