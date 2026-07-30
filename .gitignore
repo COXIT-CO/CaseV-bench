@@ -20,6 +20,7 @@ env/
 # accidentally gets committed later. Delete this line if that's not a risk
 # for you.
 *.pdf
+drafts/
 
 # ── OS / editor ──────────────────────────────────────────────────────────
 .DS_Store
