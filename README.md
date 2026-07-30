@@ -124,3 +124,62 @@ frontend/    Static UI (vanilla HTML/JS/CSS) — Benchmark + Two-Stage tabs
 history/     Runtime-generated: saved runs (rendered pages + metadata),
              pruned automatically once HISTORY_MAX_RUNS is exceeded
 ```
+
+## Accuracy: One-Stage vs Two-Stage
+
+A small accuracy check against 3 human-labeled architectural PDF sets
+(one `google/gemini-3.1-pro-preview` run per workflow, one-shot each — not
+a statistically rigorous benchmark, just a directional read on whether the
+Two-Stage workflow's extra review/crop step is worth its cost). Every
+predicted box is matched to the closest human-labeled box on the same page
+with the same label, greedily, by IoU (Intersection-over-Union); a match
+only counts as correct at **IoU ≥ 0.5** — the same threshold standard
+object-detection benchmarks use.
+
+**Count accuracy** — how close the raw detected count is to the
+human-labeled count, regardless of whether individual boxes line up:
+
+| Label | Expected | One-Stage detected | One-Stage count acc. | Two-Stage detected | Two-Stage count acc. |
+|---|---:|---:|---:|---:|---:|
+| elevation | 50 | 34 | 68% | 34 | 68% |
+| cabinet | 73 | 65 | 89% | 79 | 92% |
+| countertop | 17 | 10 | 59% | 14 | 82% |
+| elevation_callout | 7 | 25 | -157% | 16 | -29% |
+| **total** | **147** | **134** | **91%** | **143** | **97%** |
+
+**Localization accuracy** — precision/recall/F1 at IoU ≥ 0.5, and the mean
+IoU of every matched pair (higher = tighter box agreement with the human
+label):
+
+| Label | One-Stage P | One-Stage R | One-Stage F1 | One-Stage mean IoU | Two-Stage P | Two-Stage R | Two-Stage F1 | Two-Stage mean IoU |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| elevation | 85% | 58% | 69% | 0.90 | 100% | 68% | 81% | 0.93 |
+| cabinet | 29% | 26% | 28% | 0.70 | 75% | 81% | 78% | 0.91 |
+| countertop | 20% | 12% | 15% | 0.60 | 79% | 65% | 71% | 0.81 |
+| elevation_callout | 0% | 0% | — | — | 12% | 29% | 17% | 0.64 |
+| **overall** | **37%** | **34%** | **36%** | | **74%** | **72%** | **73%** | |
+
+Takeaways from this sample:
+
+- Two-Stage wins clearly on **cabinet** and **countertop** localization —
+  cropping each elevation before asking for details gives the model a much
+  larger, less cluttered view of each object, which shows up as both
+  higher recall and tighter boxes (higher mean IoU), not just better
+  counts.
+- `elevation_callout` is the weak point for both workflows — it's a small,
+  visually inconsistent multi-part symbol (see the recognition rules in
+  `drafts/prompts/System Stage 1`), both workflows over-detect it, and
+  IoU ≥ 0.5 is a strict bar for a symbol this size; a few pixels of
+  disagreement with the human label on where exactly the box should end is
+  enough to fail the threshold even when the model found the right symbol.
+- Both workflows predict the same *number* of elevations (34) since
+  Two-Stage's elevation boxes come from that identical Stage 1 pass — but
+  Two-Stage's are all correct (100% precision, every one matches a human
+  label) while One-Stage's 34 include 5 that don't match anything real,
+  which is exactly what the Stage 1 human review step is there to catch
+  before Stage 2 (and the final saved result) ever sees them.
+
+This isn't reproducible from a fresh clone as-is — the human-labeled
+ground truth and the raw per-run JSON it's compared against live in the
+(gitignored, local-only) `drafts/expected/` and `drafts/results/`
+directories, not in the repo.
