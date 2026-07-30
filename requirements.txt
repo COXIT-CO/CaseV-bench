@@ -16,12 +16,14 @@ isort==8.0.1
 itsdangerous==2.2.0
 Jinja2==3.1.6
 jiter==0.16.0
+location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=src/packages/location-scorer
 Mako==1.3.12
 MarkupSafe==3.0.3
 openai==2.45.0
 pydantic==2.13.4
 pydantic_core==2.46.4
 pymupdf==1.28.0
+pytest==9.1.1
 python-dotenv==1.2.2
 sniffio==1.3.1
 SQLAlchemy==2.0.51
