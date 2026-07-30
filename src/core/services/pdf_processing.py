@@ -1,3 +1,5 @@
+import os
+import threading
 from pathlib import Path
 
 import pymupdf
@@ -76,31 +78,53 @@ def render_run_page(
     (``source_path`` None) has no PDF, so ``dpi`` is ignored and it renders from its stored
     full-resolution native raster (``<drawing_dir>/page_NNNN.png``). Either way the result is
     downsampled to ``downsample_px`` (``None`` = full resolution, no downsample). The render is
-    cached keyed by the knobs so re-runs reuse it and drawing-delete cleans it up."""
+    cached keyed by the knobs so re-runs reuse it and drawing-delete cleans it up.
+
+    A Run's models fan out in parallel over one Drawing (ADR 0006), so several workers can
+    render the same page at once. The cache is therefore published **atomically**: each render
+    writes to scratch names of its own and ``os.replace``s the finished image into ``dest``,
+    because the lookup below is an ``exists()`` check and a half-written PNG satisfies it. The
+    cost of losing that race is a duplicated render; the cost of losing it the other way is a
+    worker handed a truncated file — which the location path opens back to draw its overlay
+    on, failing the whole Run."""
     cache_dir = _render_cache_dir(drawing_dir, source_path, dpi, downsample_px)
     dest = cache_dir / page_image_filename(page_number)
     if dest.exists():
         return dest
     cache_dir.mkdir(parents=True, exist_ok=True)
 
+    def scratch(prefix: str) -> Path:
+        """A working file only this render owns. Qualified by thread so two workers rendering
+        the same page never share one — otherwise each would read, overwrite, or unlink the
+        other's half-written raster."""
+        return (
+            cache_dir
+            / f"{prefix}_{os.getpid()}_{threading.get_ident()}_{page_image_filename(page_number)}"
+        )
+
     # The full-resolution raster for this page, per source type: a PDF is re-rasterized at the
     # chosen dpi; an image drawing reuses its stored native raster (dpi ignored — no PDF).
     if source_path is not None:
-        raw = cache_dir / f"raw_{page_image_filename(page_number)}"
+        raw = pdf_scratch = scratch("raw")
         with pymupdf.open(source_path) as doc:
             doc[page_number - 1].get_pixmap(dpi=dpi).save(raw)
-        pdf_scratch = raw
     else:
         raw = drawing_dir / page_image_filename(page_number)
         pdf_scratch = None
 
     # One tail for both sources: full resolution (no downsample) copies the raster through;
     # otherwise it is downsampled to the chosen long edge.
-    if downsample_px is None:
-        with Image.open(raw) as image:
-            image.convert("RGB").save(dest)
-    else:
-        downsample(raw, dest, downsample_px)
-    if pdf_scratch is not None:
-        pdf_scratch.unlink(missing_ok=True)
+    pending = scratch("pending")
+    try:
+        if downsample_px is None:
+            with Image.open(raw) as image:
+                image.convert("RGB").save(pending)
+        else:
+            downsample(raw, pending, downsample_px)
+        os.replace(pending, dest)
+    finally:
+        # A render that raised leaves no litter behind in the shared cache dir.
+        pending.unlink(missing_ok=True)
+        if pdf_scratch is not None:
+            pdf_scratch.unlink(missing_ok=True)
     return dest

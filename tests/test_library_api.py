@@ -3,7 +3,7 @@
 pixel dims), the cached page-image PNG route re-mounted under ``/api``, and the ``/models``
 curated catalog. Ingestion reuses ``DrawingService`` unchanged — only the web layer differs.
 
-Ground-truth entry (counting form, native objects import) is ticket 07 and is not covered here; the
+Ground-truth entry (the native objects import) is ticket 07 and is not covered here; the
 Drawing detail is only the entry point it hangs off.
 """
 
@@ -11,36 +11,25 @@ import pytest
 from sqlmodel import Session, select
 
 from api.deps import get_drawing_service
-from core.models.prompt import Prompt, Task
-from core.models.run import Result, Run
+from core.models.run import Run
 from core.services.drawing import DrawingService
 from core.services.pdf_processing import PDFProcessingService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 
 
-def _add_run(engine, drawing_id: int, model: str = SONNET) -> int:
-    """Attach a done Run (with one Result) to a Drawing so the delete has collateral. The
-    counting prompt family is seeded on startup, so a Run can pin it directly."""
-    with Session(engine) as session:
-        prompt = session.exec(
-            select(Prompt).where(Prompt.task == Task.counting)
-        ).first()
-        run = Run(
-            task=Task.counting,
-            prompt_id=prompt.id,
-            drawing_id=drawing_id,
-            dpi=200,
-            downsample_px=1600,
-            max_tokens=4096,
-            temperature=0.0,
-        )
-        session.add(run)
-        session.commit()
-        session.refresh(run)
-        session.add(Result(run_id=run.id, model=model))
-        session.commit()
-        return run.id
+@pytest.fixture
+def add_run(engine, location_prompt, seed_location_run):
+    """Attach a done Run (with one Result) to a Drawing so the delete has collateral. No
+    model is ever called — the Run row itself is all the collateral counts need."""
+
+    def _add(drawing_id: int, model: str = SONNET) -> int:
+        with Session(engine) as session:
+            return seed_location_run(
+                session, location_prompt.id, drawing_id, models=(model,)
+            ).id
+
+    return _add
 
 
 @pytest.fixture
@@ -165,8 +154,8 @@ def test_detail_returns_pages_with_pixel_dims_and_image_urls(
     assert body["result_count"] == 0
 
 
-def test_detail_reports_delete_collateral_counts(client, engine, ingested_drawing_id):
-    _add_run(engine, ingested_drawing_id)
+def test_detail_reports_delete_collateral_counts(client, ingested_drawing_id, add_run):
+    add_run(ingested_drawing_id)
 
     body = client.get(f"/api/drawings/{ingested_drawing_id}").json()
 
@@ -176,9 +165,9 @@ def test_detail_reports_delete_collateral_counts(client, engine, ingested_drawin
 
 
 def test_delete_drawing_cascades_and_returns_counts(
-    client, engine, ingested_drawing_id, delete_capable_service, tmp_path
+    client, engine, ingested_drawing_id, add_run, delete_capable_service, tmp_path
 ):
-    _add_run(engine, ingested_drawing_id)
+    add_run(ingested_drawing_id)
     page_dir = tmp_path / "drawings" / str(ingested_drawing_id)
     assert page_dir.is_dir()  # ingestion rendered the page images here
 

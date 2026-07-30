@@ -10,59 +10,28 @@ the terminal state deterministically.
 
 import threading
 import time
-from pathlib import Path
 
-from conftest import seed_page_images
+from conftest import LOCATION_BOXES_JSON, seed_location_drawing
 from sqlmodel import Session, select
 
-from core.models.drawing import Drawing, Page
 from core.models.prompt import Task
 from core.models.run import Prediction, PredictionStatus, RunStatus
-from core.services.prompt import PromptService
 from core.services.run import BackgroundRunner, RunService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
 GEMINI = "google/gemini-2.5-flash"
 
-COUNT_JSON = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 
-
-def _seed_drawing(session, n_pages: int) -> Drawing:
-    data_dir = Path(session.get_bind().url.database).parent
-    drawing = Drawing(name="sample")
-    session.add(drawing)
-    session.commit()
-    session.refresh(drawing)
-    # Real native rasters under the temp data dir so render-on-demand has an image per page.
-    images = seed_page_images(data_dir / "drawings" / str(drawing.id), n_pages)
-    for page_number, image in enumerate(images, start=1):
-        session.add(
-            Page(
-                drawing_id=drawing.id,
-                page_number=page_number,
-                image_path=str(image),
-                width_px=100,
-                height_px=100,
-            )
-        )
-    session.commit()
-    session.refresh(drawing)
-    return drawing
-
-
-def _seed_prompt(session):
-    return PromptService(session).create(Task.counting, "default", "count them")
-
-
-def test_create_run_is_queued_and_returns_before_execution(session, stub_adapter):
+def test_create_run_is_queued_and_returns_before_execution(
+    session, stub_adapter, location_prompt
+):
     """create_run returns a ``queued`` Run with its Results but no Predictions yet —
     submission is what starts the work (spec: submitting returns immediately)."""
-    drawing = _seed_drawing(session, n_pages=2)
-    prompt = _seed_prompt(session)
+    drawing = seed_location_drawing(session, n_pages=2)
 
     run = RunService(session, stub_adapter).create_run(
-        Task.counting, prompt.id, drawing.id, [SONNET, GPT]
+        Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
     )
 
     assert run.status == RunStatus.queued
@@ -73,20 +42,24 @@ def test_create_run_is_queued_and_returns_before_execution(session, stub_adapter
 
 
 def test_background_run_reaches_done_with_progress_and_predictions(
-    engine, stub_adapter
+    engine, stub_adapter, location_prompt, overlay_root
 ):
     """The ticket's headline test: a stubbed multi-model Run reaches ``done`` with
     progress fully advanced and every (model, page) Prediction persisted."""
     with Session(engine) as session:
-        drawing = _seed_drawing(session, n_pages=2)
-        prompt = _seed_prompt(session)
-        stub_adapter.responses = {SONNET: COUNT_JSON, GPT: COUNT_JSON}
+        drawing = seed_location_drawing(session, n_pages=2)
+        stub_adapter.responses = {
+            SONNET: LOCATION_BOXES_JSON,
+            GPT: LOCATION_BOXES_JSON,
+        }
         run = RunService(session, stub_adapter).create_run(
-            Task.counting, prompt.id, drawing.id, [SONNET, GPT]
+            Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
         )
         run_id = run.id
 
-    BackgroundRunner(engine, stub_adapter).submit(run_id).join(timeout=10)
+    BackgroundRunner(engine, stub_adapter, overlay_root=overlay_root).submit(
+        run_id
+    ).join(timeout=10)
 
     with Session(engine) as session:
         run = _get_run(session, run_id)
@@ -97,19 +70,22 @@ def test_background_run_reaches_done_with_progress_and_predictions(
         assert all(p.status == PredictionStatus.ok for p in preds)
 
 
-def test_models_run_in_parallel_with_pages_sequential(engine):
+def test_models_run_in_parallel_with_pages_sequential(
+    engine, location_prompt, overlay_root
+):
     """Models fan out in parallel up to the cap; within a model, pages never overlap
     (spec: bounded concurrency, pages sequential per model)."""
     with Session(engine) as session:
-        drawing = _seed_drawing(session, n_pages=3)
-        prompt = _seed_prompt(session)
+        drawing = seed_location_drawing(session, n_pages=3)
         run = RunService(session, _ConcurrencyAdapter()).create_run(
-            Task.counting, prompt.id, drawing.id, [SONNET, GPT, GEMINI]
+            Task.location, location_prompt.id, drawing.id, [SONNET, GPT, GEMINI]
         )
         run_id = run.id
 
     adapter = _ConcurrencyAdapter(delay=0.02)
-    BackgroundRunner(engine, adapter, max_workers=2).submit(run_id).join(timeout=30)
+    BackgroundRunner(engine, adapter, max_workers=2, overlay_root=overlay_root).submit(
+        run_id
+    ).join(timeout=30)
 
     with Session(engine) as session:
         assert _get_run(session, run_id).status == RunStatus.done
@@ -119,19 +95,22 @@ def test_models_run_in_parallel_with_pages_sequential(engine):
     assert adapter.max_concurrent_per_model == 1
 
 
-def test_model_error_recorded_without_losing_other_models(engine):
+def test_model_error_recorded_without_losing_other_models(
+    engine, location_prompt, overlay_root
+):
     """A model whose call raises is recorded as a failure Prediction; the Run still
     reaches ``done`` and other models' Predictions survive (spec: criterion 5)."""
     with Session(engine) as session:
-        drawing = _seed_drawing(session, n_pages=1)
-        prompt = _seed_prompt(session)
+        drawing = seed_location_drawing(session, n_pages=1)
         run = RunService(session, _ConcurrencyAdapter()).create_run(
-            Task.counting, prompt.id, drawing.id, [SONNET, GPT]
+            Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
         )
         run_id = run.id
 
-    adapter = _RaisingAdapter(fail_model=GPT, good_content=COUNT_JSON)
-    BackgroundRunner(engine, adapter).submit(run_id).join(timeout=10)
+    adapter = _RaisingAdapter(fail_model=GPT, good_content=LOCATION_BOXES_JSON)
+    BackgroundRunner(engine, adapter, overlay_root=overlay_root).submit(run_id).join(
+        timeout=10
+    )
 
     with Session(engine) as session:
         run = _get_run(session, run_id)
@@ -175,7 +154,7 @@ class _ConcurrencyAdapter:
         with self._lock:
             self._active -= 1
             self._active_by_model[model] -= 1
-        return {"choices": [{"message": {"content": COUNT_JSON}}]}
+        return {"choices": [{"message": {"content": LOCATION_BOXES_JSON}}]}
 
 
 class _RaisingAdapter:

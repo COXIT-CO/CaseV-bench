@@ -6,9 +6,9 @@ run-execution + persistence services — runs end-to-end against a temp SQLite a
 the same Run / Results / Predictions a UI run would (there is no JSON-log path anymore).
 """
 
-import json
 from pathlib import Path
 
+from conftest import LOCATION_BOXES_JSON
 from sqlmodel import select
 
 from core.cli import execute_cli_run
@@ -20,31 +20,23 @@ from core.services.run import RunKnobs
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
-COUNT_JSON = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
-BOXES_JSON = json.dumps(
-    [
-        {
-            "label": "cabinet",
-            "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
-        }
-    ]
-)
 
 
 def test_cli_run_persists_run_results_predictions(
-    session, stub_adapter, sample_pdf, tmp_path
+    session, stub_adapter, sample_pdf, tmp_path, overlay_root
 ):
     seed_default_prompts(session)
-    stub_adapter.responses = {SONNET: COUNT_JSON, GPT: COUNT_JSON}
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON, GPT: LOCATION_BOXES_JSON}
 
     run = execute_cli_run(
         session,
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.counting,
+        task=Task.location,
         models=[SONNET, GPT],
         cache_root=tmp_path / "cache",
+        overlay_root=overlay_root,
     )
 
     assert run.status == RunStatus.done
@@ -78,56 +70,59 @@ def test_cli_run_persists_run_results_predictions(
         assert [p.page_number for p in preds] == [1, 2]
         for pred in preds:
             assert pred.status == PredictionStatus.ok
-            assert json.loads(pred.parsed_json)["cabinet"] == 3
+            detections = LocationResult.model_validate_json(pred.parsed_json).detections
+            assert [d.label for d in detections] == ["cabinet"]
 
 
 def test_cli_run_defaults_to_latest_prompt_version(
-    session, stub_adapter, sample_pdf, tmp_path
+    session, stub_adapter, sample_pdf, tmp_path, overlay_root
 ):
     seed_default_prompts(session)
-    # Append a second immutable version of the default counting family.
-    PromptService(session).edit(Task.counting, "default", "count them, carefully")
-    stub_adapter.default = COUNT_JSON
+    # Append a second immutable version of the default location family.
+    PromptService(session).edit(Task.location, "default", "find them, carefully")
+    stub_adapter.default = LOCATION_BOXES_JSON
 
     run = execute_cli_run(
         session,
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.counting,
+        task=Task.location,
         models=[SONNET],
         cache_root=tmp_path / "cache",
+        overlay_root=overlay_root,
     )
 
     assert session.get(Prompt, run.prompt_id).version == 2
 
 
 def test_cli_run_pins_requested_prompt_version(
-    session, stub_adapter, sample_pdf, tmp_path
+    session, stub_adapter, sample_pdf, tmp_path, overlay_root
 ):
     seed_default_prompts(session)
-    PromptService(session).edit(Task.counting, "default", "count them, carefully")
-    stub_adapter.default = COUNT_JSON
+    PromptService(session).edit(Task.location, "default", "find them, carefully")
+    stub_adapter.default = LOCATION_BOXES_JSON
 
     run = execute_cli_run(
         session,
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.counting,
+        task=Task.location,
         models=[SONNET],
         prompt_version=1,
         cache_root=tmp_path / "cache",
+        overlay_root=overlay_root,
     )
 
     assert session.get(Prompt, run.prompt_id).version == 1
 
 
 def test_cli_run_caches_pages_under_given_root(
-    session, stub_adapter, sample_pdf, tmp_path
+    session, stub_adapter, sample_pdf, tmp_path, overlay_root
 ):
     seed_default_prompts(session)
-    stub_adapter.default = COUNT_JSON
+    stub_adapter.default = LOCATION_BOXES_JSON
     cache_root = tmp_path / "cache"
 
     execute_cli_run(
@@ -135,9 +130,10 @@ def test_cli_run_caches_pages_under_given_root(
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.counting,
+        task=Task.location,
         models=[SONNET],
         cache_root=cache_root,
+        overlay_root=overlay_root,
     )
 
     # The ingest wrote page images under the injected cache root, not the default.
@@ -145,14 +141,12 @@ def test_cli_run_caches_pages_under_given_root(
 
 
 def test_cli_run_location_persists_predictions_and_overlays(
-    session, stub_adapter, sample_pdf, tmp_path
+    session, stub_adapter, sample_pdf, tmp_path, overlay_root
 ):
-    """The location task runs through the same path (spec: counting AND location),
-    parsing boxes into location Predictions and rendering overlays under the injected
-    overlay root — never the repo default."""
+    """A location Run through the CLI parses boxes into location Predictions and renders
+    overlays under the injected overlay root — never the repo default."""
     seed_default_prompts(session)
-    stub_adapter.default = BOXES_JSON
-    overlay_root = tmp_path / "overlays"
+    stub_adapter.default = LOCATION_BOXES_JSON
 
     run = execute_cli_run(
         session,

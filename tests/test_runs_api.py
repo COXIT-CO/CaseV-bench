@@ -6,58 +6,21 @@ status endpoint that stops at a terminal state. The adapter is stubbed via the `
 fixture, so the background run finishes without hitting the network."""
 
 import time
-from pathlib import Path
 
-from conftest import seed_page_images
-from sqlmodel import Session, select
-
-from core.models.drawing import Drawing, Page
-from core.models.prompt import Prompt, Task
+from conftest import LOCATION_BOXES_JSON, seed_location_drawing_id
 
 SONNET = "anthropic/claude-sonnet-4.5"
-COUNT_JSON = '{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}'
 
 
-def _seed_drawing(engine, name: str = "sample") -> int:
-    # The page points at a real native raster (under the engine's temp data dir) so the
-    # background run's render-on-demand has an image to hand the stubbed Model.
-    data_dir = Path(engine.url.database).parent
-    with Session(engine) as session:
-        drawing = Drawing(name=name)
-        session.add(drawing)
-        session.commit()
-        session.refresh(drawing)
-        (image,) = seed_page_images(data_dir / "drawings" / str(drawing.id), n_pages=1)
-        session.add(
-            Page(
-                drawing_id=drawing.id,
-                page_number=1,
-                image_path=str(image),
-                width_px=100,
-                height_px=100,
-            )
-        )
-        session.commit()
-        return drawing.id
-
-
-def _counting_prompt_id(engine) -> int:
-    # The default counting family is seeded on app startup (lifespan).
-    with Session(engine) as session:
-        return (
-            session.exec(select(Prompt).where(Prompt.task == Task.counting)).first().id
-        )
-
-
-def _launch(client, engine, drawing_id, **body) -> dict:
-    payload = {"prompt_id": _counting_prompt_id(engine), "drawing_id": drawing_id}
+def _launch(client, prompt_id, drawing_id, **body) -> dict:
+    payload = {"prompt_id": prompt_id, "drawing_id": drawing_id}
     payload.update(body)
     resp = client.post("/api/runs", json=payload)
     return resp
 
 
 def test_launch_options_lists_prompts_drawings_and_catalog(client, engine):
-    _seed_drawing(engine)
+    seed_location_drawing_id(engine)
     body = client.get("/api/runs/launch-options").json()
 
     # Both seeded Tasks' default families are offered so the prompt's Task drives the Run.
@@ -77,16 +40,18 @@ def test_launch_options_empty_drawings_when_none_uploaded(client):
 
 
 def test_create_run_returns_queued_run_and_detail_carries_knobs(
-    client, engine, stub_adapter
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
 ):
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
 
-    resp = _launch(client, engine, drawing_id, models=[SONNET], free_text="")
+    resp = _launch(
+        client, location_prompt.id, drawing_id, models=[SONNET], free_text=""
+    )
     assert resp.status_code == 201
     created = resp.json()
     assert created["status"] == "queued"
-    assert created["task"] == "counting"
+    assert created["task"] == "location"
     assert created["total_units"] == 1
 
     detail = client.get(f"/api/runs/{created['id']}").json()
@@ -102,14 +67,21 @@ def test_create_run_returns_queued_run_and_detail_carries_knobs(
     assert [r["model"] for r in detail["results"]] == [SONNET]
 
 
-def test_create_run_snapshots_and_sends_advanced_knobs(client, engine, stub_adapter):
+def test_create_run_snapshots_and_sends_advanced_knobs(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
     # The Advanced section's max_tokens + explicit temperature are snapshotted on the Run
     # and reach the Model on the request (ticket 04).
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
 
     resp = _launch(
-        client, engine, drawing_id, models=[SONNET], max_tokens=8192, temperature=0.7
+        client,
+        location_prompt.id,
+        drawing_id,
+        models=[SONNET],
+        max_tokens=8192,
+        temperature=0.7,
     )
     assert resp.status_code == 201
     run_id = resp.json()["id"]
@@ -125,14 +97,16 @@ def test_create_run_snapshots_and_sends_advanced_knobs(client, engine, stub_adap
 
 
 def test_create_run_provider_default_temperature_is_omitted(
-    client, engine, stub_adapter
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
 ):
     # "Provider default" for temperature arrives as null, snapshots as None, and is omitted
     # from the request so a reasoning Model that rejects an explicit temperature still runs.
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
 
-    resp = _launch(client, engine, drawing_id, models=[SONNET], temperature=None)
+    resp = _launch(
+        client, location_prompt.id, drawing_id, models=[SONNET], temperature=None
+    )
     assert resp.status_code == 201
     run_id = resp.json()["id"]
     _poll_status(client, run_id)
@@ -142,13 +116,15 @@ def test_create_run_provider_default_temperature_is_omitted(
 
 
 def test_create_run_defaults_knobs_when_advanced_untouched(
-    client, engine, stub_adapter
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
 ):
     # The common one-click launch (no Advanced fields) keeps the pre-filled defaults.
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
 
-    run_id = _launch(client, engine, drawing_id, models=[SONNET]).json()["id"]
+    run_id = _launch(client, location_prompt.id, drawing_id, models=[SONNET]).json()[
+        "id"
+    ]
     knobs = client.get(f"/api/runs/{run_id}").json()["knobs"]
     assert knobs["dpi"] == 300
     assert knobs["downsample_px"] == 1568
@@ -156,14 +132,21 @@ def test_create_run_defaults_knobs_when_advanced_untouched(
     assert knobs["temperature"] == 0.0
 
 
-def test_create_run_snapshots_dpi_and_downsample(client, engine, stub_adapter):
+def test_create_run_snapshots_dpi_and_downsample(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
     # The Advanced section's DPI + downsample are snapshotted on the Run (ticket 05); they make
     # the per-run render effective rather than reusing the fixed ingest downsample.
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
 
     resp = _launch(
-        client, engine, drawing_id, models=[SONNET], dpi=600, downsample_px=2000
+        client,
+        location_prompt.id,
+        drawing_id,
+        models=[SONNET],
+        dpi=600,
+        downsample_px=2000,
     )
     assert resp.status_code == 201
     knobs = client.get(f"/api/runs/{resp.json()['id']}").json()["knobs"]
@@ -171,12 +154,16 @@ def test_create_run_snapshots_dpi_and_downsample(client, engine, stub_adapter):
     assert knobs["downsample_px"] == 2000
 
 
-def test_create_run_downsample_off_is_full_resolution(client, engine, stub_adapter):
+def test_create_run_downsample_off_is_full_resolution(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
     # downsample: null selects full resolution (no downsample), snapshotted as None.
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
 
-    resp = _launch(client, engine, drawing_id, models=[SONNET], downsample_px=None)
+    resp = _launch(
+        client, location_prompt.id, drawing_id, models=[SONNET], downsample_px=None
+    )
     assert resp.status_code == 201
     assert (
         client.get(f"/api/runs/{resp.json()['id']}").json()["knobs"]["downsample_px"]
@@ -184,27 +171,31 @@ def test_create_run_downsample_off_is_full_resolution(client, engine, stub_adapt
     )
 
 
-def test_create_run_rejects_nonpositive_max_tokens(client, engine):
-    drawing_id = _seed_drawing(engine)
-    resp = _launch(client, engine, drawing_id, models=[SONNET], max_tokens=0)
+def test_create_run_rejects_nonpositive_max_tokens(client, engine, location_prompt):
+    drawing_id = seed_location_drawing_id(engine)
+    resp = _launch(
+        client, location_prompt.id, drawing_id, models=[SONNET], max_tokens=0
+    )
     assert resp.status_code == 422
 
 
-def test_create_run_rejects_nonpositive_dpi(client, engine):
-    drawing_id = _seed_drawing(engine)
-    resp = _launch(client, engine, drawing_id, models=[SONNET], dpi=0)
+def test_create_run_rejects_nonpositive_dpi(client, engine, location_prompt):
+    drawing_id = seed_location_drawing_id(engine)
+    resp = _launch(client, location_prompt.id, drawing_id, models=[SONNET], dpi=0)
     assert resp.status_code == 422
 
 
-def test_leaderboard_does_not_split_rows_by_knob(client, engine, stub_adapter):
+def test_leaderboard_does_not_split_rows_by_knob(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
     # Two Runs of the same (prompt, model) differing only in a knob each keep their own
     # Result row under that (prompt, model) — the knob is not a ranking axis (ADR 0018).
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
-    _launch(client, engine, drawing_id, models=[SONNET], max_tokens=4096)
-    _launch(client, engine, drawing_id, models=[SONNET], max_tokens=8192)
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
+    _launch(client, location_prompt.id, drawing_id, models=[SONNET], max_tokens=4096)
+    _launch(client, location_prompt.id, drawing_id, models=[SONNET], max_tokens=8192)
 
-    rows = client.get("/api/leaderboard?task=counting").json()["rows"]
+    rows = client.get("/api/leaderboard?task=location").json()["rows"]
     sonnet_rows = [r for r in rows if r["model"] == SONNET]
     assert len(sonnet_rows) == 2
     assert {(r["prompt_family"], r["prompt_version"]) for r in sonnet_rows} == {
@@ -212,11 +203,17 @@ def test_leaderboard_does_not_split_rows_by_knob(client, engine, stub_adapter):
     }
 
 
-def test_create_run_resolves_free_text_slugs_server_side(client, engine):
-    drawing_id = _seed_drawing(engine)
+def test_create_run_resolves_free_text_slugs_server_side(
+    client, engine, location_prompt, temp_overlay_run_service
+):
+    drawing_id = seed_location_drawing_id(engine)
     # No curated selection: the free-text escape hatch is resolved as the source of truth.
     resp = _launch(
-        client, engine, drawing_id, models=[], free_text="vendor/a, vendor/b"
+        client,
+        location_prompt.id,
+        drawing_id,
+        models=[],
+        free_text="vendor/a, vendor/b",
     )
     assert resp.status_code == 201
     detail = client.get(f"/api/runs/{resp.json()['id']}").json()
@@ -224,7 +221,7 @@ def test_create_run_resolves_free_text_slugs_server_side(client, engine):
 
 
 def test_create_run_bad_prompt_id_400(client, engine):
-    drawing_id = _seed_drawing(engine)
+    drawing_id = seed_location_drawing_id(engine)
     resp = client.post(
         "/api/runs",
         json={"prompt_id": 9999, "drawing_id": drawing_id, "models": [SONNET]},
@@ -233,20 +230,24 @@ def test_create_run_bad_prompt_id_400(client, engine):
     assert "detail" in resp.json()
 
 
-def test_create_run_empty_selection_400(client, engine):
-    drawing_id = _seed_drawing(engine)
-    resp = _launch(client, engine, drawing_id, models=[], free_text="")
+def test_create_run_empty_selection_400(client, engine, location_prompt):
+    drawing_id = seed_location_drawing_id(engine)
+    resp = _launch(client, location_prompt.id, drawing_id, models=[], free_text="")
     assert resp.status_code == 400
 
 
-def test_run_history_lists_launched_runs_newest_first(client, engine, stub_adapter):
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
-    run_id = _launch(client, engine, drawing_id, models=[SONNET]).json()["id"]
+def test_run_history_lists_launched_runs_newest_first(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
+    run_id = _launch(client, location_prompt.id, drawing_id, models=[SONNET]).json()[
+        "id"
+    ]
 
     runs = client.get("/api/runs").json()["runs"]
     row = next(r for r in runs if r["id"] == run_id)
-    assert row["task"] == "counting"
+    assert row["task"] == "location"
     assert row["prompt_family"] == "default"
     assert row["prompt_version"] == 1
     assert row["drawing_name"] == "sample"
@@ -254,10 +255,14 @@ def test_run_history_lists_launched_runs_newest_first(client, engine, stub_adapt
     assert row["created_at"]
 
 
-def test_run_status_polls_to_done_with_results(client, engine, stub_adapter):
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
-    run_id = _launch(client, engine, drawing_id, models=[SONNET]).json()["id"]
+def test_run_status_polls_to_done_with_results(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
+    run_id = _launch(client, location_prompt.id, drawing_id, models=[SONNET]).json()[
+        "id"
+    ]
 
     status = _poll_status(client, run_id)
     assert status["status"] == "done"
@@ -265,10 +270,14 @@ def test_run_status_polls_to_done_with_results(client, engine, stub_adapter):
     assert [r["model"] for r in status["results"]] == [SONNET]
 
 
-def test_delete_run_removes_it_and_returns_counts(client, engine, stub_adapter):
-    drawing_id = _seed_drawing(engine)
-    stub_adapter.responses = {SONNET: COUNT_JSON}
-    run_id = _launch(client, engine, drawing_id, models=[SONNET]).json()["id"]
+def test_delete_run_removes_it_and_returns_counts(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
+    run_id = _launch(client, location_prompt.id, drawing_id, models=[SONNET]).json()[
+        "id"
+    ]
     _poll_status(client, run_id)  # let it finish so a Result exists
 
     resp = client.delete(f"/api/runs/{run_id}")
