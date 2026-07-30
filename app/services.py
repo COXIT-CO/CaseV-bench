@@ -3,15 +3,20 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import time
 from datetime import datetime, UTC
 from pathlib import Path
 from threading import Thread
+from typing import Any
 
 from flask import current_app
+from PIL import Image
 from werkzeug.security import safe_join
 from werkzeug.utils import secure_filename
 
 from app.annotate import annotate_image
+from app.crop_prompts import CABINET_COUNTERTOP_SYSTEM_PROMPT, CABINET_COUNTERTOP_USER_PROMPT
+from app.crop_utils import crop_image_to_box, remap_crop_box_to_full
 from app.extensions import db
 from app.models import Prompt, PromptRun, PromptStatus
 from app.pdf_procesing import extract_images_from_folder
@@ -25,7 +30,10 @@ from app.result_parser import (
 )
 
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
-WORKFLOWS = {'count', 'locate'}
+# 'locate_2pass': pass 1 finds elevation/elevation_callout on the full sheet;
+# pass 2 crops the original image to each elevation box and finds
+# cabinet/countertop inside that crop at much higher effective resolution.
+WORKFLOWS = {'count', 'locate', 'locate_2pass'}
 IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 
@@ -202,12 +210,14 @@ def update_or_fork_prompt(prompt_id: int, user_prompt: str, system_prompt: str,
     from the stored version by even one character, forks into a brand-new Prompt (copying
     input files) instead of mutating the original, so different prompt texts can be compared
     side by side. Returns (prompt, forked)."""
-    
+
     original = Prompt.query.get_or_404(prompt_id)
     user_prompt = user_prompt.strip()
     system_prompt = system_prompt.strip()
     if not user_prompt:
         raise ValueError("User prompt cannot be empty.")
+    if workflow not in WORKFLOWS:
+        raise ValueError("Unknown workflow.")
 
     expected_provided = expected_text is not None or (expected_file and getattr(expected_file, 'filename', ''))
     expected_json = _parse_expected(expected_text, expected_file) if expected_provided else None
@@ -277,6 +287,149 @@ def _relative_artifact(path: str, root: str) -> str:
     return Path(path).relative_to(root).as_posix()
 
 
+def _call_vision_model(
+    run: PromptRun,
+    system_prompt: str | None,
+    user_text: str,
+    image_path: str,
+    max_attempts: int = 3,
+) -> tuple[str, Any, str | None]:
+    """Sends one image plus a text prompt to the model.
+    Returns (raw_response_text, parsed_json_or_None, error_message_or_None).
+
+    Retries a couple of times on failure (including the "model returned an
+    empty response" case, which is usually a transient provider/rate-limit
+    glitch rather than a real problem with the prompt or image) so a single
+    flaky request doesn't silently lose an entire crop's worth of detections.
+    """
+    message_content = [
+        {"type": "text", "text": user_text},
+        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image_to_base64(image_path)}"}},
+    ]
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            raw_response = current_app.extensions["openrouter_client"].generate_response(
+                model=run.model,
+                message_content=message_content,
+                system_instruction=system_prompt,
+                temperature=0,
+            )
+            return raw_response, extract_json(raw_response), None
+        except Exception as exc:
+            last_error = str(exc)
+            if attempt < max_attempts:
+                time.sleep(1.5 * attempt)  # brief backoff before retrying
+    return "", None, last_error
+
+
+def _process_page_single_pass(run: PromptRun, page_index: int, image_path: str) -> dict:
+    """Original single-request behavior: one call, whatever labels the
+    stored prompt asks for, all at full-sheet resolution."""
+    raw_response, parsed, page_error = _call_vision_model(
+        run, run.prompt.system_prompt or None, run.prompt.content, image_path
+    )
+    page_objects = extract_objects(parsed, page_index) if parsed is not None else []
+    return {
+        "objects": page_objects,
+        "raw_response": raw_response,
+        "error": page_error,
+        "extra": {},
+    }
+
+
+def _process_page_two_pass(run: PromptRun, page_index: int, image_path: str, root: str) -> dict:
+    """PASS 1: run the stored prompt on the full page, keep only its
+    "elevation" and "elevation_callout" detections (cabinet/countertop
+    guesses at full-sheet resolution, if any, are discarded — they always
+    come from PASS 2 instead, where resolution is much higher).
+
+    PASS 2: for every "elevation" box from pass 1, crop the ORIGINAL
+    full-resolution page image to that box (with a small padding margin),
+    send just that crop with the short cabinet/countertop-only prompt, and
+    remap whatever boxes come back from crop-local 0..1000 coordinates into
+    full-page 0..1000 coordinates before merging them in.
+    """
+    crops_dir = os.path.join(root, 'crops')
+    os.makedirs(crops_dir, exist_ok=True)
+
+    errors: list[str] = []
+
+    raw_pass1, parsed_pass1, err1 = _call_vision_model(
+        run, run.prompt.system_prompt or None, run.prompt.content, image_path
+    )
+    if err1:
+        errors.append(f"Page {page_index + 1} pass 1: {err1}")
+
+    pass1_objects = extract_objects(parsed_pass1, page_index) if parsed_pass1 is not None else []
+    # cabinet/countertop are never trusted from the full-sheet pass — only
+    # from the higher-resolution per-elevation crop in pass 2 below.
+    full_page_objects = [o for o in pass1_objects if o["label"] in ("elevation", "elevation_callout")]
+
+    with Image.open(image_path) as im:
+        full_px_size = im.convert("RGB").size
+
+    pass2_details = []
+    elevations = [o for o in full_page_objects if o["label"] == "elevation"]
+
+    for i, elevation_obj in enumerate(elevations, start=1):
+        crop_filename = f"page_{page_index + 1:04d}_elevation_{i:02d}.png"
+        crop_path = os.path.join(crops_dir, crop_filename)
+        try:
+            _, px_region, crop_full_px_size = crop_image_to_box(image_path, elevation_obj["box"], crop_path)
+        except Exception as exc:
+            errors.append(f"Page {page_index + 1} elevation {i} crop failed: {exc}")
+            continue
+
+        raw_pass2, parsed_pass2, err2 = _call_vision_model(
+            run, CABINET_COUNTERTOP_SYSTEM_PROMPT, CABINET_COUNTERTOP_USER_PROMPT, crop_path
+        )
+        if err2:
+            errors.append(f"Page {page_index + 1} elevation {i} pass 2: {err2}")
+
+        crop_objects = extract_objects(parsed_pass2, page_index) if parsed_pass2 is not None else []
+        crop_objects = [o for o in crop_objects if o["label"] in ("cabinet", "countertop")]
+
+        # Draw the crop-local boxes on the crop itself (separate from the
+        # full-page annotation) so each elevation's cabinet/countertop
+        # detections can be inspected on their own, higher-resolution image.
+        annotated_crop_path = None
+        if crop_objects:
+            annotated_crop_path = os.path.join(crops_dir, f"page_{page_index + 1:04d}_elevation_{i:02d}_annotated.png")
+            try:
+                annotate_image(crop_path, crop_objects, annotated_crop_path)
+            except Exception:
+                annotated_crop_path = None
+
+        remapped_objects = []
+        for obj in crop_objects:
+            full_box = remap_crop_box_to_full(obj["box"], px_region, full_px_size)
+            remapped = dict(obj)
+            remapped["box"] = full_box
+            remapped["left"], remapped["top"], remapped["right"], remapped["bottom"] = full_box
+            remapped_objects.append(remapped)
+
+        full_page_objects.extend(remapped_objects)
+        pass2_details.append({
+            "elevation_index": i,
+            "elevation_box": elevation_obj["box"],
+            "crop_image": _relative_artifact(crop_path, root),
+            "annotated_crop_image": _relative_artifact(annotated_crop_path, root) if annotated_crop_path else None,
+            "raw_response": raw_pass2,
+            "cabinet_count": sum(1 for o in crop_objects if o["label"] == "cabinet"),
+            "countertop_count": sum(1 for o in crop_objects if o["label"] == "countertop"),
+            "objects_found": len(remapped_objects),
+            "error": err2,
+        })
+
+    return {
+        "objects": full_page_objects,
+        "raw_response": raw_pass1,
+        "error": "; ".join(errors) if errors else None,
+        "extra": {"pass2": pass2_details},
+    }
+
+
 def process_prompt_run(run_id: int) -> None:
     run = PromptRun.query.get(run_id)
     if run is None:
@@ -305,36 +458,31 @@ def process_prompt_run(run_id: int) -> None:
         if not image_paths:
             raise ValueError("No PDF or image files are available for this run.")
 
-        for page_index, image_path in enumerate(image_paths):
-            message_content = [
-                {"type": "text", "text": run.prompt.content},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image_to_base64(image_path)}"}},
-            ]
-            raw_response = ""
-            parsed = None
-            page_error = None
-            try:
-                raw_response = current_app.extensions["openrouter_client"].generate_response(
-                    model=run.model,
-                    message_content=message_content,
-                    system_instruction=run.prompt.system_prompt or None,
-                    temperature=0,
-                )
-                parsed = extract_json(raw_response)
-            except Exception as exc:
-                page_error = str(exc)
-                errors.append(f"Page {page_index + 1}: {exc}")
+        two_pass = run.workflow == 'locate_2pass'
 
-            page_objects = extract_objects(parsed, page_index) if parsed is not None else []
-            page_counts = extract_counts(parsed) if parsed is not None else {key: 0 for key in CANONICAL_LABELS}
-            if run.workflow == 'locate':
-                # For location runs, object count is the source of truth.
+        for page_index, image_path in enumerate(image_paths):
+            if two_pass:
+                page_result = _process_page_two_pass(run, page_index, image_path, root)
+            else:
+                page_result = _process_page_single_pass(run, page_index, image_path)
+
+            page_objects = page_result["objects"]
+            raw_response = page_result["raw_response"]
+            page_error = page_result["error"]
+            if page_error:
+                errors.append(f"Page {page_index + 1}: {page_error}")
+
+            annotated_path = None
+            if run.workflow in ('locate', 'locate_2pass'):
+                # For location runs, the extracted object list is the source of truth.
                 page_counts = extract_counts(page_objects)
                 merged_objects.extend(page_objects)
                 annotated_path = os.path.join(annotated_dir, f"page_{page_index + 1:04d}.png")
                 annotate_image(image_path, page_objects, annotated_path)
             else:
-                annotated_path = None
+                # 'count' workflow: trust whatever counts the model reported directly.
+                parsed_for_counts = extract_json(raw_response) if raw_response else None
+                page_counts = extract_counts(parsed_for_counts) if parsed_for_counts is not None else {key: 0 for key in CANONICAL_LABELS}
 
             for label in CANONICAL_LABELS:
                 total_counts[label] += int(page_counts.get(label, 0))
@@ -347,6 +495,7 @@ def process_prompt_run(run_id: int) -> None:
                 "objects": page_objects,
                 "raw_response": raw_response,
                 "error": page_error,
+                **page_result.get("extra", {}),
             }
             json_path = os.path.join(pages_json_dir, f"page_{page_index + 1:04d}.json")
             with open(json_path, 'w', encoding='utf-8') as fh:
@@ -367,7 +516,7 @@ def process_prompt_run(run_id: int) -> None:
             "files": [os.path.basename(path) for path in _input_files(run.prompt)],
             "pages": page_results,
             "counts": total_counts,
-            "objects": merged_objects if run.workflow == 'locate' else [],
+            "objects": merged_objects if run.workflow in ('locate', 'locate_2pass') else [],
             "expected_summary": expected,
             "comparison": comparison,
             "errors": errors,

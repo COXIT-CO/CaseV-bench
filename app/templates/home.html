@@ -20,13 +20,22 @@
 
     <div class="settings-grid">
       <label>Workflow
-        <select name="workflow"><option value="count">Count objects</option><option value="locate">Locate + draw boxes</option></select>
+        <select name="workflow">
+          <option value="count">Count objects</option>
+          <option value="locate">Locate + draw boxes</option>
+          <option value="locate_2pass">Locate (2-pass, crop-based)</option>
+        </select>
       </label>
       <label>DPI <input type="number" name="dpi" value="200" min="72" max="600"></label>
       <label>Model
         <select name="model">{% for m in available_models %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
       </label>
     </div>
+    <p class="muted" id="workflow-2pass-hint" style="display:none;margin:-6px 0 12px">
+      Pass 1 finds elevations on the full sheet; pass 2 crops each elevation from the
+      original image and looks for cabinets/countertops separately at higher resolution.
+      Uses more requests per sheet (roughly 1 + one per elevation found).
+    </p>
 
     <p class="field-label">Expected JSON (paste or upload)</p>
     <textarea name="expected_json" class="mono small-textarea" placeholder='{"cabinets": 23, "countertops": 4, "elevations": 7, "elevation_callouts": 7}'></textarea>
@@ -54,6 +63,8 @@
   const filesInput = document.getElementById('input-files');
   const expectedInput = document.getElementById('input-expected');
   const list = document.getElementById('file-preview-list');
+  const workflowSelect = document.querySelector('select[name="workflow"]');
+  const hint = document.getElementById('workflow-2pass-hint');
 
   function iconFor(name) {
     const ext = name.split('.').pop().toLowerCase();
@@ -80,8 +91,14 @@
     list.style.display = 'flex';
   }
 
+  function renderWorkflowHint() {
+    hint.style.display = workflowSelect.value === 'locate_2pass' ? '' : 'none';
+  }
+
   filesInput.addEventListener('change', render);
   expectedInput.addEventListener('change', render);
+  workflowSelect.addEventListener('change', renderWorkflowHint);
+  renderWorkflowHint();
 })();
 </script>
 </body>

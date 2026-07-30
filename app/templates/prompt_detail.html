@@ -22,10 +22,19 @@
           <p class="field-label">User prompt</p>
           <textarea name="user_prompt" rows="8" class="mono form-textarea" required>{{ prompt.content }}</textarea>
           <div class="settings-grid">
-            <label>Workflow<select name="workflow"><option value="count" {% if selected_run and selected_run.workflow == 'count' %}selected{% endif %}>Count objects</option><option value="locate" {% if selected_run and selected_run.workflow == 'locate' %}selected{% endif %}>Locate + draw boxes</option></select></label>
+            <label>Workflow<select name="workflow">
+              <option value="count" {% if selected_run and selected_run.workflow == 'count' %}selected{% endif %}>Count objects</option>
+              <option value="locate" {% if selected_run and selected_run.workflow == 'locate' %}selected{% endif %}>Locate + draw boxes</option>
+              <option value="locate_2pass" {% if selected_run and selected_run.workflow == 'locate_2pass' %}selected{% endif %}>Locate (2-pass, crop-based)</option>
+            </select></label>
             <label>DPI<input type="number" name="dpi" min="72" max="600" value="{{ selected_run.dpi if selected_run else 200 }}"></label>
             <label>Model<select name="model">{% for m in available_models %}<option value="{{ m }}" {% if selected_run and m == selected_run.model %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
           </div>
+          <p class="muted" style="margin:-6px 0 12px">
+            2-pass: pass 1 finds elevations on the full sheet; pass 2 crops each elevation
+            from the original image and looks for cabinets/countertops separately at higher
+            resolution. Uses roughly 1 + one request per elevation found on the sheet.
+          </p>
           <p class="field-label">Expected JSON</p>
           <textarea name="expected_json" rows="6" class="mono form-textarea">{{ prompt.expected_json or '' }}</textarea>
           <div class="composer-row"><label class="file-input-label">Replace expected JSON<input type="file" name="expected_file" accept="application/json,.json"></label><span class="spacer"></span><button class="btn">Run</button></div>
@@ -88,6 +97,29 @@
     <article class="page-card">
       <a href="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=page.annotated_image or page.image) }}" target="_blank"><img src="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=page.annotated_image or page.image) }}" alt="Page {{ loop.index }}"></a>
       <div class="page-card-body"><div class="top-bar"><strong>Page {{ loop.index }}</strong><a href="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=page.json_file) }}" target="_blank">local JSON</a></div><pre>{{ page.counts | tojson(indent=2) }}</pre>{% if page.error %}<p class="error-text">{{ page.error }}</p>{% endif %}</div>
+
+      {% if page.pass2 %}
+      <div class="page-card-body crop-gallery-wrap">
+        <p class="field-label" style="margin-bottom:8px">Pass 2 · per-elevation crops ({{ page.pass2 | length }})</p>
+        <div class="crop-gallery">
+          {% for crop in page.pass2 %}
+          <div class="crop-card">
+            {% set crop_img = crop.annotated_crop_image or crop.crop_image %}
+            {% if crop_img %}
+            <a href="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=crop_img) }}" target="_blank">
+              <img src="{{ url_for('routes.run_artifact', run_id=selected_run.id, filename=crop_img) }}" alt="Elevation {{ crop.elevation_index }} crop">
+            </a>
+            {% endif %}
+            <div class="crop-card-body">
+              <span class="muted">Elevation {{ crop.elevation_index }}</span>
+              <span class="muted">{{ crop.cabinet_count if crop.cabinet_count is defined else '–' }} cabinets · {{ crop.countertop_count if crop.countertop_count is defined else '–' }} countertops</span>
+              {% if crop.error %}<span class="error-text">{{ crop.error }}</span>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </article>
     {% endfor %}
   </div></div>
