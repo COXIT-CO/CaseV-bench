@@ -179,6 +179,95 @@ Takeaways from this sample:
   which is exactly what the Stage 1 human review step is there to catch
   before Stage 2 (and the final saved result) ever sees them.
 
+### Per-file breakdown
+
+The 3 tables above are the 3 files below summed together. Individually,
+the gap between workflows is even more pronounced on the busiest file
+(project-0001, 70 expected objects across 4 pages) than on the smallest
+one (project-0002, 45 expected objects across 2 pages) — more content per
+page seems to hurt One-Stage's single-pass detection more than it hurts
+Two-Stage's cropped, per-elevation one.
+
+<details>
+<summary>project-0001 (prj0001.pdf.pdf, 4 pages)</summary>
+
+**Count comparison**
+
+| Label | Expected | One-Stage detected | One-Stage count acc. | Two-Stage detected | Two-Stage count acc. |
+|---|---:|---:|---:|---:|---:|
+| elevation | 27 | 21 | 78% | 21 | 78% |
+| cabinet | 31 | 16 | 52% | 40 | 71% |
+| countertop | 7 | 3 | 43% | 6 | 86% |
+| elevation_callout | 5 | 11 | -20% | 5 | 100% |
+| **total** | **70** | **51** | **73%** | **72** | **97%** |
+
+**Localization accuracy**
+
+| Label | One-Stage P | One-Stage R | One-Stage F1 | One-Stage mean IoU | Two-Stage P | Two-Stage R | Two-Stage F1 | Two-Stage mean IoU |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| elevation | 76% | 59% | 67% | 0.92 | 100% | 78% | 88% | 0.95 |
+| cabinet | 0% | 0% | — | — | 55% | 71% | 62% | 0.84 |
+| countertop | 0% | 0% | — | — | 50% | 43% | 46% | 0.77 |
+| elevation_callout | 0% | 0% | — | — | 20% | 20% | 20% | 0.70 |
+| **overall** | **31%** | **23%** | **26%** | | **65%** | **67%** | **66%** | |
+
+</details>
+
+<details>
+<summary>project-0002 (01+3T+MRI+Cabinets+Drawings.pdf, 2 pages)</summary>
+
+**Count comparison**
+
+| Label | Expected | One-Stage detected | One-Stage count acc. | Two-Stage detected | Two-Stage count acc. |
+|---|---:|---:|---:|---:|---:|
+| elevation | 9 | 7 | 78% | 7 | 78% |
+| cabinet | 27 | 21 | 78% | 24 | 89% |
+| countertop | 7 | 4 | 57% | 5 | 71% |
+| elevation_callout | 2 | 9 | -250% | 6 | -100% |
+| **total** | **45** | **41** | **91%** | **42** | **93%** |
+
+**Localization accuracy**
+
+| Label | One-Stage P | One-Stage R | One-Stage F1 | One-Stage mean IoU | Two-Stage P | Two-Stage R | Two-Stage F1 | Two-Stage mean IoU |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| elevation | 100% | 78% | 88% | 0.93 | 100% | 78% | 88% | 0.95 |
+| cabinet | 48% | 37% | 42% | 0.59 | 92% | 81% | 86% | 0.96 |
+| countertop | 25% | 14% | 18% | 0.63 | 100% | 71% | 83% | 0.83 |
+| elevation_callout | 0% | 0% | — | — | 17% | 50% | 25% | 0.57 |
+| **overall** | **44%** | **40%** | **42%** | | **83%** | **78%** | **80%** | |
+
+</details>
+
+<details>
+<summary>project-0003 (Attachment+5+Drawings+Cabinetry.pdf, 9 pages)</summary>
+
+**Count comparison**
+
+| Label | Expected | One-Stage detected | One-Stage count acc. | Two-Stage detected | Two-Stage count acc. |
+|---|---:|---:|---:|---:|---:|
+| elevation | 14 | 6 | 43% | 6 | 43% |
+| cabinet | 15 | 28 | 13% | 15 | 100% |
+| countertop | 3 | 3 | 100% | 3 | 100% |
+| elevation_callout | 0 | 5 | — | 5 | — |
+| **total** | **32** | **42** | **69%** | **29** | **91%** |
+
+**Localization accuracy**
+
+| Label | One-Stage P | One-Stage R | One-Stage F1 | One-Stage mean IoU | Two-Stage P | Two-Stage R | Two-Stage F1 | Two-Stage mean IoU |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| elevation | 100% | 43% | 60% | 0.81 | 100% | 43% | 60% | 0.85 |
+| cabinet | 32% | 60% | 42% | 0.83 | 100% | 100% | 100% | 0.95 |
+| countertop | 33% | 33% | 33% | 0.57 | 100% | 100% | 100% | 0.82 |
+| elevation_callout | 0% | — | — | — | 0% | — | — | — |
+| **overall** | **38%** | **50%** | **43%** | | **83%** | **75%** | **79%** | |
+
+</details>
+
+Only project-0003 has zero expected callouts, so its callout row has no
+meaningful count-accuracy % (division by zero) — shown as `—`; both
+workflows still detected 5 there that don't match any real callout (0%
+precision on that file specifically).
+
 This isn't reproducible from a fresh clone as-is — the human-labeled
 ground truth and the raw per-run JSON it's compared against live in the
 (gitignored, local-only) `drafts/expected/` and `drafts/results/`
