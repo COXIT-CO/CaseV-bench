@@ -971,10 +971,21 @@ function renderHistoryDetail() {
             <summary>Settings</summary>
             <div class="history-section-body" style="font-family: var(--font-body);">${settingsHtml}</div>
         </details>
+        ${run.run_type === 'two_stage' ? `
+        <details class="history-section">
+            <summary>System prompt — Stage 1</summary>
+            <div class="history-section-body">${escapeHtml(run.system_prompt_stage1 || run.system_prompt)}</div>
+        </details>
+        <details class="history-section">
+            <summary>System prompt — Stage 2</summary>
+            <div class="history-section-body">${escapeHtml(run.system_prompt_stage2 || run.system_prompt)}</div>
+        </details>
+        ` : `
         <details class="history-section">
             <summary>System prompt</summary>
             <div class="history-section-body">${escapeHtml(run.system_prompt)}</div>
         </details>
+        `}
         ${promptsHtml}
 
         <div class="history-page-nav">
