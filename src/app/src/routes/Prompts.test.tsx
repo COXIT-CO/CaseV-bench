@@ -40,30 +40,32 @@ describe("Prompts list", () => {
     vi.mocked(api.createPrompt).mockReset();
   });
 
-  it("groups families under their task with latest version and count", async () => {
+  it("lists every family flat, with its latest version and count", async () => {
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     renderPrompts();
 
-    expect(await screen.findByText("cabinet-count-v2")).toBeInTheDocument();
+    expect(await screen.findByText("boxes")).toBeInTheDocument();
     expect(screen.getByText("latest v3")).toBeInTheDocument();
     expect(screen.getByText("3 versions")).toBeInTheDocument();
-    // Task-scoped groups: the counting and location headings both render.
-    expect(screen.getByRole("heading", { name: "counting" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "location" })).toBeInTheDocument();
+    expect(screen.getByText("default")).toBeInTheDocument();
+    // No task grouping: neither a section heading nor the counting group's families.
+    expect(screen.queryByRole("heading", { name: "counting" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "location" })).not.toBeInTheDocument();
+    expect(screen.queryByText("cabinet-count-v2")).not.toBeInTheDocument();
   });
 
   it("links a family to its history page", async () => {
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     renderPrompts();
 
-    await userEvent.click(await screen.findByText("cabinet-count-v2"));
+    await userEvent.click(await screen.findByText("boxes"));
     expect(await screen.findByText("history page")).toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent(
-      "/prompts/counting/cabinet-count-v2",
+      "/prompts/location/boxes",
     );
   });
 
-  it("creates a new family and routes to its history page", async () => {
+  it("creates a new family without a task choice and routes to its history page", async () => {
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     vi.mocked(api.createPrompt).mockResolvedValue({
       task: "location",
@@ -72,8 +74,9 @@ describe("Prompts list", () => {
     });
     renderPrompts();
 
-    await screen.findByText("cabinet-count-v2");
-    await userEvent.selectOptions(screen.getByLabelText("Task"), "location");
+    await screen.findByText("boxes");
+    // The authoring form asks only for what varies — there is no Task control to pick.
+    expect(screen.queryByLabelText("Task")).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Family"), "fixtures");
     await userEvent.type(screen.getByLabelText("Prompt text"), "Locate fixtures");
     await userEvent.click(screen.getByRole("button", { name: "Create prompt" }));
@@ -92,11 +95,11 @@ describe("Prompts list", () => {
     const { ApiError } = await vi.importActual<typeof import("@/api")>("@/api");
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     vi.mocked(api.createPrompt).mockRejectedValue(
-      new ApiError(400, "prompt family 'default' already exists for task counting"),
+      new ApiError(400, "prompt family 'default' already exists"),
     );
     renderPrompts();
 
-    await screen.findByText("cabinet-count-v2");
+    await screen.findByText("boxes");
     await userEvent.type(screen.getByLabelText("Family"), "default");
     await userEvent.type(screen.getByLabelText("Prompt text"), "dupe");
     await userEvent.click(screen.getByRole("button", { name: "Create prompt" }));

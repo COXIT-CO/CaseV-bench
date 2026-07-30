@@ -2,8 +2,16 @@
 // Pydantic response models so the client stays honest about what the API returns. Feature
 // types (LeaderboardRow, ResultDetail, …) are added by their own slices.
 
-/** The two Tasks the harness scores. */
+/** The Tasks the API's contract still names. */
 export type Task = "counting" | "location";
+
+/**
+ * The only Task this SPA drives (ADR 0032): the benchmark is location-only, and no screen
+ * offers a choice. The API is still Task-shaped, so every request that needs a task sends
+ * this one; the parameter and the route segment disappear when the contract flattens
+ * (ticket 04), taking `Task` with them.
+ */
+export const SOLE_TASK: Task = "location";
 
 /** Run lifecycle status. */
 export type RunStatus = "queued" | "running" | "done" | "failed";
@@ -30,10 +38,8 @@ export interface LeaderboardDrawing {
 
 /**
  * One Leaderboard line: a prompt-version × model Configuration outcome
- * (src/web/api.py::LeaderboardRowOut). Counting rows carry `total_absolute_error` +
- * `exact_match_count`; location rows carry `precision`/`recall`/`f1`; the unused set is
- * `null`. Unscored rows (no ground truth) have `rank: null` and null metrics, already
- * pinned last by the service.
+ * (src/web/api.py::LeaderboardRowOut), carrying `precision`/`recall`/`f1`. Unscored rows
+ * (no ground truth) have `rank: null` and null metrics, already pinned last by the service.
  */
 export interface LeaderboardRow {
   rank: number | null;
@@ -45,8 +51,6 @@ export interface LeaderboardRow {
   drawing_id: number;
   drawing_name: string;
   scored: boolean;
-  total_absolute_error: number | null;
-  exact_match_count: number | null;
   precision: number | null;
   recall: number | null;
   f1: number | null;
@@ -74,22 +78,6 @@ export interface LeaderboardParams {
   prompt_family: string | null;
   prompt_version: number | null;
   sort: string | null;
-}
-
-/** One label's counting breakdown in the Result drill-down (src/web/api.py::CountingLabelDetail). */
-export interface CountingLabelDetail {
-  label: string;
-  predicted: number;
-  gt: number;
-  absolute_error: number;
-  exact_match: boolean;
-}
-
-/** A counting Result's Score block: the two ranked aggregates + the per-label rows. */
-export interface CountingScore {
-  total_absolute_error: number;
-  exact_match_count: number;
-  per_label: CountingLabelDetail[];
 }
 
 /** One label's location breakdown: the IoU@0.5 tally + its derived rates. */
@@ -131,8 +119,8 @@ export interface ResultPrediction {
 
 /**
  * `GET /api/results/{id}` — the Result drill-down (spec §A.3, src/web/api.py::ResultDetailResponse).
- * Exactly one of `counting_score` / `location_score` is set, per the Run's Task; both are
- * `null` when the Drawing has no ground truth (unscored, distinct from scored-zero).
+ * `location_score` is `null` when the Drawing has no ground truth (unscored, distinct from
+ * scored-zero).
  */
 export interface ResultDetailResponse {
   result_id: number;
@@ -146,7 +134,6 @@ export interface ResultDetailResponse {
   scored: boolean;
   label_count: number;
   knobs: RunKnobs;
-  counting_score: CountingScore | null;
   location_score: LocationScore | null;
   predictions: ResultPrediction[];
 }
@@ -302,6 +289,13 @@ export interface PromptsResponse {
   groups: PromptGroup[];
 }
 
+/** The prompt families every screen means when it says "the families": the listing is still
+ * Task-grouped, so the one group the SPA drives is unwrapped here rather than at each call
+ * site. Goes away with the groups themselves when the listing flattens (ticket 04). */
+export function promptFamilies(groups: PromptGroup[]): PromptFamily[] {
+  return groups.find((group) => group.task === SOLE_TASK)?.families ?? [];
+}
+
 /** One immutable version in a family's history; `text` rides along so compare/read needs
  * no extra fetch (src/web/api.py::PromptVersionOut). `run_count`/`result_count` are this
  * version's delete collateral — the Runs + Results that pinned it — so the per-version
@@ -403,25 +397,6 @@ export interface ModelUpsertRequest {
   slug: string;
   label: string;
 }
-
-/** One taxonomy label's counting total in the GT form (src/web/api.py::CountingGtLabel):
- * `value` is `null` when the label has not been entered yet, distinct from an entered 0. */
-export interface CountingGtLabel {
-  name: string;
-  value: number | null;
-}
-
-/** `GET`/`PUT /api/drawings/{id}/counting-ground-truth` — the per-label totals in the fixed
- * taxonomy order (spec §A.6). The same shape pre-fills the form and returns the saved totals,
- * so a save can seed the query cache directly. */
-export interface CountingGroundTruthResponse {
-  drawing_id: number;
-  labels: CountingGtLabel[];
-}
-
-/** `PUT /api/drawings/{id}/counting-ground-truth` body: one integer per taxonomy label, all
- * required (a missing/non-integer total is a `400`). */
-export type CountingGtSaveRequest = Record<string, number>;
 
 /** One object the native import reported rather than silently dropped: an off-taxonomy
  * category, a reference to a page the Drawing lacks, a box that grossly overflows its page's

@@ -42,9 +42,22 @@ describe("Launch form Advanced knobs", () => {
     vi.mocked(api.createRun).mockResolvedValue({
       id: 1,
       status: "queued",
-      task: "counting",
+      task: "location",
       total_units: 1,
     });
+  });
+
+  it("offers only the benchmark's own prompts, never a leftover counting one", async () => {
+    renderForm();
+
+    // The endpoint still returns every prompt version (ticket 04 flattens it), so the form
+    // filters — otherwise picking a counting prompt would launch a counting Run (ADR 0032).
+    expect(
+      await screen.findByRole("option", { name: "boxes — v3" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Prompt version")).not.toHaveTextContent(
+      "count-totals",
+    );
   });
 
   it("carries the pre-filled defaults for the one-click launch", async () => {

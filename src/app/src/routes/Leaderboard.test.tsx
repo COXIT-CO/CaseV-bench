@@ -6,14 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Leaderboard } from "@/routes/Leaderboard";
 import { renderWithProviders } from "@/test/render";
 import {
-  COUNTING_BOARD,
   EMPTY_BOARD,
   LOCATION_BOARD,
   PROMPTS,
   PROMPT_HISTORY,
 } from "@/test/fixtures";
 
-// Mock the API module so the board resolves to a known payload per Task, and the prompt
+// Mock the API module so the board resolves to a known payload, and the prompt
 // family/version dropdowns have families + a version history to populate from (ticket 04).
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -27,7 +26,6 @@ vi.mock("@/api", async () => {
   };
 });
 import { api } from "@/api";
-import type { Task } from "@/types";
 
 // Surfaces the live URL so tests can assert the board mirrors its filters (spec §B.3).
 function LocationProbe() {
@@ -52,11 +50,8 @@ function renderBoard(route = "/") {
   );
 }
 
-/** Default: counting board unless the query asks for location. */
-function boardByTask() {
-  vi.mocked(api.leaderboard).mockImplementation(({ task }: { task: Task }) =>
-    Promise.resolve(task === "location" ? LOCATION_BOARD : COUNTING_BOARD),
-  );
+function board() {
+  vi.mocked(api.leaderboard).mockResolvedValue(LOCATION_BOARD);
   vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
   vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY);
 }
@@ -72,39 +67,9 @@ describe("Leaderboard", () => {
     vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY);
   });
 
-  it("renders counting columns, a 1-based rank, and the exact-match denominator", async () => {
-    boardByTask();
+  it("renders the score columns, a 1-based rank, and the ranked rates", async () => {
+    board();
     renderBoard();
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole("columnheader", { name: "Total abs. error" }),
-      ).toBeInTheDocument(),
-    );
-    expect(
-      screen.getByRole("columnheader", { name: "Exact matches" }),
-    ).toBeInTheDocument();
-    // The leader shows rank #1 and its exact matches as `n / total`.
-    expect(screen.getByText("#1")).toBeInTheDocument();
-    expect(screen.getByText("4 / 4")).toBeInTheDocument();
-    expect(screen.getByText("anthropic/claude-sonnet-4.5")).toBeInTheDocument();
-  });
-
-  it("shows unscored rows unranked with a ground-truth CTA to the drawing", async () => {
-    boardByTask();
-    renderBoard();
-
-    const gtLink = await screen.findByRole("link", { name: /ground truth/i });
-    // The CTA points at the unscored row's own Drawing (id 5 in the fixture).
-    expect(gtLink).toHaveAttribute("href", "/library/drawings/5#ground-truth");
-  });
-
-  it("swaps metrics and columns when the Task tab changes, mirroring it to the URL", async () => {
-    boardByTask();
-    renderBoard();
-
-    await screen.findByRole("columnheader", { name: "Total abs. error" });
-    await userEvent.click(screen.getByRole("tab", { name: "Location" }));
 
     await waitFor(() =>
       expect(
@@ -114,21 +79,50 @@ describe("Leaderboard", () => {
     expect(
       screen.getByRole("columnheader", { name: "Precision" }),
     ).toBeInTheDocument();
-    // Counting-only columns are gone, and the Task is in the URL.
     expect(
-      screen.queryByRole("columnheader", { name: "Total abs. error" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("url")).toHaveTextContent("task=location");
+      screen.getByRole("columnheader", { name: "Recall" }),
+    ).toBeInTheDocument();
+    // The leader shows rank #1 and its rates to two decimals.
+    expect(screen.getByText("#1")).toBeInTheDocument();
+    expect(screen.getByText("0.73")).toBeInTheDocument();
+    expect(screen.getByText("anthropic/claude-sonnet-4.5")).toBeInTheDocument();
+  });
+
+  it("offers no task choice and mirrors no task into the URL", async () => {
+    board();
+    renderBoard();
+
+    await screen.findByRole("columnheader", { name: "F1" });
+    // The task tablist is gone with the task itself (ADR 0032) — one benchmark, no choice.
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(screen.getByTestId("url")).not.toHaveTextContent("task");
+  });
+
+  it("ignores a stale ?task= in the URL and still asks for the location board", async () => {
+    board();
+    renderBoard("/?task=counting");
+
+    await screen.findByRole("columnheader", { name: "F1" });
     expect(api.leaderboard).toHaveBeenCalledWith(
       expect.objectContaining({ task: "location" }),
     );
   });
 
-  it("reflects the Drawing filter into the URL", async () => {
-    boardByTask();
+  it("shows unscored rows unranked with a ground-truth CTA to the drawing", async () => {
+    board();
     renderBoard();
 
-    await screen.findByRole("columnheader", { name: "Total abs. error" });
+    const gtLink = await screen.findByRole("link", { name: /ground truth/i });
+    // The CTA points at the unscored row's own Drawing (id 5 in the fixture).
+    expect(gtLink).toHaveAttribute("href", "/library/drawings/5#ground-truth");
+  });
+
+  it("reflects the Drawing filter into the URL", async () => {
+    board();
+    renderBoard();
+
+    await screen.findByRole("columnheader", { name: "F1" });
     await userEvent.selectOptions(
       screen.getByLabelText("Drawing"),
       "prj0002",
@@ -143,8 +137,8 @@ describe("Leaderboard", () => {
   });
 
   it("loads a URL with filters and reproduces that exact board", async () => {
-    boardByTask();
-    renderBoard("/?task=location&drawing_id=3&sort=precision");
+    board();
+    renderBoard("/?drawing_id=3&sort=precision");
 
     await screen.findByRole("columnheader", { name: "F1" });
     expect(api.leaderboard).toHaveBeenCalledWith({
@@ -157,7 +151,7 @@ describe("Leaderboard", () => {
   });
 
   it("navigates to the Result detail route when a row is clicked", async () => {
-    boardByTask();
+    board();
     renderBoard();
 
     const row = await screen.findByRole("button", {
@@ -169,7 +163,7 @@ describe("Leaderboard", () => {
   });
 
   it("the ground-truth CTA navigates to GT entry, not the Result detail", async () => {
-    boardByTask();
+    board();
     renderBoard();
 
     await userEvent.click(await screen.findByRole("link", { name: /ground truth/i }));
@@ -179,37 +173,29 @@ describe("Leaderboard", () => {
   });
 
   it("filters by prompt family, mirroring it to the URL and querying with it", async () => {
-    boardByTask();
+    board();
     renderBoard();
 
-    await screen.findByRole("columnheader", { name: "Total abs. error" });
-    await userEvent.selectOptions(
-      screen.getByLabelText("Prompt"),
-      "cabinet-count-v2",
-    );
+    await screen.findByRole("columnheader", { name: "F1" });
+    await userEvent.selectOptions(screen.getByLabelText("Prompt"), "boxes");
 
-    expect(screen.getByTestId("url")).toHaveTextContent(
-      "prompt_family=cabinet-count-v2",
-    );
+    expect(screen.getByTestId("url")).toHaveTextContent("prompt_family=boxes");
     await waitFor(() =>
       expect(api.leaderboard).toHaveBeenCalledWith(
-        expect.objectContaining({ prompt_family: "cabinet-count-v2" }),
+        expect.objectContaining({ prompt_family: "boxes" }),
       ),
     );
   });
 
   it("keeps the version filter disabled until a family is chosen, then pins a version", async () => {
-    boardByTask();
+    board();
     renderBoard();
 
-    await screen.findByRole("columnheader", { name: "Total abs. error" });
+    await screen.findByRole("columnheader", { name: "F1" });
     // No family yet → the version dropdown is disabled.
     expect(screen.getByLabelText("Version")).toBeDisabled();
 
-    await userEvent.selectOptions(
-      screen.getByLabelText("Prompt"),
-      "cabinet-count-v2",
-    );
+    await userEvent.selectOptions(screen.getByLabelText("Prompt"), "boxes");
     // Once the family's history loads, the version dropdown enables and offers its versions.
     await waitFor(() => expect(screen.getByLabelText("Version")).toBeEnabled());
     await userEvent.selectOptions(screen.getByLabelText("Version"), "2");
@@ -218,7 +204,7 @@ describe("Leaderboard", () => {
     await waitFor(() =>
       expect(api.leaderboard).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt_family: "cabinet-count-v2",
+          prompt_family: "boxes",
           prompt_version: 2,
         }),
       ),
@@ -226,24 +212,24 @@ describe("Leaderboard", () => {
   });
 
   it("loads a URL with a family + version and reproduces that exact query", async () => {
-    boardByTask();
-    renderBoard("/?prompt_family=cabinet-count-v2&prompt_version=2");
+    board();
+    renderBoard("/?prompt_family=boxes&prompt_version=2");
 
-    await screen.findByRole("columnheader", { name: "Total abs. error" });
+    await screen.findByRole("columnheader", { name: "F1" });
     expect(api.leaderboard).toHaveBeenCalledWith({
-      task: "counting",
+      task: "location",
       drawing_id: null,
-      prompt_family: "cabinet-count-v2",
+      prompt_family: "boxes",
       prompt_version: 2,
       sort: null,
     });
   });
 
   it("clearing the family clears the pinned version", async () => {
-    boardByTask();
-    renderBoard("/?prompt_family=cabinet-count-v2&prompt_version=2");
+    board();
+    renderBoard("/?prompt_family=boxes&prompt_version=2");
 
-    await screen.findByRole("columnheader", { name: "Total abs. error" });
+    await screen.findByRole("columnheader", { name: "F1" });
     await userEvent.selectOptions(screen.getByLabelText("Prompt"), "All prompts");
 
     expect(screen.getByTestId("url")).not.toHaveTextContent("prompt_family");
@@ -255,16 +241,18 @@ describe("Leaderboard", () => {
     );
   });
 
-  it("switching Task clears the prompt family/version filters", async () => {
-    boardByTask();
-    renderBoard("/?prompt_family=cabinet-count-v2&prompt_version=2");
-
-    await screen.findByRole("columnheader", { name: "Total abs. error" });
-    await userEvent.click(screen.getByRole("tab", { name: "Location" }));
+  it("offers only the location prompt families in the filter", async () => {
+    board();
+    renderBoard();
 
     await screen.findByRole("columnheader", { name: "F1" });
-    expect(screen.getByTestId("url")).not.toHaveTextContent("prompt_family");
-    expect(screen.getByTestId("url")).not.toHaveTextContent("prompt_version");
+    const familyFilter = screen.getByLabelText("Prompt");
+    expect(
+      screen.getByRole("option", { name: "boxes" }),
+    ).toBeInTheDocument();
+    // The API still groups families by Task (flattened in ticket 04); the counting group's
+    // families never reach the dropdown.
+    expect(familyFilter).not.toHaveTextContent("cabinet-count-v2");
   });
 
   it("shows the empty state when there are no results", async () => {

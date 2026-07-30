@@ -4,18 +4,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { useCreatePrompt, usePrompts } from "@/hooks/queries";
-import type { PromptGroup, Task } from "@/types";
+import { SOLE_TASK, promptFamilies } from "@/types";
+import type { PromptFamily } from "@/types";
 
-// The Prompts list + authoring form (ADR 0011, spec §A.5/§B.2): every prompt family
-// grouped under its Task (Task-scoping, ADR 0009), each showing its latest version and
-// version count and linking to its immutable history. Authoring a prompt creates a new
-// family at v1 (`POST /api/prompts`) — "editing" appends a version, which lives on the
-// history page. On create the SPA routes to the new family's history to keep tuning.
-
-const TASKS: { value: Task; label: string }[] = [
-  { value: "counting", label: "Counting" },
-  { value: "location", label: "Location" },
-];
+// The Prompts list + authoring form (ADR 0011, spec §A.5/§B.2): every prompt family in a
+// flat list, each showing its latest version and version count and linking to its immutable
+// history. Authoring a prompt creates a new family at v1 (`POST /api/prompts`) — "editing"
+// appends a version, which lives on the history page. On create the SPA routes to the new
+// family's history to keep tuning.
 
 export function Prompts() {
   const { data, isLoading, isError, error } = usePrompts();
@@ -25,8 +21,8 @@ export function Prompts() {
       <header className="mb-5">
         <h1 className="text-xl font-semibold tracking-tight">Prompts</h1>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          Author a prompt for a task, then tune it — every edit appends a new immutable
-          version a run can pin.
+          Author a prompt, then tune it — every edit appends a new immutable version a run
+          can pin.
         </p>
       </header>
 
@@ -36,7 +32,7 @@ export function Prompts() {
         <ErrorBlock error={error} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <PromptGroups groups={data.groups} />
+          <FamilyList families={promptFamilies(data.groups)} />
           <CreatePromptCard />
         </div>
       )}
@@ -44,11 +40,9 @@ export function Prompts() {
   );
 }
 
-/** The families, one section per Task; a Task with no families shows an empty note so the
- * group never silently vanishes (spec §A.5). */
-function PromptGroups({ groups }: { groups: PromptGroup[] }) {
-  const total = groups.reduce((n, g) => n + g.families.length, 0);
-  if (total === 0) {
+/** Every prompt family in one flat list, each linking to its immutable history (spec §A.5). */
+function FamilyList({ families }: { families: PromptFamily[] }) {
+  if (families.length === 0) {
     return (
       <EmptyState
         title="No prompts yet"
@@ -57,43 +51,22 @@ function PromptGroups({ groups }: { groups: PromptGroup[] }) {
     );
   }
   return (
-    <div className="flex flex-col gap-6">
-      {groups.map((group) => (
-        <TaskGroup key={group.task} group={group} />
+    <div className="flex flex-col gap-2">
+      {families.map((family) => (
+        <Link
+          key={family.name}
+          to={`/prompts/${encodeURIComponent(SOLE_TASK)}/${encodeURIComponent(family.name)}`}
+          className="flex items-center justify-between gap-4 rounded-lg border bg-card px-3.5 py-3 transition-colors hover:border-primary/50"
+        >
+          <span className="font-medium">{family.name}</span>
+          <span className="flex items-center gap-3 text-[12px] text-muted-foreground">
+            <span className="font-mono">latest v{family.latest_version}</span>
+            <span>
+              {family.count} version{family.count === 1 ? "" : "s"}
+            </span>
+          </span>
+        </Link>
       ))}
-    </div>
-  );
-}
-
-function TaskGroup({ group }: { group: PromptGroup }) {
-  return (
-    <div>
-      <h2 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {group.task}
-      </h2>
-      {group.families.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-3.5 py-3 text-[12.5px] text-muted-foreground">
-          No {group.task} prompts yet.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {group.families.map((family) => (
-            <Link
-              key={family.name}
-              to={`/prompts/${encodeURIComponent(group.task)}/${encodeURIComponent(family.name)}`}
-              className="flex items-center justify-between gap-4 rounded-lg border bg-card px-3.5 py-3 transition-colors hover:border-primary/50"
-            >
-              <span className="font-medium">{family.name}</span>
-              <span className="flex items-center gap-3 text-[12px] text-muted-foreground">
-                <span className="font-mono">latest v{family.latest_version}</span>
-                <span>
-                  {family.count} version{family.count === 1 ? "" : "s"}
-                </span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -101,11 +74,10 @@ function TaskGroup({ group }: { group: PromptGroup }) {
 const FIELD_CLASS =
   "w-full rounded-md border bg-card px-2.5 py-2 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-/** The authoring form: Task + Family + Prompt text create a new family's v1 (spec §A.5).
- * A duplicate family surfaces the service's `400` message inline. */
+/** The authoring form: Family + Prompt text create a new family's v1 (spec §A.5). A
+ * duplicate family surfaces the service's `400` message inline. */
 function CreatePromptCard() {
   const navigate = useNavigate();
-  const [task, setTask] = React.useState<Task>("counting");
   const [family, setFamily] = React.useState("");
   const [text, setText] = React.useState("");
   const createPrompt = useCreatePrompt();
@@ -117,7 +89,7 @@ function CreatePromptCard() {
     event.preventDefault();
     if (!canSubmit) return;
     createPrompt.mutate(
-      { task, family: family.trim(), text },
+      { task: SOLE_TASK, family: family.trim(), text },
       {
         onSuccess: (ref) =>
           navigate(
@@ -134,28 +106,13 @@ function CreatePromptCard() {
     >
       <div className="text-sm font-semibold">New prompt</div>
 
-      <Field label="Task" htmlFor="prompt-task">
-        <select
-          id="prompt-task"
-          className={FIELD_CLASS}
-          value={task}
-          onChange={(e) => setTask(e.target.value as Task)}
-        >
-          {TASKS.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-
       <Field label="Family" htmlFor="prompt-family">
         <input
           id="prompt-family"
           type="text"
           value={family}
           onChange={(e) => setFamily(e.target.value)}
-          placeholder="e.g. cabinet-count-v2"
+          placeholder="e.g. cabinet-boxes-v2"
           className={FIELD_CLASS}
         />
       </Field>

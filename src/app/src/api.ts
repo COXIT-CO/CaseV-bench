@@ -1,8 +1,6 @@
 import type {
   ApiMeta,
   CatalogEntry,
-  CountingGroundTruthResponse,
-  CountingGtSaveRequest,
   DrawingDeleted,
   DrawingDetailResponse,
   DrawingsResponse,
@@ -79,8 +77,8 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** PUT a JSON body and parse the JSON response, surfacing the same `{detail}` envelope as
- * `postJson` (spec §A.0). Used by the idempotent upserts (e.g. saving counting ground
- * truth). */
+ * `postJson` (spec §A.0). Used by the idempotent upserts (e.g. setting a Prediction's box
+ * override). */
 async function putJson<T>(path: string, body: unknown): Promise<T> {
   let response: Response;
   try {
@@ -155,9 +153,10 @@ export const api = {
   meta: () => getJson<ApiMeta>("/api/meta"),
 
   /**
-   * The ranked Leaderboard for a Task, filtered by Drawing and ranked by a metric
-   * (spec §A.2). Params map 1:1 to the URL query the SPA mirrors; `null` values are
-   * omitted so the server applies its defaults ("All drawings", the task's default sort).
+   * The ranked Leaderboard, filtered by Drawing/prompt and ranked by a metric (spec §A.2).
+   * Params map 1:1 to the URL query the SPA mirrors; `null` values are omitted so the server
+   * applies its defaults ("All drawings", the default sort). `task` is not a user choice —
+   * the API is still Task-shaped and the SPA always sends `location` (ADR 0032, ticket 04).
    */
   leaderboard: ({
     task,
@@ -288,27 +287,12 @@ export const api = {
    * embedded `/` is preserved by the `:path` route, so it must not be URL-encoded. */
   removeModel: (slug: string) => deleteJson<CatalogEntry>(`/api/models/${slug}`),
 
-  /** Pre-fill: one Drawing's counting-GT totals per taxonomy label (spec §A.6). */
-  countingGroundTruth: (id: number) =>
-    getJson<CountingGroundTruthResponse>(
-      `/api/drawings/${id}/counting-ground-truth`,
-    ),
-
-  /** Upsert one Drawing's counting-GT totals; returns the saved totals (spec §A.6). */
-  saveCountingGroundTruth: (id: number, totals: CountingGtSaveRequest) =>
-    putJson<CountingGroundTruthResponse>(
-      `/api/drawings/${id}/counting-ground-truth`,
-      totals,
-    ),
-
   /** Import a Drawing's LocationGroundTruth from a native `objects` JSON upload (multipart),
    * surfacing the importer's problem report (spec §A.6). The file needs no configuration — the
-   * label map is the identity and each object states its page (ADR 0022). With `deriveCounting`
-   * the import also writes the counting GT from the accepted boxes (default off — ADR 0025). */
-  importLocationGroundTruth: (id: number, file: File, deriveCounting: boolean) => {
+   * label map is the identity and each object states its page (ADR 0022). */
+  importLocationGroundTruth: (id: number, file: File) => {
     const form = new FormData();
     form.append("file", file);
-    form.append("derive_counting", String(deriveCounting));
     return postForm<LocationImportResponse>(
       `/api/drawings/${id}/location-ground-truth`,
       form,

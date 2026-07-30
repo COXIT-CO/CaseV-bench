@@ -21,7 +21,7 @@ vi.mock("@/api", async () => {
 });
 import { api } from "@/api";
 
-function renderHistory(route = "/prompts/counting/cabinet-count-v2") {
+function renderHistory(route = "/prompts/location/boxes") {
   return renderWithProviders(
     <Routes>
       <Route path="/prompts/:task/:family" element={<PromptHistory />} />
@@ -52,10 +52,10 @@ describe("PromptHistory", () => {
     // latest text too) doesn't collide with the v2 pane.
     const compare = screen.getByRole("region", { name: "Compare versions" });
     expect(
-      within(compare).getByText("Count every cabinet in the drawing."),
+      within(compare).getByText("Locate every cabinet in the drawing."),
     ).toBeInTheDocument();
     expect(
-      within(compare).getByText("Count only base cabinets, ignore wall cabinets."),
+      within(compare).getByText("Locate only base cabinets, ignore wall cabinets."),
     ).toBeInTheDocument();
   });
 
@@ -69,7 +69,7 @@ describe("PromptHistory", () => {
     const compare = screen.getByRole("region", { name: "Compare versions" });
     await waitFor(() =>
       expect(
-        within(compare).getAllByText("Count every cabinet in the drawing."),
+        within(compare).getAllByText("Locate every cabinet in the drawing."),
       ).toHaveLength(2),
     );
   });
@@ -77,8 +77,8 @@ describe("PromptHistory", () => {
   it("appends a new immutable version from the edit form", async () => {
     vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY);
     vi.mocked(api.appendPromptVersion).mockResolvedValue({
-      task: "counting",
-      family: "cabinet-count-v2",
+      task: "location",
+      family: "boxes",
       version: 3,
     });
     renderHistory();
@@ -92,8 +92,8 @@ describe("PromptHistory", () => {
 
     await waitFor(() =>
       expect(api.appendPromptVersion).toHaveBeenCalledWith(
-        "counting",
-        "cabinet-count-v2",
+        "location",
+        "boxes",
         "Count base + wall cabinets separately.",
       ),
     );
@@ -126,9 +126,9 @@ describe("PromptHistory", () => {
   it("shows an error block when the family is unknown", async () => {
     const { ApiError } = await vi.importActual<typeof import("@/api")>("@/api");
     vi.mocked(api.promptHistory).mockRejectedValue(
-      new ApiError(404, "no prompt family 'ghost' for task counting"),
+      new ApiError(404, "no prompt family 'ghost' for task location"),
     );
-    renderHistory("/prompts/counting/ghost");
+    renderHistory("/prompts/location/ghost");
 
     expect(
       await screen.findByText(/no prompt family 'ghost'/),
@@ -164,8 +164,8 @@ describe("PromptHistory", () => {
 
     await waitFor(() =>
       expect(api.deletePromptFamily).toHaveBeenCalledWith(
-        "counting",
-        "cabinet-count-v2",
+        "location",
+        "boxes",
       ),
     );
     // On success we route back to the Prompts list.
@@ -189,8 +189,8 @@ describe("PromptHistory", () => {
 
     await waitFor(() =>
       expect(api.deletePromptVersion).toHaveBeenCalledWith(
-        "counting",
-        "cabinet-count-v2",
+        "location",
+        "boxes",
         2,
       ),
     );

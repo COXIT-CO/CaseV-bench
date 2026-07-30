@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { useCreateRun, useLaunchOptions } from "@/hooks/queries";
 import { cn } from "@/lib/utils";
+import { SOLE_TASK } from "@/types";
 import type { CatalogEntry, LaunchOptionsResponse } from "@/types";
 
 // The launch→watch loop's entry point (spec §A.4, §B.2). One `LaunchRunForm` reused as a
@@ -59,10 +60,17 @@ export function LaunchRunForm({
 
   if (isLoading) return <LoadingBlock rows={4} />;
   if (isError || !data) return <ErrorBlock error={error} />;
-  if (data.prompts.length === 0 || data.drawings.length === 0) {
-    return <MissingPrerequisites options={data} />;
+  // The endpoint still offers every prompt version, and the chosen prompt's own Task drives
+  // the Run — so a prompt left over from counting would launch a counting Run. Only the
+  // benchmark's own prompts are offered (ADR 0032); the filter dies with the Task in ticket 04.
+  const options = {
+    ...data,
+    prompts: data.prompts.filter((p) => p.task === SOLE_TASK),
+  };
+  if (options.prompts.length === 0 || options.drawings.length === 0) {
+    return <MissingPrerequisites options={options} />;
   }
-  return <LaunchRunFields options={data} onLaunched={onLaunched} />;
+  return <LaunchRunFields options={options} onLaunched={onLaunched} />;
 }
 
 /** The no-dead-form guard: point the developer at whatever they're missing (spec §A.4). */
@@ -167,7 +175,7 @@ function LaunchRunFields({
         >
           {options.prompts.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.task}: {p.family} — v{p.version}
+              {p.family} — v{p.version}
             </option>
           ))}
         </select>

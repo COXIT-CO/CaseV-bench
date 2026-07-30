@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-query";
 
 import { api } from "@/api";
-import type { CountingGtSaveRequest, LeaderboardParams } from "@/types";
+import type { LeaderboardParams } from "@/types";
 import { isTerminalRunStatus } from "@/types";
 
 // React Query hooks keyed per Part-A endpoint. Slice 0 has just the proof query; feature
@@ -18,7 +18,7 @@ export function useMeta() {
 /**
  * The Leaderboard board for the current filter set. Keyed by the exact filters (spec
  * §B.3) so the same URL is cached and shared; `placeholderData: (prev) => prev` keeps the
- * old board visible while a Task/Drawing/sort switch refetches, avoiding a flash to
+ * old board visible while a Drawing/prompt/sort switch refetches, avoiding a flash to
  * skeleton (React Query v5's replacement for v4's `keepPreviousData`).
  */
 export function useLeaderboard(params: LeaderboardParams) {
@@ -329,60 +329,21 @@ export function useRemoveModel() {
   });
 }
 
-/** One Drawing's counting-GT totals per taxonomy label, pre-filling the entry form (spec
- * §A.6). `enabled` skips the fetch for an invalid id, as the drawing detail does. */
-export function useCountingGroundTruth(id: number, enabled = true) {
-  return useQuery({
-    queryKey: ["counting-gt", id],
-    queryFn: () => api.countingGroundTruth(id),
-    enabled,
-  });
-}
-
 /**
- * Entering ground truth makes the previously-unscored Leaderboard rows and Result details
- * for this Drawing scored — with no re-run, since scores recompute on read (spec Further
- * Notes). So both are invalidated after a save/import; React Query re-fetches and the rows
- * flip to scored. Shared by the counting-save and location-import mutations.
+ * Import one Drawing's LocationGroundTruth from a native `objects` upload (spec §A.6); the
+ * caller renders the returned problem report.
+ *
+ * Ground truth makes the previously-unscored Leaderboard rows and Result details for this
+ * Drawing scored — with no re-run, since scores recompute on read (spec Further Notes). So
+ * both are invalidated on success; React Query re-fetches and the rows flip to scored.
  */
-function invalidateScored(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
-  queryClient.invalidateQueries({ queryKey: ["result"] });
-}
-
-/** Upsert one Drawing's counting-GT totals. On success the returned totals seed the
- * pre-fill cache and the now-scored board/results are invalidated (spec §A.6). */
-export function useSaveCountingGroundTruth(id: number) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (totals: CountingGtSaveRequest) =>
-      api.saveCountingGroundTruth(id, totals),
-    onSuccess: (saved) => {
-      queryClient.setQueryData(["counting-gt", id], saved);
-      invalidateScored(queryClient);
-    },
-  });
-}
-
-/** Import one Drawing's LocationGroundTruth from a native `objects` upload. On success the
- * now-scored board/results are invalidated (spec §A.6); the caller renders the returned
- * problem report. When `deriveCounting` also wrote the counting GT (ADR 0025), the pre-fill
- * cache for the counting form is invalidated so it reflects the derived totals. */
 export function useImportLocationGroundTruth(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      file,
-      deriveCounting,
-    }: {
-      file: File;
-      deriveCounting: boolean;
-    }) => api.importLocationGroundTruth(id, file, deriveCounting),
-    onSuccess: (_data, { deriveCounting }) => {
-      invalidateScored(queryClient);
-      if (deriveCounting) {
-        queryClient.invalidateQueries({ queryKey: ["counting-gt", id] });
-      }
+    mutationFn: (file: File) => api.importLocationGroundTruth(id, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["result"] });
     },
   });
 }
