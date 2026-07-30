@@ -155,6 +155,7 @@ Two shapes are accepted, auto-detected by whether the JSON is a dict or a list
 [
   {"object_type": "cabinet", "bbox": [120, 340, 480, 610], "page": 0}
 ]
+```
 
 ## Testing
 
