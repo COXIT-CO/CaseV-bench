@@ -36,6 +36,13 @@
             resolution. Uses roughly 1 + one request per elevation found on the sheet.
           </p>
           <p class="field-label">Expected JSON</p>
+          <p class="muted" style="margin:-6px 0 8px">
+            Either a counts object <code>{"cabinets": 5, ...}</code> (compared by count), or —
+            for locate/locate_2pass — a list of ground-truth boxes for IoU scoring:
+            <code>[{"object_type": "cabinet", "bbox": [left, top, right, bottom], "page": 0}, ...]</code>.
+            <code>bbox</code> must be normalized 0..1000 (same scale as detection boxes, not 0..1),
+            and <code>page</code> is 0-based to match the processed page order (first page = 0).
+          </p>
           <textarea name="expected_json" rows="6" class="mono form-textarea">{{ prompt.expected_json or '' }}</textarea>
           <div class="composer-row"><label class="file-input-label">Replace expected JSON<input type="file" name="expected_file" accept="application/json,.json"></label><span class="spacer"></span><button class="btn">Run</button></div>
         </form>
@@ -77,6 +84,27 @@
         {% if result.comparison %}
         <h3>Expected vs actual</h3>
         <table class="metrics-table"><thead><tr><th>Label</th><th>Expected</th><th>Actual</th><th>Δ</th><th>Accuracy</th></tr></thead><tbody>{% for row in result.comparison %}<tr><td>{{ row.label }}</td><td>{{ row.expected }}</td><td>{{ row.actual }}</td><td class="{{ 'delta-good' if row.delta == 0 else 'delta-bad' }}">{{ '%+d'|format(row.delta) }}</td><td>{{ '%.1f'|format(row.accuracy) }}%</td></tr>{% endfor %}</tbody></table>
+        {% endif %}
+
+        {% if result.location_score %}
+        <h3>Location score (IoU ≥ {{ result.location_score.iou_threshold }})</h3>
+        <p class="muted" style="margin:-6px 0 8px">
+          precision {{ '%.1f'|format(result.location_score.metrics.precision * 100) }}% ·
+          recall {{ '%.1f'|format(result.location_score.metrics.recall * 100) }}% ·
+          f1 {{ '%.1f'|format(result.location_score.metrics.f1 * 100) }}% ·
+          tp {{ result.location_score.counts.tp }} · fp {{ result.location_score.counts.fp }} · fn {{ result.location_score.counts.fn }}
+        </p>
+        <table class="metrics-table"><thead><tr><th>Type</th><th>TP</th><th>FP</th><th>FN</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody>
+          {% for object_type, row in result.location_score.per_type.items() %}
+          <tr><td>{{ object_type }}</td><td>{{ row.counts.tp }}</td><td>{{ row.counts.fp }}</td><td>{{ row.counts.fn }}</td><td>{{ '%.1f'|format(row.metrics.precision * 100) }}%</td><td>{{ '%.1f'|format(row.metrics.recall * 100) }}%</td><td>{{ '%.1f'|format(row.metrics.f1 * 100) }}%</td></tr>
+          {% endfor %}
+        </tbody></table>
+        {% if result.location_score.objects %}
+        <details class="location-objects-details" style="margin-top:8px">
+          <summary class="field-label" style="cursor:pointer">Per-object breakdown ({{ (result.location_score.objects.tp | length) + (result.location_score.objects.fp | length) + (result.location_score.objects.fn | length) }} entries)</summary>
+          <pre class="output-block">{{ result.location_score.objects | tojson(indent=2) }}</pre>
+        </details>
+        {% endif %}
         {% endif %}
 
         {% if result %}
