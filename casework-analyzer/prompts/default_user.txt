@@ -1,0 +1,1 @@
+Find, count, and locate every individual cabinet on the target drawing page. Focus only on cabinets — ignore countertops, appliances, fixtures, walls, dimensions, text, and callout symbols. Follow the persona, rules, and output schema defined in the system prompt.

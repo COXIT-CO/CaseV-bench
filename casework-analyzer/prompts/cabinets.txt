@@ -1,0 +1,68 @@
+Context: The provided image is a large architectural sheet containing multiple separate drawings (elevations and floor plans).
+
+Target Objects: Base cabinet units ONLY (specifically the lower door sections, explicitly excluding any upper shelves or mail slots).
+
+Task Instructions:
+
+Locate the Dashed Patterns: Scan the elevation views specifically for rows of dashed diagonal lines indicating cabinet door swings.
+
+Vertical Isolation (CRITICAL): The bounding box MUST tightly hug the actual physical top and bottom edges of the cabinet doors themselves. DO NOT allow the bounding box to expand upwards to include open shelving, mail slots, countertops, or the heavy outer wall lines. Where the dashed lines end vertically, the bounding box must end.
+
+Unit Grouping (The Diamond Rule): In a continuous horizontal row of cabinets, identify pairs of doors that visually form a single, complete diamond shape (< >). Treat each complete diamond pair as ONE functional cabinet unit.
+
+TIGHT Horizontal Bounding: Draw a bounding box around strictly the two rectangular panels that make up that single < > diamond. Do not merge multiple units together. For example, if a row contains 8 doors forming 4 separate < > diamonds, you MUST output exactly 4 separate side-by-side bounding boxes.
+
+Ignore Distractions: Ignore top-down floor plan views, upper casework, and solid black blocks. Only bound the specific lower rectangles containing the dashed diagonal lines.
+
+LABEL: cabinets
+TEXT extracted: cabinets
+_______
+Context: The provided image is an architectural elevation drawing.
+
+Target Objects: Base cabinet units (including both double-door and single-door configurations).
+
+Task Instructions:
+
+The Door Swing Anchor: Scan the lower half of the drawing for rectangles containing dashed diagonal lines.
+
+Unit Grouping (Single vs. Double Rule): You must evaluate the dashed line patterns to group the doors correctly:
+
+Double-Door Units: Look for a full, complete diamond shape (< >) that spans across two adjacent door panels. Treat this pair as ONE functional unit. Draw a single bounding box around the combined outer edges of both doors.
+
+Single-Door Units: Look for a single door where the dashed lines form only a half-diamond (just a < or a >) and do not connect to a neighbor to complete the shape. Treat this single door as ONE functional unit. Draw a bounding box around just this single door.
+
+Strict Vertical Bounding (CRITICAL): You must strictly isolate the lower door panels and completely ignore the upper wall panels or "EQ" sections.
+
+Top Edge: The top of your bounding box must rest EXACTLY on the solid horizontal line that touches the top points of the dashed lines.
+
+Bottom Edge: The bottom of your bounding box must rest EXACTLY on the solid horizontal line that touches the bottom points of the dashed lines. Do not bleed into the white space, dimensions, or text below.
+
+Exhaustive Horizontal Scanning: Scan the entire continuous row from left to right. Pay special attention to the far left and far right ends of the row, as this is where single-door units (half-diamonds) are most commonly located. Every valid single or double unit must get its own individual, tightly fitted bounding box. Do not draw overlapping boxes.
+
+LABEL: cabinets
+TEXT extracted: cabinets
+__________________
+Context: The provided image is an architectural elevation drawing.
+
+Target Objects: Base cabinet units (including both double-door and single-door configurations).
+
+Task Instructions:
+
+The Door Swing Anchor: Scan the lower half of the drawing for rectangles containing dashed diagonal lines.
+
+Unit Grouping (Single vs. Double Rule): You must evaluate the dashed line patterns to group the doors correctly:
+
+Double-Door Units: Look for a full, complete diamond shape (< >) that spans across two adjacent door panels. Treat this pair as ONE functional unit. Draw a single bounding box around the combined outer edges of both doors.
+
+Single-Door Units: Look for a single door where the dashed lines form only a half-diamond (just a < or a >) and do not connect to a neighbor to complete the shape. Treat this single door as ONE functional unit. Draw a bounding box around just this single door.
+
+Strict Vertical Bounding (CRITICAL): You must strictly isolate the lower door panels and completely ignore the upper wall panels or "EQ" sections.
+
+Top Edge: The top of your bounding box must rest EXACTLY on the solid horizontal line that touches the top points of the dashed lines.
+
+Bottom Edge: The bottom of your bounding box must rest EXACTLY on the solid horizontal line that touches the bottom points of the dashed lines. Do not bleed into the white space, dimensions, or text below.
+
+Exhaustive Horizontal Scanning: Scan the entire continuous row from left to right. Pay special attention to the far left and far right ends of the row, as this is where single-door units (half-diamonds) are most commonly located. Every valid single or double unit must get its own individual, tightly fitted bounding box. Do not draw overlapping boxes.
+
+LABEL: cabinets
+TEXT extracted: cabinets

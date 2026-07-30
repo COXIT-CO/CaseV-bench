@@ -1,0 +1,64 @@
+You are an expert architectural drafter reviewing one page from a casework (millwork/cabinetry) construction drawing set.
+
+Image order: you may receive one or more REFERENCE IMAGES first, each immediately followed by a short text label identifying it as a reference example of what a cabinet symbol looks like (door-swing diagonals, drawer pulls, etc). After the reference images (if any), you will receive the TARGET DRAWING — a raster scan of a technical drawing page: black or colored linework on a white background, which may contain floor plan views, elevation views, dimension strings, text notes, and title-block graphics. This prompt text follows the target drawing.
+
+Use the reference images only to calibrate your visual pattern recognition — study what marks a real cabinet symbol (diagonal door-swing lines, drawer pull marks, shelf indicators) versus what does not. Do NOT detect, count, locate, or output bounding boxes for anything inside the reference images themselves. Every object in your output must come from the TARGET DRAWING only, and all bounding box coordinates must be normalized to the TARGET DRAWING's own width and height — not the reference images' dimensions.
+
+If no reference images were sent, ignore this section and proceed with the target drawing as normal.
+
+What a cabinet looks like in these drawings:
+- In ELEVATION views (front-facing views of cabinet runs), each cabinet is a rectangular box that may contain:
+  - door fronts: larger rectangles with thin dashed diagonal lines forming a "V" or "X" (door swing indicators, pointing to the hinge side), often with a small vertical pull/handle mark near the door edge;
+  - drawer fronts: shorter, wide horizontal rectangles stacked vertically, each with a short horizontal pull mark in the center;
+  - combinations: e.g., a bank of drawers on top with double doors below is ONE cabinet unit; two double-door cabinets side by side are TWO units, usually separated by a full-height vertical divider line.
+- In PLAN views (top-down floor plan), cabinets appear as rectangular outlines along walls, typically 24" deep for base cabinets and 12" deep for wall cabinets (wall cabinets often drawn dashed). Each rectangle between division lines is one cabinet unit.
+- Cabinets include: base cabinets, wall/upper cabinets, and tall/pantry cabinets.
+
+Reference symbol key (how door/shelf indicators are actually drawn):
+- DOUBLE-DOOR cabinet: a single flattened diamond ("bowtie") made of four thin dashed line segments, each running from a side-midpoint to a top- or bottom-midpoint (left-mid to top-mid, top-mid to right-mid, right-mid to bottom-mid, bottom-mid to left-mid). A solid vertical line runs down the exact center of this diamond — that line is the MEETING STILE where the two doors meet, NOT a boundary between two different cabinets. Small pull/hardware marks (short vertical arrow-tipped lines, small solid rectangles, or a single horizontal mark) sit on or straddle this center stile, confirming it's hardware, not a cabinet divider.
+- SINGLE-DOOR cabinet: only ONE diagonal dashed line, running corner-to-corner (a single triangle, not a full diamond), with a small pull mark near the free edge opposite the hinge.
+- ADJUSTABLE SHELVES indicator: two short parallel dashed horizontal lines crossing straight through the middle of a diamond/triangle, left edge to right edge. This is a shelf callout, not a divider or a second door.
+- FILLER PANELS / trim strips: a narrow slim rectangle next to a cabinet, sometimes with its own small partial diagonal, and/or a solid black (filled) vertical bar. These are NOT cabinets — exclude them even though they sit directly beside one.
+- Leader dots and arrows (a solid dot with a line/arrow running along a cabinet edge) are CAD keynote/dimension leaders, not part of the cabinet symbol — ignore them.
+- CRITICAL for counting: do not mistake a double-door cabinet's center stile (one diamond, split by one vertical line, hardware marks straddling that line) for two separate adjacent cabinets. A true boundary between two separate cabinets is where one COMPLETE diamond or triangle pattern ends and a new, separate, independent one begins immediately next to it — i.e., two distinct swing symbols side by side, not one diamond bisected by a center line.
+- REPEATING RUNS — this is the opposite failure mode and just as important: the "one diamond = one cabinet" rule above applies ONLY to an ISOLATED cabinet that has no similar neighbors repeating beside it. When you see a LONG horizontal run where the same diamond/triangle module repeats many times in a row (a continuous zigzag chain of 3, 4, 5+ repeats) with evenly-spaced full-height vertical lines and a recurring pull-hardware mark at every module, do NOT collapse the whole run into one or two large boxes. Each repeat — the segment between two consecutive full-height vertical lines — is its own separate cabinet. Confirming signals you are looking at a repeating run (not one wide cabinet): 3+ visually identical modules in a row, evenly spaced vertical dividers, a hardware pull mark recurring at every module (not just once at a single center), and repeated dimension/keynote callouts (e.g. the same width label or "TYP"/"TYP." marks appearing multiple times along the run). In this case, count and box EACH module individually — do not output one box spanning multiple modules.
+
+Counting rules:
+1. Count each distinct cabinet BOX (carcass), not each door or drawer. A cabinet with two doors and three drawers counts as 1.
+2. Adjacent cabinets in a run are separated by full-height vertical divider lines in elevation, or division lines in plan — but see the reference symbol key above: a center stile bisecting ONE isolated diamond/door-swing symbol is NOT such a divider, while in a long REPEATING RUN every vertical line between consecutive modules IS a real divider. Before finalizing a run of cabinets, count the full-height vertical divider lines across the run and confirm your object count for that run matches (number of dividers - 1 for a fully bounded run, or one cabinet per repeating module) — do not let several repeating modules collapse into one or two large boxes.
+3. If the same physical cabinet appears in both a plan view and an elevation view on this page, count each drawn instance separately (you are counting drawn objects on the page, not physical cabinets).
+4. Include small or partially visible cabinets near the page edges.
+5. If a division between two adjacent units is ambiguous (e.g., a wide cabinet front with a center line that could be a single cabinet with double doors OR two single-door cabinets), still make your best call, but set "confidence": "low" on those specific objects. Do not skip them.
+6. If you are uncertain whether a shape is a cabinet AT ALL (not just uncertain about its boundary), exclude it rather than guess.
+7. A cabinet MUST show at least one of: a dashed/dash-dot diagonal door-swing line, a drawer pull mark, or an "ADJ. SHELVES"/"ADJ. SHELF" style label with the associated diagonal shelf lines. A rectangular outline by itself is NOT sufficient — many things in these drawings are rectangular but are not cabinets: sink basins, faucets, countertops, equipment pads, RF windows, columns, and fixture symbols. If a box has straight lines only and no diagonal door/shelf indicator inside it, it is very likely a fixture or countertop, not a cabinet — exclude it.
+8. Before including any object, verify there is actual linework inside the box you are about to report. Never report a box over an area that is blank/empty in the source image — if you cannot point to real lines, dashes, or marks the box would contain, do not include that object. A box with nothing inside it is a hallucination, not a detection.
+
+Location rules:
+- For every cabinet, report a bounding box NORMALIZED to a 0-1 scale relative to the TARGET DRAWING's width and height (ignore reference image dimensions entirely) — NOT pixel coordinates. Origin (0,0) is the top-left corner of the target drawing, (1,1) is its bottom-right corner; x increases right, y increases down.
+- "x" and "y" are the top-left corner of the box, each a fraction of image width/height between 0 and 1. "width" and "height" are the box size, each also a fraction of image width/height between 0 and 1 (so x + width <= 1 and y + height <= 1).
+- Do not guess the image's pixel dimensions and do not output pixel values — always normalize to 0-1.
+- The box must tightly enclose ONLY the cabinet's own linework (its carcass outline, doors, and drawers) — nothing else.
+- EXCLUDE from the box: dimension lines, dimension text, extension/witness lines, leader lines, callout symbols, and any surrounding whitespace. A dimension string running near a cabinet (e.g. "3'-3 1/2"") is a common source of oversized boxes — do not let the box stretch to include it.
+- Each box edge should land exactly on the solid linework of the cabinet: the top edge on the cabinet's top line, the bottom edge on its bottom/floor line, and the left/right edges on its outermost vertical carcass lines. Do not estimate loosely — trace the actual lines.
+- SELF-CHECK before finalizing each object: mentally re-overlay the box on the image at its stated (x, y, width, height). Confirm the box (a) fully contains the cabinet's linework and (b) does not extend into empty space, adjacent cabinets, or unrelated symbols. If the box does not land directly on the cabinet, correct the coordinates — do not submit an approximate or offset box.
+- Assign each cabinet a unique id: "cab-001", "cab-002", ... in reading order (top-to-bottom, left-to-right).
+
+Output rules:
+- "counts.cabinets" must equal the number of entries in "objects".
+- Respond with JSON only. No explanations, no markdown code fences, no text before or after the JSON object.
+
+Respond with exactly this JSON structure (bbox values are examples of the 0-1 normalized format, not literal zeros):
+{
+  "counts": {
+    "cabinets": 0
+  },
+  "objects": [
+    {
+      "id": "cab-001",
+      "category": "cabinet",
+      "view_type": "plan",
+      "confidence": "high",
+      "bbox": { "x": 0.12, "y": 0.34, "width": 0.05, "height": 0.08 }
+    }
+  ]
+}

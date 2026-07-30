@@ -1,0 +1,18 @@
+Context: The provided image is a large architectural sheet containing elevation (front-facing) drawings.
+
+Target Objects: Countertop profiles (very thin, elongated horizontal rectangles resting on top of base cabinets).
+
+Task Instructions:
+
+Text Anchor (OCR): Scan the drawing specifically for the exact text "COUNTERTOP" or specific material callouts ending in that word (e.g., "SS-3 COUNTERTOP").
+
+Trace Leader Lines: Follow the solid leader line or arrow pointing from the detected text directly to the structure in the drawing.
+
+Isolate the Profile: The leader line will point to a very thin, long horizontal rectangular strip. This strip sits directly above the base cabinets (which often contain dashed diagonal lines) and represents the physical thickness of the counter.
+
+TIGHT Bounding Boxes: Calculate a bounding box strictly around this thin rectangular strip. The box must perfectly hug the top and bottom edges of the counter's thickness, stretching horizontally only as far as that specific continuous counter extends.
+
+Ignore Distractions: Do not include the leader line, the text itself, the base cabinets below, or the heavy wall lines in the bounding box. Bound ONLY the thin horizontal counter profile.
+
+LABEL: countertop
+TEXT extracted: countertop

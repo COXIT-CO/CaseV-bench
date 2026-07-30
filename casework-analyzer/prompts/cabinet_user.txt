@@ -1,0 +1,46 @@
+Find every CABINET on this page.
+
+WHAT A CABINET LOOKS LIKE
+In elevation view, a cabinet is a rectangle (the door/drawer opening) containing
+a symbol built from DASHED diagonal lines — never a solid crosshatch fill. The
+dashed lines run from the box's corners, or from one shared point, toward the
+midpoints of the opposite edges, forming one of these patterns:
+  - A full diamond: four dashed lines meeting at all four edge midpoints
+    (top, bottom, left, right).
+  - A partial "bowtie": only the left and right tips are present (common when
+    the box is wider than it is tall), so the shape looks like two triangles
+    touching point-to-point at the horizontal centerline.
+  - A "tent"/chevron: both dashed lines start from ONE shared point at the
+    top-center of the box and fan down to the two bottom corners, instead of
+    a symmetric diamond.
+  - A single diagonal: just one dashed line running from one corner straight
+    to the opposite corner, with no mirrored second line.
+Look for these companion marks, which confirm it's a cabinet symbol rather
+than random dashed geometry elsewhere on the sheet:
+  - Arrowheads (">" "<" or doubled ">>" "<<") sitting exactly at the tip(s)
+    where the dashed lines converge.
+  - A short double-line segment ("=") on the centerline, between the two
+    converging tips.
+  - Small hardware marks near an edge or corner — a pair of short parallel
+    vertical ticks, a single small rectangle, or a filled black dot. These
+    are pulls/hinges and are separate from the diamond lines, not part of it.
+  - On double-leaf units only: a SOLID (not dashed) vertical line splitting
+    the box in half — this is the meeting stile between two doors. Solid vs.
+    dashed is the key visual distinction between a stile and a swing line.
+Single-leaf units (one door) show only the single-diagonal variant above, no
+center divider, and one hardware mark near a corner. Cabinets usually appear
+in a continuous run sitting on a counter or floor line, separated by these
+solid stile lines from their neighbors.
+
+WHAT IS NOT A CABINET
+Do not count: the countertop surface itself, backsplash, open shelving
+without doors, appliances, sinks, or trash/recycling grommet cutouts.
+Do not count a plan-view rectangle as a cabinet unless it clearly shows
+cabinet hatching/paneling.
+
+Worked example — two base cabinets with a wall cabinet above:
+{"bounding_box": [
+  {"y_min": 340, "x_min": 120, "y_max": 410, "x_max": 200, "label": "cabinet", "confidence": 0.95},
+  {"y_min": 340, "x_min": 200, "y_max": 410, "x_max": 280, "label": "cabinet", "confidence": 0.95},
+  {"y_min": 200, "x_min": 130, "y_max": 270, "x_max": 190, "label": "cabinet", "confidence": 0.95}
+]}

@@ -1,29 +1,5 @@
 # Casework Drawing Analyzer
 
-## 📁 SEE [`../results/`](../results) FOR SAMPLE OUTPUT
-
-**[`../results/`](../results)** (sibling of this folder, at the monorepo root)
-holds real, already-generated output from running this app — browse it
-before running anything yourself. It's organized
-`results/<project>/<mode>/<model>/`:
-
-- **`<project>`** — `project-0001`, `project-0002`, `project-0003`, matching
-  the benchmark projects in [`../dataset`](../dataset).
-- **`<mode>`** — which detection mode produced this run: `straight` (plain,
-  one whole-page request per page — Cutting/AI-crop both off), `ai-crop`
-  (two-pass region-then-detect), or `multi-prompting` (one request per
-  category).
-- **`<model>`** — the OpenRouter model slug used (currently `gemini-3_5-flash`
-  everywhere).
-- Inside each: the exported **`obj-count.json`** / **`obj-location.json`**
-  for that run, plus every **`*-annotated.png`** downloaded from the UI —
-  one per page for `straight`/`multi-prompting`, one per **crop** for
-  `ai-crop` (filenames include `-cell-<cell_id>-`, see "AI-crop mode" below).
-
-Use this folder to see what a real run's output looks like, or to compare
-modes/models against each other, without uploading a PDF and running the
-app yourself first.
-
 A tool for testing how well LLMs detect and count objects — cabinets,
 elevations, countertops, and elevation callouts — in architectural casework
 drawing PDFs. Every model is routed through [OpenRouter](https://openrouter.ai),

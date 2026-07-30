@@ -1,0 +1,19 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+pyyaml==6.0.2
+python-multipart==0.0.19
+pymupdf==1.24.13
+openai==1.58.1
+tenacity==9.0.0
+pillow==12.3.0
+json_repair==0.61.7
+
+# Monorepo-local package (../../packages/location-scorer relative to this
+# file) -- benchmark scoring (services/scoring.py). Installed as a local
+# editable path, not the README's documented git+tag URL, because no
+# location-scorer-v*.*.* tag has actually been pushed yet (checked via
+# `git ls-remote --tags origin`) -- switch to the pinned tag URL once one
+# exists, per the package's own README.
+-e ../../packages/location-scorer

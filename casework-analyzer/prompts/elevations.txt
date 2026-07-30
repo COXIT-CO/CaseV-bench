@@ -1,0 +1,18 @@
+Context: The provided image is a large architectural sheet divided by faint intersecting lines into a grid. Each individual cell in this grid contains a separate drawing (referred to as a "Countertop" detail).
+
+Target Objects: EVERY individual grid cell (full sub-drawing) on the sheet. You should expect to find 12 distinct cells.
+
+Task Instructions:
+
+Grid Identification: Recognize that the main drawing area is divided into a structured grid by faint vertical and horizontal lines.
+
+Anchor on Detail Tags: Scan the entire sheet for detail tags. A detail tag is a distinct circle containing a number, with text immediately to its right. Every valid grid cell has one of these tags in its bottom-left corner.
+
+Bounding the Cells: For every detail tag you find, draw a bounding box around the entire grid cell that belongs to it. The bounding box must capture the full sub-drawing, using the faint grid lines as your boundaries.
+
+No Shape Filtering: DO NOT filter or skip cells based on what is drawn inside them. Whether the cell contains solid black rectangles, shaded patterns, or basic floor plan lines, it must be bounded.
+
+Text Extraction: For every cell you bound, extract the circled number and the adjacent text from its bottom-left detail tag (e.g., "66 VENDING - NORTH ELEVATION". DO NOT COUNT Elevations where in extacted text we have FLOOR PLAN!!!!
+
+Label: Elevations
+

@@ -1,0 +1,22 @@
+Context: The provided image is a large architectural sheet containing multiple drawings. You are looking exclusively inside the top-down "FLOOR PLAN" sub-drawings (typically located in the bottom row).
+
+Target Objects: Elevation callout symbols.
+
+Task Instructions:
+
+Shape Identification (Strict Anchor): Look ONLY for perfect circles containing text (e.g., "A7.1.3").
+
+The Black Triangle Rule (Mandatory): To be considered a valid elevation callout, the circle MUST have at least one solid black triangle (arrowhead) attached directly to its outer perimeter, pointing outward. It may have one, two, or four of these black triangles.
+
+TIGHT Bounding Box: Draw a single bounding box that tightly encloses ONLY the central circle and its attached black triangles. Do not expand the box to include the small floating numbers (e.g., 50, 66, 72) located near the tips of the arrows.
+
+Negative Constraints (CRITICAL - DO NOT IGNORE):
+
+IGNORE COLUMN GRIDS: Do not select the architectural column grid tags located around the perimeters of the drawings. These are HEXAGONS (6-sided shapes) containing text like "N-3", "N-H", or "N-1". They are strictly forbidden.
+
+IGNORE VIEW TITLES: Do not select the large view title circles located in the bottom-left corner of every individual drawing cell.
+
+IGNORE ELEVATION VIEWS: Do not look for these symbols inside the side-view elevation drawings. They only exist inside the floor plans.
+
+LABEL: elevation_callout
+TEXT extracted: elevation_callout

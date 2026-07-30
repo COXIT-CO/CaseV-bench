@@ -1,0 +1,643 @@
+{
+  "project_id": "prj0001.pdf",
+  "objects": [
+    {
+      "id": "page4-0",
+      "category": "elevations",
+      "page": 4,
+      "bbox": {
+        "x": 378,
+        "y": 2250,
+        "width": 2520,
+        "height": 6615
+      }
+    },
+    {
+      "id": "page4-1",
+      "category": "elevations",
+      "page": 4,
+      "bbox": {
+        "x": 2898,
+        "y": 2250,
+        "width": 2394,
+        "height": 6615
+      }
+    },
+    {
+      "id": "page4-2",
+      "category": "elevations",
+      "page": 4,
+      "bbox": {
+        "x": 5292,
+        "y": 2250,
+        "width": 2394,
+        "height": 6615
+      }
+    },
+    {
+      "id": "page4-3",
+      "category": "elevations",
+      "page": 4,
+      "bbox": {
+        "x": 7686,
+        "y": 4230,
+        "width": 2394,
+        "height": 4635
+      }
+    },
+    {
+      "id": "page4-4",
+      "category": "elevations",
+      "page": 4,
+      "bbox": {
+        "x": 7686,
+        "y": 180,
+        "width": 2394,
+        "height": 2160
+      }
+    },
+    {
+      "id": "page4-5",
+      "category": "countertops",
+      "page": 4,
+      "bbox": {
+        "x": 3880.8,
+        "y": 7110,
+        "width": 680.4,
+        "height": 108
+      }
+    },
+    {
+      "id": "page3-0",
+      "category": "countertops",
+      "page": 3,
+      "bbox": {
+        "x": 8542.8,
+        "y": 1629,
+        "width": 869.4,
+        "height": 36
+      }
+    },
+    {
+      "id": "page3-1",
+      "category": "cabinets",
+      "page": 3,
+      "bbox": {
+        "x": 8542.8,
+        "y": 1665,
+        "width": 214.2,
+        "height": 288
+      }
+    },
+    {
+      "id": "page3-2",
+      "category": "cabinets",
+      "page": 3,
+      "bbox": {
+        "x": 8757,
+        "y": 1665,
+        "width": 214.2,
+        "height": 288
+      }
+    },
+    {
+      "id": "page3-3",
+      "category": "cabinets",
+      "page": 3,
+      "bbox": {
+        "x": 8971.2,
+        "y": 1665,
+        "width": 226.8,
+        "height": 288
+      }
+    },
+    {
+      "id": "page3-4",
+      "category": "cabinets",
+      "page": 3,
+      "bbox": {
+        "x": 9198,
+        "y": 1665,
+        "width": 214.2,
+        "height": 288
+      }
+    },
+    {
+      "id": "page3-5",
+      "category": "elevations",
+      "page": 3,
+      "bbox": {
+        "x": 415.8,
+        "y": 297,
+        "width": 7320.6,
+        "height": 2115
+      }
+    },
+    {
+      "id": "page3-6",
+      "category": "elevations",
+      "page": 3,
+      "bbox": {
+        "x": 7736.4,
+        "y": 297,
+        "width": 2431.8,
+        "height": 2115
+      }
+    },
+    {
+      "id": "page3-7",
+      "category": "elevations",
+      "page": 3,
+      "bbox": {
+        "x": 415.8,
+        "y": 2412,
+        "width": 7320.6,
+        "height": 2115
+      }
+    },
+    {
+      "id": "page3-8",
+      "category": "elevations",
+      "page": 3,
+      "bbox": {
+        "x": 7736.4,
+        "y": 2412,
+        "width": 2431.8,
+        "height": 2115
+      }
+    },
+    {
+      "id": "page3-9",
+      "category": "elevations",
+      "page": 3,
+      "bbox": {
+        "x": 415.8,
+        "y": 4527,
+        "width": 9752.4,
+        "height": 2115
+      }
+    },
+    {
+      "id": "page3-10",
+      "category": "elevations",
+      "page": 3,
+      "bbox": {
+        "x": 415.8,
+        "y": 6642,
+        "width": 9752.4,
+        "height": 2115
+      }
+    },
+    {
+      "id": "page1-0",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 226.8,
+        "y": 162,
+        "width": 2633.4,
+        "height": 2142
+      }
+    },
+    {
+      "id": "page1-1",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 2860.2,
+        "y": 162,
+        "width": 3616.2,
+        "height": 2142
+      }
+    },
+    {
+      "id": "page1-2",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 6476.4,
+        "y": 162,
+        "width": 3679.2,
+        "height": 2142
+      }
+    },
+    {
+      "id": "page1-3",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 226.8,
+        "y": 2304,
+        "width": 2633.4,
+        "height": 2142
+      }
+    },
+    {
+      "id": "page1-4",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 2860.2,
+        "y": 2304,
+        "width": 3616.2,
+        "height": 2142
+      }
+    },
+    {
+      "id": "page1-5",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 6476.4,
+        "y": 2304,
+        "width": 3679.2,
+        "height": 2142
+      }
+    },
+    {
+      "id": "page1-6",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 226.8,
+        "y": 4446,
+        "width": 2633.4,
+        "height": 2232
+      }
+    },
+    {
+      "id": "page1-7",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 6476.4,
+        "y": 4446,
+        "width": 3679.2,
+        "height": 2232
+      }
+    },
+    {
+      "id": "page1-8",
+      "category": "elevations",
+      "page": 1,
+      "bbox": {
+        "x": 226.8,
+        "y": 6678,
+        "width": 2633.4,
+        "height": 2142
+      }
+    },
+    {
+      "id": "page1-9",
+      "category": "countertops",
+      "page": 1,
+      "bbox": {
+        "x": 1008,
+        "y": 8136,
+        "width": 1209.6,
+        "height": 90
+      }
+    },
+    {
+      "id": "page1-10",
+      "category": "countertops",
+      "page": 1,
+      "bbox": {
+        "x": 7081.2,
+        "y": 6156,
+        "width": 2343.6,
+        "height": 36
+      }
+    },
+    {
+      "id": "page1-11",
+      "category": "elevation_callouts",
+      "page": 1,
+      "bbox": {
+        "x": 4208.4,
+        "y": 7722,
+        "width": 315,
+        "height": 297
+      }
+    },
+    {
+      "id": "page1-12",
+      "category": "elevation_callouts",
+      "page": 1,
+      "bbox": {
+        "x": 5556.6,
+        "y": 7722,
+        "width": 277.2,
+        "height": 297
+      }
+    },
+    {
+      "id": "page1-13",
+      "category": "elevation_callouts",
+      "page": 1,
+      "bbox": {
+        "x": 7975.8,
+        "y": 7542,
+        "width": 189,
+        "height": 207
+      }
+    },
+    {
+      "id": "page1-14",
+      "category": "elevation_callouts",
+      "page": 1,
+      "bbox": {
+        "x": 8958.6,
+        "y": 7596,
+        "width": 189,
+        "height": 216
+      }
+    },
+    {
+      "id": "page1-15",
+      "category": "elevation_callouts",
+      "page": 1,
+      "bbox": {
+        "x": 8807.4,
+        "y": 7776,
+        "width": 201.6,
+        "height": 216
+      }
+    },
+    {
+      "id": "page1-16",
+      "category": "elevation_callouts",
+      "page": 1,
+      "bbox": {
+        "x": 8001,
+        "y": 8109,
+        "width": 176.4,
+        "height": 288
+      }
+    },
+    {
+      "id": "page1-17",
+      "category": "elevation_callouts",
+      "page": 1,
+      "bbox": {
+        "x": 8190,
+        "y": 8109,
+        "width": 189,
+        "height": 288
+      }
+    },
+    {
+      "id": "page1-18",
+      "category": "cabinets",
+      "page": 1,
+      "bbox": {
+        "x": 1008,
+        "y": 8226,
+        "width": 403.2,
+        "height": 234
+      }
+    },
+    {
+      "id": "page1-19",
+      "category": "cabinets",
+      "page": 1,
+      "bbox": {
+        "x": 1411.2,
+        "y": 8226,
+        "width": 403.2,
+        "height": 234
+      }
+    },
+    {
+      "id": "page1-20",
+      "category": "cabinets",
+      "page": 1,
+      "bbox": {
+        "x": 1814.4,
+        "y": 8226,
+        "width": 403.2,
+        "height": 234
+      }
+    },
+    {
+      "id": "page2-0",
+      "category": "elevations",
+      "page": 2,
+      "bbox": {
+        "x": 390.6,
+        "y": 459,
+        "width": 3717,
+        "height": 1863
+      }
+    },
+    {
+      "id": "page2-1",
+      "category": "elevations",
+      "page": 2,
+      "bbox": {
+        "x": 4107.6,
+        "y": 459,
+        "width": 6010.2,
+        "height": 1863
+      }
+    },
+    {
+      "id": "page2-2",
+      "category": "elevations",
+      "page": 2,
+      "bbox": {
+        "x": 390.6,
+        "y": 2322,
+        "width": 3717,
+        "height": 2178
+      }
+    },
+    {
+      "id": "page2-3",
+      "category": "elevations",
+      "page": 2,
+      "bbox": {
+        "x": 4107.6,
+        "y": 2322,
+        "width": 6010.2,
+        "height": 2178
+      }
+    },
+    {
+      "id": "page2-4",
+      "category": "elevations",
+      "page": 2,
+      "bbox": {
+        "x": 390.6,
+        "y": 4500,
+        "width": 9727.2,
+        "height": 2178
+      }
+    },
+    {
+      "id": "page2-5",
+      "category": "elevations",
+      "page": 2,
+      "bbox": {
+        "x": 390.6,
+        "y": 6678,
+        "width": 9727.2,
+        "height": 2178
+      }
+    },
+    {
+      "id": "page2-6",
+      "category": "countertops",
+      "page": 2,
+      "bbox": {
+        "x": 1159.2,
+        "y": 3807,
+        "width": 2154.6,
+        "height": 36
+      }
+    },
+    {
+      "id": "page2-7",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 1159.2,
+        "y": 3843,
+        "width": 264.6,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-8",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 1423.8,
+        "y": 3843,
+        "width": 277.2,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-9",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 1701,
+        "y": 3843,
+        "width": 264.6,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-10",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 1965.6,
+        "y": 3843,
+        "width": 264.6,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-11",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 2230.2,
+        "y": 3843,
+        "width": 277.2,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-12",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 2507.4,
+        "y": 3843,
+        "width": 264.6,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-13",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 2772,
+        "y": 3843,
+        "width": 277.2,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-14",
+      "category": "cabinets",
+      "page": 2,
+      "bbox": {
+        "x": 3049.2,
+        "y": 3843,
+        "width": 264.6,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-15",
+      "category": "elevation_callouts",
+      "page": 2,
+      "bbox": {
+        "x": 8001,
+        "y": 4572,
+        "width": 252,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-16",
+      "category": "elevation_callouts",
+      "page": 2,
+      "bbox": {
+        "x": 2872.8,
+        "y": 6732,
+        "width": 252,
+        "height": 243
+      }
+    },
+    {
+      "id": "page2-17",
+      "category": "elevation_callouts",
+      "page": 2,
+      "bbox": {
+        "x": 2242.8,
+        "y": 8550,
+        "width": 252,
+        "height": 225
+      }
+    },
+    {
+      "id": "page2-18",
+      "category": "elevation_callouts",
+      "page": 2,
+      "bbox": {
+        "x": 7030.8,
+        "y": 2340,
+        "width": 252,
+        "height": 252
+      }
+    },
+    {
+      "id": "page2-19",
+      "category": "elevation_callouts",
+      "page": 2,
+      "bbox": {
+        "x": 8442,
+        "y": 2340,
+        "width": 252,
+        "height": 252
+      }
+    }
+  ]
+}

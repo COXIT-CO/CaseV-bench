@@ -1,0 +1,5 @@
+This is a single sheet from an architectural millwork/casework drawing set. It may contain multiple framed elevation drawings, floor/RCP plans, enlarged plans, and reference symbols on the same sheet.
+
+Scan the entire sheet thoroughly, region by region — do not stop after finding just a few objects. Identify objects by shape and position. Distinguish elevation_callout symbols (bubble, triangular flag, four-way diamond — each with 2+ distinct identifiers) from single-identifier keynote/door-tag markers. Keep boxes tight and non-overlapping; treat a drawer stack plus its door as one cabinet unless a divider clearly separates two units; only tag a cabinet where an actual door/drawer/compartment mark is drawn.
+
+Just locate objects — do not count or total them. Output the result as JSON only, no explanation.
