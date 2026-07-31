@@ -216,6 +216,29 @@ not a guarantee (see the `server_default` handling in the existing migrations un
 
 ## Results
 
-<!-- TODO: заповнити після прогону бенчмарків на реальному наборі креслень.
-     Планована структура: таблиця model x workflow x (precision/recall/f1 або
-     count accuracy), з посиланням на конкретні run_id для відтворюваності. -->
+First benchmark run: `013TMRICabinetsDrawings.pdf`, both localization workflows at IoU
+threshold 0.2. `locate_2pass` is noticeably more accurate than plain `locate` — the
+per-elevation crop pass recovers most of the cabinet/countertop misses (both workflows share
+identical `elevation`/`elevation_callout` numbers, since only pass 1 detects those).
+
+### `locate` (1 pass)
+
+Location score (IoU ≥ 0.2): precision 55.3%, recall 46.7%, f1 50.6%, tp 21, fp 17, fn 24
+
+| Type | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| cabinet | 12 | 10 | 15 | 54.5% | 44.4% | 49.0% |
+| countertop | 0 | 5 | 7 | 0.0% | 0.0% | 0.0% |
+| elevation | 7 | 0 | 2 | 100.0% | 77.8% | 87.5% |
+| elevation_callout | 2 | 2 | 0 | 50.0% | 100.0% | 66.7% |
+
+### `locate_2pass` (2 pass)
+
+Location score (IoU ≥ 0.2): precision 95.0%, recall 84.4%, f1 89.4%, tp 38, fp 2, fn 7
+
+| Type | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| cabinet | 24 | 0 | 3 | 100.0% | 88.9% | 94.1% |
+| countertop | 5 | 0 | 2 | 100.0% | 71.4% | 83.3% |
+| elevation | 7 | 0 | 2 | 100.0% | 77.8% | 87.5% |
+| elevation_callout | 2 | 2 | 0 | 50.0% | 100.0% | 66.7% |
