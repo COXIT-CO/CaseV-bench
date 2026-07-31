@@ -82,7 +82,14 @@ def extract_counts(data: Any) -> dict[str, int]:
     if isinstance(data, list):
         for item in data:
             if isinstance(item, dict):
-                label = normalize_label(item.get("label") or item.get("type") or item.get("class"))
+                # "object_type" is the key used by the bbox ground-truth format consumed by
+                # location-scorer (see location_scoring.py); "label"/"type"/"class" cover the
+                # model's own detection format and older expected-JSON shapes. Without this,
+                # a bbox ground-truth list silently counts as all-zero here even though
+                # location_score reads the same objects correctly.
+                label = normalize_label(
+                    item.get("label") or item.get("type") or item.get("class") or item.get("object_type")
+                )
                 if label:
                     counts[label] += 1
     return dict(counts)

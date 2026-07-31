@@ -44,7 +44,17 @@
             and <code>page</code> is 0-based to match the processed page order (first page = 0).
           </p>
           <textarea name="expected_json" rows="6" class="mono form-textarea">{{ prompt.expected_json or '' }}</textarea>
-          <div class="composer-row"><label class="file-input-label">Replace expected JSON<input type="file" name="expected_file" accept="application/json,.json"></label><span class="spacer"></span><button class="btn">Run</button></div>
+          <div class="composer-row">
+            <label class="file-input-label">Replace expected JSON<input type="file" name="expected_file" accept="application/json,.json"></label>
+            <span class="spacer"></span>
+            <button type="submit" class="btn-ghost"
+                    formaction="{{ url_for('routes.prompt_update_expected_json', prompt_id=prompt.id, run_id=selected_run.id if selected_run else None) }}"
+                    formnovalidate
+                    title="Save Expected JSON only — no model call, no new run">
+              💾 Save Expected JSON only
+            </button>
+            <button class="btn">Run</button>
+          </div>
         </form>
       </div>
 
@@ -78,7 +88,17 @@
       <div class="panel" id="run-panel" data-run-id="{{ selected_run.id }}">
         <div class="top-bar"><h2>Run #{{ selected_run.id }}</h2><span id="run-status-pill" class="status-pill status-{{ selected_run.status.value }}"><span class="status-dot"></span><span id="run-status-text">{{ selected_run.status.value }}</span></span></div>
         <p class="muted">{{ selected_run.workflow }} · {{ selected_run.dpi }} DPI · {{ selected_run.model }}</p>
-        <div class="top-bar"><span></span><a id="run-download-link" class="btn-ghost" href="{{ url_for('routes.prompt_run_download', run_id=selected_run.id) }}" {% if not selected_run.result_json %}style="display:none"{% endif %}>⬇ Download result.json</a></div>
+        <div class="top-bar">
+          <span></span>
+          <div style="display:flex; gap:8px; align-items:center">
+            {% if selected_run.status.name == 'COMPLETED' %}
+            <form action="{{ url_for('routes.prompt_run_recompute_metrics', run_id=selected_run.id) }}" method="POST" style="display:inline">
+              <button type="submit" class="btn-ghost" title="Re-score stored predictions against the current Expected JSON, without re-running the model">↻ Recompute metrics</button>
+            </form>
+            {% endif %}
+            <a id="run-download-link" class="btn-ghost" href="{{ url_for('routes.prompt_run_download', run_id=selected_run.id) }}" {% if not selected_run.result_json %}style="display:none"{% endif %}>⬇ Download result.json</a>
+          </div>
+        </div>
         <div id="run-error-wrap" {% if not selected_run.error_message %}style="display:none"{% endif %}><div id="run-error" class="output-block error-block">{{ selected_run.error_message or '' }}</div></div>
 
         {% if result.comparison %}

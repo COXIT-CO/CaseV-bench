@@ -563,3 +563,63 @@ def process_prompt_run(run_id: int) -> None:
     finally:
         run.finished_at = datetime.now(UTC)
         db.session.commit()
+        
+def recompute_run_metrics(run_id: int) -> PromptRun:
+    """Re-score a completed run's already-stored predictions against the prompt's
+    current expected_json, without calling the model again. Overwrites comparison/
+    location_score/errors in both result.json and PromptRun.result_json."""
+    run = PromptRun.query.get_or_404(run_id)
+    if run.status != PromptStatus.COMPLETED:
+        raise ValueError("Can only recompute metrics for a completed run.")
+    if not run.result_json:
+        raise ValueError("This run has no stored result to recompute from.")
+
+    result = json.loads(run.result_json)
+    merged_objects = result.get("objects", [])
+    total_counts = result.get("counts", {key: 0 for key in CANONICAL_LABELS})
+
+    expected = normalize_expected(json.loads(run.prompt.expected_json)) if run.prompt.expected_json else None
+    comparison = build_comparison(total_counts, expected)
+
+    location_score = None
+    errors = []
+    if run.workflow in ('locate', 'locate_2pass') and run.prompt.expected_json:
+        raw_expected = json.loads(run.prompt.expected_json)
+        if is_bbox_ground_truth(raw_expected):
+            try:
+                location_score = score_location(
+                    merged_objects, raw_expected,
+                    iou_threshold=current_app.config['SCORING_IOU_THRESHOLD'],
+                )
+            except ValueError as exc:
+                errors.append(f"Ground truth scoring failed: {exc}")
+            else:
+                if location_score['counts']['tp'] == 0 and merged_objects and raw_expected:
+                    errors.append(
+                        "Location score shows zero true positives despite non-empty "
+                        "predictions and ground truth — check that 'page' numbers in "
+                        "expected_json match image_index (0-based) exactly, and that bbox "
+                        "coordinates are normalized 0..1000 (not 0..1)."
+                    )
+
+    result["expected_summary"] = expected
+    result["comparison"] = comparison
+    result["location_score"] = location_score
+    result["errors"] = errors
+
+    result_path = os.path.join(run.artifacts_path, 'result.json')
+    with open(result_path, 'w', encoding='utf-8') as fh:
+        json.dump(result, fh, ensure_ascii=False, indent=2)
+
+    run.response = json.dumps(result, ensure_ascii=False, indent=2)
+    run.result_json = run.response
+    db.session.commit()
+    return run
+
+
+def update_expected_json(prompt_id: int, expected_text: str | None, expected_file=None) -> Prompt:
+    """Save a new expected_json on a Prompt only — no model call, no new run."""
+    prompt = Prompt.query.get_or_404(prompt_id)
+    prompt.expected_json = _parse_expected(expected_text, expected_file)
+    db.session.commit()
+    return prompt

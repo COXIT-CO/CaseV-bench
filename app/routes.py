@@ -16,6 +16,8 @@ from app.services import (
     list_input_files,
     rename_prompt,
     update_or_fork_prompt,
+    recompute_run_metrics,
+    update_expected_json,
 )
 
 routes = Blueprint("routes", __name__)
@@ -185,3 +187,21 @@ def run_artifact(run_id: int, filename: str):
     if not full_path or not os.path.isfile(full_path):
         abort(404)
     return send_file(full_path)
+
+@routes.route('/runs/<int:run_id>/recompute-metrics', methods=['POST'])
+def prompt_run_recompute_metrics(run_id):
+    run = PromptRun.query.get_or_404(run_id)
+    prompt_id = run.prompt_id
+    try:
+        recompute_run_metrics(run_id)
+        flash('Metrics recomputed from stored predictions.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'error')
+    return redirect(url_for('routes.prompt_detail', prompt_id=prompt_id, run_id=run_id))
+
+
+@routes.route('/prompts/<int:prompt_id>/expected-json', methods=['POST'])
+def prompt_update_expected_json(prompt_id):
+    update_expected_json(prompt_id, request.form.get('expected_json'))
+    flash('Expected JSON saved.', 'success')
+    return redirect(url_for('routes.prompt_detail', prompt_id=prompt_id, run_id=request.args.get('run_id')))
