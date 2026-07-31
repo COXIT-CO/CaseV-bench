@@ -1,8 +1,8 @@
 """Prompt authoring & immutable versioning (spec: Prompts; ADR 0009).
 
 Every edit appends a new version within a ``(task, family)`` lineage; prior versions
-are never mutated, so a Run can pin exact text forever. The two shipped prompt ``.md``
-files seed each Task's initial ``default`` family so prior POC work carries over.
+are never mutated, so a Run can pin exact text forever. The shipped prompt ``.md`` file
+seeds the initial ``default`` family so prior POC work carries over.
 """
 
 from pathlib import Path
@@ -23,11 +23,8 @@ DEFAULT_FAMILY = "default"
 # (ADR-0014). Only the delete path touches it; authoring never does.
 DEFAULT_OVERLAY_ROOT = settings.overlays_root
 
-# The shipped prompt directory each Task seeds its initial version from.
-_SEED_DIRS = {
-    Task.counting: "object_counting",
-    Task.location: "object_location",
-}
+# The shipped prompt directory the ``default`` family seeds its initial version from.
+_SEED_DIR = "object_location"
 
 
 class PromptService:
@@ -166,14 +163,13 @@ class PromptService:
 def seed_default_prompts(
     session: Session, prompts_dir: Path = DEFAULT_PROMPTS_DIR
 ) -> None:
-    """Seed each Task's shipped ``.md`` as version 1 of the ``default`` family.
+    """Seed the shipped ``.md`` as version 1 of the ``default`` family.
 
-    Idempotent: a Task whose default family already exists is left untouched, so it is
-    safe to call on every startup.
+    Idempotent: an existing ``default`` family is left untouched, so it is safe to call on
+    every startup.
     """
     service = PromptService(session)
-    for task, dirname in _SEED_DIRS.items():
-        if service.latest(task, DEFAULT_FAMILY) is not None:
-            continue
-        text = (prompts_dir / dirname / "v0001.md").read_text().strip()
-        service.create(task, family=DEFAULT_FAMILY, text=text)
+    if service.latest(Task.location, DEFAULT_FAMILY) is not None:
+        return
+    text = (prompts_dir / _SEED_DIR / "v0001.md").read_text().strip()
+    service.create(Task.location, family=DEFAULT_FAMILY, text=text)

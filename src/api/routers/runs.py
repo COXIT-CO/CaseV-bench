@@ -19,7 +19,7 @@ from api.routers.common import (
 )
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS
 from core.models.drawing import Drawing
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.run import Run, RunStatus
 from core.services.model_catalog import ModelCatalogService
 from core.services.pdf_processing import DEFAULT_DPI
@@ -313,16 +313,12 @@ def run_report(run_id: int, session: Session = Depends(get_session)) -> Response
     """Stream a single, self-contained HTML comparison of this Run's models as a download
     (ADR 0026, ticket 02). Assembled synchronously in-request from the Run's Results — no
     ``Report`` entity, no stored file. Enabled only for a **terminal** (``done``/``failed``)
-    **location** Run, with no GT gating: a counting or non-terminal Run is a ``400``; an
-    unknown Run a ``404``. The file opens by double-click (every image base64-inlined, all CSS
-    inlined, no network)."""
+    Run, with no GT gating: a non-terminal Run is a ``400``; an unknown Run a ``404``. The
+    file opens by double-click (every image base64-inlined, all CSS inlined, no network).
+    """
     run = session.get(Run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"no run with id {run_id}")
-    if run.task != Task.location:
-        raise HTTPException(
-            status_code=400, detail="reports are available for location runs only"
-        )
     if run.status not in _TERMINAL_STATUSES:
         raise HTTPException(
             status_code=400, detail="report is available once the run is done or failed"

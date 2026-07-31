@@ -36,7 +36,6 @@ def make_engine(database_url: str | None = None) -> Engine:
 def init_db(engine: Engine) -> None:
     """Create every registered table. Idempotent."""
     # Import table models so they register on SQLModel.metadata before create_all.
-    import core.models.counting_ground_truth  # noqa: F401
     import core.models.drawing  # noqa: F401
     import core.models.location_ground_truth  # noqa: F401
     import core.models.meta  # noqa: F401

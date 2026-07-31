@@ -1,10 +1,10 @@
 """End-to-end check that a location Result scores on the location path (ticket 11),
 through the live Run flow and the JSON drill-down. The Jinja Leaderboard board (ticket 02)
 and Result detail (ticket 03) were both retired — the location board lives in the React
-SPA against ``GET /api/leaderboard?task=location`` (see
+SPA against ``GET /api/leaderboard`` (see
 ``tests/test_location_leaderboard_api.py``) and the drill-down against
 ``GET /api/results/{id}`` (see ``tests/test_result_detail_api.py``). Here we assert the
-run-then-read path yields an IoU@0.5 P/R/F1 score, never a counting score."""
+run-then-read path yields an IoU@0.5 P/R/F1 score."""
 
 import json
 import time
@@ -111,7 +111,6 @@ def test_location_result_detail_shows_iou_score(
     detail = client.get(f"/api/results/{result_id}")
     assert detail.status_code == 200
     body = detail.json()
-    # A location Result uses IoU@0.5 P/R/F1 and never gets a counting score.
+    # A location Result is scored on IoU@0.5 P/R/F1.
     assert body["task"] == "location"
     assert body["location_score"] is not None
-    assert body["counting_score"] is None

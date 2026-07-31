@@ -1,9 +1,9 @@
 """Run execution — the shared service that launches a Run and persists its Results +
 Predictions (spec: Runs & execution; tickets 05, 06, 09).
 
-Two pieces live here around the per-page predict routines (``predict_counting`` /
-``predict_location``, the single primary test seam — they take an ``OpenRouterAdapter``
-so tests stub the only external I/O boundary):
+Two pieces live here around the per-page predict routine (``predict_location``, the single
+primary test seam — it takes an ``OpenRouterAdapter`` so tests stub the only external I/O
+boundary):
 
 - ``RunService`` inserts a ``queued`` Run with one Result per model and the knob
   snapshot (``create_run``). This is what a request calls synchronously and returns.
@@ -13,15 +13,13 @@ so tests stub the only external I/O boundary):
   cap while pages run **sequentially per model**. The HTMX frontend polls a status
   endpoint and swaps in results when finished.
 
-Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — for
-counting the per-page counts parsed from the model's JSON; for location the labeled
-boxes plus a prediction-overlay PNG drawn on the page image (ticket 09) — or a failure
-record. The request is a single model-agnostic user turn (no prefill; ADR 0019) and the
-response is parsed, retried once before a failure is recorded; a model failure never
-aborts the Run (spec: Runs 20, 21).
+Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — the
+labeled boxes parsed from the model's JSON plus a prediction-overlay PNG drawn on the
+page image (ticket 09) — or a failure record. The request is a single model-agnostic user
+turn (no prefill; ADR 0019) and the response is parsed, retried once before a failure is
+recorded; a model failure never aborts the Run (spec: Runs 20, 21).
 """
 
-import json
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -37,7 +35,7 @@ from core.adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
 from core.config import settings
 from core.models.drawing import Drawing
 from core.models.prompt import Prompt, Task
-from core.models.results import CountResult, LocationDetection, LocationResult
+from core.models.results import LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.deletion import RunCascadeCounts, cascade_delete_runs
 from core.services.pdf_processing import DEFAULT_DPI, render_run_page
@@ -55,9 +53,6 @@ DEFAULT_MAX_CONCURRENCY = 3
 # (ticket 09). A dedicated root (not the page-image dir) since many Results share a Page.
 # Production default under the single data root; tests inject a temp root (ADR-0014).
 DEFAULT_OVERLAY_ROOT = settings.overlays_root
-
-# Tasks the run path can execute today (counting: ticket 05/06; location: ticket 09).
-SUPPORTED_TASKS = (Task.counting, Task.location)
 
 
 def reconcile_orphaned_runs(session: Session) -> int:
@@ -126,8 +121,6 @@ class RunService:
         self, task: Task, prompt_id: int, drawing_id: int, models: list[str]
     ) -> Run:
         """Insert a ``queued`` Run with one Result per model and the knob snapshot."""
-        if task not in SUPPORTED_TASKS:
-            raise ValueError(f"unsupported Run task {task.value}")
         prompt = self.session.get(Prompt, prompt_id)
         if prompt is None or prompt.task != task:
             raise ValueError(f"no {task.value} prompt with id {prompt_id}")
@@ -232,7 +225,6 @@ class BackgroundRunner:
             run.status = RunStatus.running
             session.commit()
 
-            task = run.task
             prompt_text = session.get(Prompt, run.prompt_id).text
             drawing = session.get(Drawing, run.drawing_id)
             pages = [
@@ -256,7 +248,6 @@ class BackgroundRunner:
                     model,
                     pages,
                     prompt_text,
-                    task,
                 )
                 for result_id, model in results
             ]
@@ -277,27 +268,21 @@ class BackgroundRunner:
         model: str,
         pages: list[_PageRef],
         prompt_text: str,
-        task: Task,
     ) -> None:
         """One model's Result: walk its pages **sequentially**, persisting a Prediction
         and advancing progress after each. A model failure is already captured inside
         the predict routine as a failure Prediction, so this only raises on a real
         persistence error — which marks the whole Run ``failed``."""
         for page in pages:
-            if task == Task.location:
-                prediction = predict_location(
-                    self.adapter,
-                    result_id,
-                    model,
-                    page,
-                    prompt_text,
-                    self.knobs,
-                    self.overlay_root,
-                )
-            else:
-                prediction = predict_counting(
-                    self.adapter, result_id, model, page, prompt_text, self.knobs
-                )
+            prediction = predict_location(
+                self.adapter,
+                result_id,
+                model,
+                page,
+                prompt_text,
+                self.knobs,
+                self.overlay_root,
+            )
             with self._write_lock:
                 with Session(self.engine) as session:
                     session.add(prediction)
@@ -380,29 +365,6 @@ def _predict(
     return raw_content, interp
 
 
-def _interpret_counting(raw: str) -> _Interpretation:
-    """Recover per-page counts from a model response (ADR 0019). A clean, fully-valid
-    ``CountResult`` scores ``ok``; a recovered-but-invalid structure (wrong shape, missing
-    label) is kept visible in ``parsed_json`` but stays a non-clean ``error``."""
-    salvaged = salvage_json(raw)
-    if salvaged.value is None:
-        return _Interpretation(clean=False, error=salvaged.error)
-    try:
-        counts = CountResult(**salvaged.value)
-    except (TypeError, ValidationError) as exc:
-        # Keep the parsed structure visible even though it didn't validate.
-        return _Interpretation(
-            clean=False,
-            parsed_json=json.dumps(salvaged.value),
-            error=salvaged.error or f"counts did not match the schema: {exc}",
-        )
-    return _Interpretation(
-        clean=salvaged.complete,
-        parsed_json=counts.model_dump_json(),
-        error=salvaged.error,
-    )
-
-
 def _interpret_location(raw: str) -> _Interpretation:
     """Recover labeled boxes from a model response, validating **element-by-element** so a
     truncated/partly-corrupt array still yields the boxes that parsed (ADR 0019). Clean only
@@ -447,10 +409,9 @@ def _prediction(
     overlay_path: str | None = None,
 ) -> Prediction:
     """Build the (unsaved) ``Prediction`` from an interpretation: a scored ``ok`` when clean,
-    else an ``error`` that still retains the salvaged ``parsed_json``/overlay — for location
-    those salvaged boxes are now scored (ADR 0027), so ``error`` is a data-quality flag, not
-    an unscored verdict; counting stays clean-only. ``raw_content`` is retained either way
-    (spec: Runs 19, 20)."""
+    else an ``error`` that still retains the salvaged ``parsed_json``/overlay — those salvaged
+    boxes are still scored (ADR 0027), so ``error`` is a data-quality flag, not an unscored
+    verdict. ``raw_content`` is retained either way (spec: Runs 19, 20)."""
     status = PredictionStatus.ok if interp.clean else PredictionStatus.error
     return Prediction(
         result_id=result_id,
@@ -462,26 +423,6 @@ def _prediction(
         parse_error=None if interp.clean else interp.error,
         overlay_path=overlay_path,
     )
-
-
-def predict_counting(
-    adapter: OpenRouterAdapter,
-    result_id: int,
-    model: str,
-    page: _PageRef,
-    prompt_text: str,
-    knobs: RunKnobs,
-) -> Prediction:
-    """One page's counting Prediction: recover the per-page counts from the model's JSON,
-    retried once before recording an outcome (spec: Runs 20, 21; ADR 0019). A clean parse
-    scores ``ok``; a malformed one stays an ``error`` (its best-effort salvage kept visible).
-    Returns an unsaved ``Prediction`` — persistence is the caller's, kept out of this routine
-    so it stays a pure, session-free seam."""
-    image_path = _render_page(page, knobs)
-    raw_content, interp = _predict(
-        adapter, model, image_path, prompt_text, knobs, _interpret_counting
-    )
-    return _prediction(page, result_id, raw_content, interp)
 
 
 def predict_location(

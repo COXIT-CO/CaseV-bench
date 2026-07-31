@@ -4,8 +4,8 @@ With the OpenRouter adapter stubbed to canned bounding-box responses, launching 
 location Run through the shared service against a temp SQLite DB parses each model's
 output into labeled normalized boxes, persists them as location Predictions per
 (Result, Page), and renders a prediction-overlay PNG on the page image. A response
-that fails to parse twice is recorded as a failure Prediction — same one-retry-then-
-record behavior as counting — without aborting the Run or rendering an overlay.
+that fails to parse twice is recorded as a failure Prediction — one retry, then record —
+without aborting the Run or rendering an overlay.
 """
 
 import json

@@ -9,13 +9,6 @@ ObjectLabel = Literal["cabinet", "countertop", "elevation", "elevation_callout"]
 OBJECT_LABELS: tuple[ObjectLabel, ...] = get_args(ObjectLabel)
 
 
-class CountResult(BaseModel):
-    cabinet: int
-    countertop: int
-    elevation: int
-    elevation_callout: int
-
-
 class BoundingBox(BaseModel):
     x_min: float = Field(ge=0, le=1)
     y_min: float = Field(ge=0, le=1)

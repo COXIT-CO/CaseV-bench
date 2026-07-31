@@ -77,10 +77,11 @@ def test_list_groups_seeded_families_by_task(client):
     assert body["tasks"] == ["counting", "location"]
     groups = {g["task"]: g["families"] for g in body["groups"]}
     assert set(groups) == {"counting", "location"}
-    # Each Task's seeded ``default`` family reports its latest version and version count.
-    counting_default = next(f for f in groups["counting"] if f["name"] == "default")
-    assert counting_default == {"name": "default", "latest_version": 1, "count": 1}
-    assert any(f["name"] == "default" for f in groups["location"])
+    # The seeded ``default`` family reports its latest version and version count. Only
+    # location is seeded now (ADR 0032), so the counting group is empty.
+    location_default = next(f for f in groups["location"] if f["name"] == "default")
+    assert location_default == {"name": "default", "latest_version": 1, "count": 1}
+    assert groups["counting"] == []
 
 
 def test_create_makes_v1_and_lists_it_under_its_task(client):

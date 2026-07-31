@@ -15,7 +15,6 @@ from PIL import Image
 from sqlmodel import Session, func, select
 
 from core.config import settings
-from core.models.counting_ground_truth import CountingGroundTruth
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
 from core.models.run import Result, Run
@@ -149,15 +148,15 @@ class DrawingService:
 
     def delete_drawing(self, drawing_id: int) -> RunCascadeCounts:
         """Permanently delete a Drawing and everything derived from it (ADR-0016): its
-        Pages, both kinds of ground truth, its cached page images on disk, and — reusing the
+        Pages, their ground truth, its cached page images on disk, and — reusing the
         Run-deletion machinery — every Run and Result that used it (so they leave the
         Leaderboard too). Returns the collateral counts (Runs + Results removed) the confirm
         dialog showed. Raises ``ValueError`` when there is no such Drawing so the route 404s.
 
         The Runs are cascaded first: that clears every Prediction pointing at this Drawing's
         Pages (a Prediction hangs off a Result → Run, and a Run's Predictions are for its own
-        Drawing's Pages), so the Pages then delete FK-clean. Ground truth is removed by
-        ``drawing_id`` (counting) and by the Pages' ids (location).
+        Drawing's Pages), so the Pages then delete FK-clean. Ground truth hangs off the Pages,
+        so it is removed by their ids.
         """
         drawing = self.session.get(Drawing, drawing_id)
         if drawing is None:
@@ -175,13 +174,8 @@ class DrawingService:
         location_gt = self.session.exec(
             select(LocationGroundTruth).where(LocationGroundTruth.page_id.in_(page_ids))
         ).all()
-        counting_gt = self.session.exec(
-            select(CountingGroundTruth).where(
-                CountingGroundTruth.drawing_id == drawing_id
-            )
-        ).all()
 
-        for row in (*location_gt, *counting_gt, *pages, drawing):
+        for row in (*location_gt, *pages, drawing):
             self.session.delete(row)
         self.session.commit()
 

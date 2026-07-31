@@ -1,6 +1,6 @@
 """Delete-a-Drawing service seam (ticket 08, ADR-0016).
 
-Deleting a Drawing must cascade to everything derived from it — its Pages, both kinds of
+Deleting a Drawing must cascade to everything derived from it — its Pages, their
 ground truth, its on-disk page images, and (reusing the Run-deletion machinery) every Run
 and Result that used it, along with their Predictions, Scores, and overlay files — while
 leaving every unrelated Drawing and Run untouched. A real location Run is launched through
@@ -15,7 +15,6 @@ import pytest
 from PIL import Image
 from sqlmodel import select
 
-from core.models.counting_ground_truth import CountingGroundTruth
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
 from core.models.prompt import Task
@@ -41,8 +40,7 @@ BOXES_JSON = json.dumps(
 
 def _seed_drawing(session, cache_root: Path, name: str, n_pages: int = 2) -> Drawing:
     """A Drawing whose Pages point at real PNGs under ``cache_root/<id>/`` (as ingestion
-    lays them out), plus both kinds of ground truth, so a delete has files and GT to clear.
-    """
+    lays them out), plus their ground truth, so a delete has files and GT to clear."""
     drawing = Drawing(name=name)
     session.add(drawing)
     session.commit()
@@ -73,7 +71,6 @@ def _seed_drawing(session, cache_root: Path, name: str, n_pages: int = 2) -> Dra
                 y_max=0.4,
             )
         )
-    session.add(CountingGroundTruth(drawing_id=drawing.id, label="cabinet", total=3))
     session.commit()
     session.refresh(drawing)
     return drawing
@@ -132,14 +129,6 @@ def test_delete_drawing_cascades_rows_files_and_returns_counts(
     assert session.exec(select(Page).where(Page.id.in_(page_ids))).all() == []
     assert (
         session.exec(
-            select(CountingGroundTruth).where(
-                CountingGroundTruth.drawing_id == drawing.id
-            )
-        ).all()
-        == []
-    )
-    assert (
-        session.exec(
             select(LocationGroundTruth).where(LocationGroundTruth.page_id.in_(page_ids))
         ).all()
         == []
@@ -182,9 +171,6 @@ def test_delete_drawing_leaves_unrelated_data_untouched(
     # The other Drawing keeps its rows, ground truth, run, and on-disk files.
     assert session.get(Drawing, keep.id) is not None
     assert len(session.exec(select(Page).where(Page.id.in_(keep_page_ids))).all()) == 2
-    assert session.exec(
-        select(CountingGroundTruth).where(CountingGroundTruth.drawing_id == keep.id)
-    ).all()
     assert session.exec(
         select(LocationGroundTruth).where(
             LocationGroundTruth.page_id.in_(keep_page_ids)

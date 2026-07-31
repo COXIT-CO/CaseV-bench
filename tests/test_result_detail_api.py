@@ -1,6 +1,6 @@
 """JSON contract for the Result drill-down (spec §A.3, ticket 03). ``GET /api/results/{id}``
-is the twin of the retired Jinja ``/results/{id}`` page: the header refs, the correct
-score shape (counting **or** location) with per-label detail, and the per-page Predictions
+is the twin of the retired Jinja ``/results/{id}`` page: the header refs, the Score with
+per-label detail, and the per-page Predictions
 (raw content + parsed JSON, or a parse-error failure record). The prediction overlay PNG is
 re-mounted under ``/api`` for the SPA.
 
@@ -25,80 +25,6 @@ def _detection(x_min, y_min, x_max, y_max, label=CAB) -> LocationDetection:
         label=label,
         bounding_box=BoundingBox(x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max),
     )
-
-
-def _seed_counting_result(engine, *, with_gt: bool) -> int:
-    """A counting Result with one ok page and one failed page. Returns the Result id."""
-    with Session(engine) as session:
-        drawing = Drawing(name="kitchen")
-        session.add(drawing)
-        session.commit()
-        session.refresh(drawing)
-
-        pages = []
-        for n in (1, 2):
-            page = Page(
-                drawing_id=drawing.id,
-                page_number=n,
-                image_path="/tmp/page.png",
-                width_px=100,
-                height_px=100,
-            )
-            session.add(page)
-            pages.append(page)
-        session.commit()
-        for page in pages:
-            session.refresh(page)
-
-        if with_gt:
-            from core.services.counting_ground_truth import CountingGroundTruthService
-
-            CountingGroundTruthService(session).save(
-                drawing.id,
-                {
-                    "cabinet": 3,
-                    "countertop": 1,
-                    "elevation": 2,
-                    "elevation_callout": 0,
-                },
-            )
-
-        prompt = Prompt(
-            task=Task.counting, family="strict-json", version=1, text="count"
-        )
-        session.add(prompt)
-        session.commit()
-        session.refresh(prompt)
-
-        run = _done_run(session, Task.counting, prompt.id, drawing.id)
-        result = Result(run_id=run.id, model=ACCURATE)
-        session.add(result)
-        session.commit()
-        session.refresh(result)
-
-        # Page 1 parses to per-page counts; page 2 is a parse failure record.
-        session.add(
-            Prediction(
-                result_id=result.id,
-                page_id=pages[0].id,
-                page_number=1,
-                status=PredictionStatus.ok,
-                raw_content='{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}',
-                parsed_json='{"cabinet": 3, "countertop": 1, "elevation": 2, "elevation_callout": 0}',
-            )
-        )
-        session.add(
-            Prediction(
-                result_id=result.id,
-                page_id=pages[1].id,
-                page_number=2,
-                status=PredictionStatus.error,
-                raw_content="not json",
-                parse_error="response was not valid JSON",
-            )
-        )
-        session.commit()
-        return result.id
 
 
 def _seed_location_result(engine, tmp_path, *, with_gt: bool) -> int:
@@ -212,17 +138,18 @@ def _done_run(session, task, prompt_id, drawing_id) -> Run:
     return run
 
 
-def test_counting_result_detail_returns_score_and_predictions(client, engine):
-    result_id = _seed_counting_result(engine, with_gt=True)
+def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp_path):
+    result_id = _seed_location_result(engine, tmp_path, with_gt=True)
 
     body = client.get(f"/api/results/{result_id}").json()
 
+    # The header refs the drill-down puts above the score.
     assert body["result_id"] == result_id
-    assert body["task"] == "counting"
+    assert body["task"] == "location"
     assert body["model"] == ACCURATE
-    assert body["prompt_family"] == "strict-json"
-    assert body["prompt_version"] == 1
-    assert body["drawing_name"] == "kitchen"
+    assert body["prompt_family"] == "boxes"
+    assert body["prompt_version"] == 2
+    assert body["drawing_name"] == "floorplan"
     assert body["scored"] is True
     assert body["label_count"] == 4
 
@@ -233,53 +160,6 @@ def test_counting_result_detail_returns_score_and_predictions(client, engine):
         "max_tokens": 1024,
         "temperature": 0.0,
     }
-
-    # Counting score shape: aggregates + per-label predicted/gt/abs-error/exact.
-    score = body["counting_score"]
-    assert body["location_score"] is None
-    assert score["total_absolute_error"] == 0
-    assert score["exact_match_count"] == 4
-    labels = {ls["label"]: ls for ls in score["per_label"]}
-    assert labels["cabinet"] == {
-        "label": "cabinet",
-        "predicted": 3,
-        "gt": 3,
-        "absolute_error": 0,
-        "exact_match": True,
-    }
-
-    # Per-page predictions: the ok page carries parsed JSON, the failed page a parse error.
-    preds = body["predictions"]
-    assert len(preds) == 2
-    ok, failed = preds
-    assert ok["page_number"] == 1
-    assert ok["status"] == "ok"
-    assert '"cabinet": 3' in ok["parsed_json"]
-    assert failed["status"] == "error"
-    assert failed["parse_error"] == "response was not valid JSON"
-    assert failed["parsed_json"] is None
-
-
-def test_counting_result_unscored_without_ground_truth(client, engine):
-    result_id = _seed_counting_result(engine, with_gt=False)
-
-    body = client.get(f"/api/results/{result_id}").json()
-    # No GT → unscored (distinct from a zero score): scored flag off, no score block.
-    assert body["scored"] is False
-    assert body["counting_score"] is None
-    assert body["location_score"] is None
-    # The predictions are still returned so a developer can inspect the raw output.
-    assert len(body["predictions"]) == 2
-
-
-def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp_path):
-    result_id = _seed_location_result(engine, tmp_path, with_gt=True)
-
-    body = client.get(f"/api/results/{result_id}").json()
-
-    assert body["task"] == "location"
-    assert body["scored"] is True
-    assert body["counting_score"] is None
 
     # Location score shape: micro-averaged P/R/F1 + per-label tp/fp/fn/rates.
     score = body["location_score"]

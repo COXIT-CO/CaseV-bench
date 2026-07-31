@@ -1,18 +1,16 @@
 """Salvaged location detections are scored app-wide (ADR 0027, amending 0019; ticket 01).
 
-The location scoring gate is *"has usable detections"*, not ``status == ok``: a truncated
-response whose surviving boxes were stored in ``parsed_json`` (a salvaged ``error``) now
-contributes to its Result's Score, so the same numbers appear on the Leaderboard and in the
-report. Precision holds on the boxes it emitted; recall / F1 take the honest hit for the
-boxes it never got to. Counting is deliberately untouched — a partial *count* is not partly
-valid, so it still keys on ``status == ok``.
+The scoring gate is *"has usable detections"*, not ``status == ok``: a truncated response
+whose surviving boxes were stored in ``parsed_json`` (a salvaged ``error``) contributes to
+its Result's Score, so the same numbers appear on the Leaderboard and in the report. A
+detection list is valid element by element — each surviving box is a real claim, so
+precision holds on the boxes it emitted, and the boxes lost to truncation become false
+negatives that recall and F1 already measure.
 
 These drive the session-level ``ScoringService`` seam directly: build a Result with seeded
-Predictions, then assert what ``predicted_boxes_by_page`` / ``predicted_totals`` include and
-what the Result scores against seeded GT.
+Predictions, then assert what ``predicted_boxes_by_page`` includes and what the Result
+scores against seeded GT.
 """
-
-import json
 
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
@@ -252,28 +250,3 @@ def test_salvaged_result_ranks_on_the_location_leaderboard(session):
     (row,) = rows
     assert row.scored is True  # salvaged-only Result now ranks, no longer unscored
     assert row.f1 == 1.0
-
-
-# --- counting is untouched: a salvaged (error) count still scores nothing ---
-
-
-def test_counting_salvage_still_scores_nothing(session):
-    """Counting's gate stays ``status == ok``: a salvaged error count, even with a
-    parsed_json, contributes zero to the summed totals (ADR 0027 keeps counting clean-only).
-    """
-    drawing, (page,) = _seed_drawing_with_pages(session, 1)
-    result = _seed_result(session, drawing, Task.counting)
-    # A salvaged (error) count with a partial total in parsed_json.
-    _add_prediction(
-        session,
-        result,
-        page,
-        status=PredictionStatus.error,
-        parsed_json=json.dumps({"cabinet": 3}),
-        parse_error="truncated count",
-    )
-
-    totals = ScoringService(session).predicted_totals(result)
-
-    # The salvaged count is not summed — a partial count is not partly valid.
-    assert totals["cabinet"] == 0

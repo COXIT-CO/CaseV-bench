@@ -211,12 +211,6 @@ def test_report_returns_html_download_for_terminal_location_run(
     )
 
 
-def test_report_400s_for_counting_run(client, engine, tmp_path):
-    run_id = _seed_report_run(engine, tmp_path, task=Task.counting)
-    resp = client.get(f"/api/runs/{run_id}/report")
-    assert resp.status_code == 400
-
-
 def test_report_400s_for_non_terminal_run(client, engine, tmp_path):
     run_id = _seed_report_run(engine, tmp_path, status=RunStatus.running)
     resp = client.get(f"/api/runs/{run_id}/report")

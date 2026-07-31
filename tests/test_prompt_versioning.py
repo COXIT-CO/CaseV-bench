@@ -74,14 +74,15 @@ def test_edit_rejects_an_unknown_family(session):
         service.edit(Task.counting, family="ghost", text="a")
 
 
-def test_seed_creates_two_initial_versions_and_is_idempotent(session):
+def test_seed_creates_the_initial_version_and_is_idempotent(session):
     seed_default_prompts(session)
     seed_default_prompts(session)  # a second call must not duplicate
 
     prompts = session.exec(select(Prompt)).all()
-    assert {p.task for p in prompts} == {Task.counting, Task.location}
-    assert all(p.version == 1 for p in prompts)
-    assert len(prompts) == 2
+    assert len(prompts) == 1
+    (seeded,) = prompts
+    assert seeded.task == Task.location
+    assert seeded.version == 1
 
-    counting = PromptService(session).history(Task.counting, family="default")[0]
-    assert "JSON" in counting.text  # the shipped counting prompt's text carried over
+    location = PromptService(session).history(Task.location, family="default")[0]
+    assert "JSON" in location.text  # the shipped prompt's text carried over

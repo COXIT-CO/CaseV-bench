@@ -47,18 +47,32 @@ def create_app(engine: Engine | None = None, spa_dist: Path | None = None) -> Fa
     app = FastAPI(title=APP_TITLE, lifespan=lifespan)
     app.state.engine = engine or make_engine()
 
-    # /api routers are registered first so JSON routes always win over the SPA catch-all.
+    # /api routers are registered first so JSON routes always win over the catch-alls below.
     for router in all_routers:
         app.include_router(router)
+    _mount_api_not_found(app)
     _mount_spa(app, spa_dist or DEFAULT_SPA_DIST)
 
     return app
 
 
-def _is_api_path(full_path: str) -> bool:
-    """True for the ``/api`` prefix so an unmatched ``/api/*`` path 404s as JSON rather than
-    falling through to the SPA shell."""
-    return full_path == "api" or full_path.startswith("api/")
+def _mount_api_not_found(app: FastAPI) -> None:
+    """404 as JSON for any unmatched ``/api/*`` path, whatever the method — so a stale client
+    calling a retired endpoint (the counting ground-truth pair, ADR 0032) fails loudly rather
+    than silently falling through to the SPA shell.
+
+    Declared for every method rather than left to the SPA catch-all: that one is ``GET``-only,
+    so a retired ``PUT``/``POST`` path matched it on path but not method and answered ``405``
+    — a routing accident, not a statement that the endpoint is gone.
+    """
+
+    @app.api_route(
+        "/api/{full_path:path}",
+        include_in_schema=False,
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    )
+    def api_not_found(full_path: str) -> Response:
+        raise HTTPException(status_code=404, detail="Not found")
 
 
 def _mount_spa(app: FastAPI, dist: Path) -> None:
@@ -80,10 +94,8 @@ def _mount_spa(app: FastAPI, dist: Path) -> None:
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str) -> Response:
-        # /api routes are registered first and win; an unmatched /api/* path lands here —
-        # 404 as JSON rather than silently falling through to the SPA shell.
-        if _is_api_path(full_path):
-            raise HTTPException(status_code=404, detail="Not found")
+        # /api never reaches here: the routers win, and ``_mount_api_not_found`` catches
+        # whatever they don't.
         if index.exists():
             return FileResponse(index)
         return PlainTextResponse(

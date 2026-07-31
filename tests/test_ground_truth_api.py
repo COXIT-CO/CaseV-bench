@@ -1,25 +1,25 @@
-"""JSON contract for ground-truth entry (spec §A.6, ticket 07). The twins of the retired
-Jinja counting form, plus the native ``objects`` location import that surfaces the importer
-(ADR 0022) as a Library upload with a problem report.
+"""JSON contract for ground-truth entry (spec §A.6, ticket 07): the native ``objects``
+location import that surfaces the importer (ADR 0022) as a Library upload with a problem
+report.
 
-Both endpoints reuse their services unchanged (``CountingGroundTruthService``,
-``LocationGroundTruthService``) — only the web layer differs. Entering ground truth turns
-the previously-unscored Leaderboard/Result rows into scored ones with no re-run; that
-recompute-on-read behavior is the service layer's and is covered by the scoring tests.
+The endpoint reuses ``LocationGroundTruthService`` unchanged — only the web layer differs.
+Entering ground truth turns the previously-unscored Leaderboard/Result rows into scored ones
+with no re-run; that recompute-on-read behavior is the service layer's and is covered by the
+scoring tests.
+
+The retired counting form's endpoints are gone rather than shimmed, so a stale client fails
+loudly on a 404 (ADR 0032; spec-drop-counting: API contract changes).
 """
 
 import pytest
 from sqlmodel import Session
 
-from core.services.counting_ground_truth import CountingGroundTruthService
 from core.services.drawing import DrawingService
 from core.services.location_ground_truth import LocationGroundTruthService
 from core.services.pdf_processing import PDFProcessingService
 
 COUNTING_URL = "/api/drawings/{id}/counting-ground-truth"
 LOCATION_URL = "/api/drawings/{id}/location-ground-truth"
-
-ALL_LABELS = ("cabinet", "countertop", "elevation", "elevation_callout")
 
 
 @pytest.fixture
@@ -64,97 +64,19 @@ def image_drawing_id(engine, sample_image, tmp_path) -> int:
         return service.ingest(sample_image, name="image").id
 
 
-# --- counting ground truth ------------------------------------------------------------
+# --- the removed counting endpoints ---------------------------------------------------
 
 
-def test_counting_get_prefills_every_label_with_null_when_unentered(client, drawing_id):
-    body = client.get(COUNTING_URL.format(id=drawing_id)).json()
-
-    assert body["drawing_id"] == drawing_id
-    # One entry per taxonomy label, in the fixed taxonomy order, all null before entry.
-    assert [label["name"] for label in body["labels"]] == list(ALL_LABELS)
-    assert all(label["value"] is None for label in body["labels"])
+def test_counting_ground_truth_get_is_404(client, drawing_id):
+    # Removed rather than shimmed: a stale client asking for counting GT fails loudly
+    # instead of silently reaching a stub (ADR 0032).
+    assert client.get(COUNTING_URL.format(id=drawing_id)).status_code == 404
 
 
-def test_counting_get_unknown_drawing_is_404(client):
-    response = client.get(COUNTING_URL.format(id=999))
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Drawing not found"}
-
-
-def test_counting_put_upserts_and_returns_saved_totals(client, engine, drawing_id):
+def test_counting_ground_truth_put_is_404(client, drawing_id):
     response = client.put(
         COUNTING_URL.format(id=drawing_id),
         json={"cabinet": 4, "countertop": 2, "elevation": 1, "elevation_callout": 0},
-    )
-
-    assert response.status_code == 200
-    values = {label["name"]: label["value"] for label in response.json()["labels"]}
-    assert values == {
-        "cabinet": 4,
-        "countertop": 2,
-        "elevation": 1,
-        "elevation_callout": 0,
-    }
-    # Persisted through the service, so a fresh GET pre-fills the saved totals.
-    with Session(engine) as session:
-        assert CountingGroundTruthService(session).get_totals(drawing_id) == values
-
-
-def test_counting_put_edits_existing_totals_in_place(client, drawing_id):
-    client.put(
-        COUNTING_URL.format(id=drawing_id),
-        json={"cabinet": 7, "countertop": 0, "elevation": 0, "elevation_callout": 0},
-    )
-    client.put(
-        COUNTING_URL.format(id=drawing_id),
-        json={"cabinet": 9, "countertop": 1, "elevation": 0, "elevation_callout": 0},
-    )
-
-    prefill = client.get(COUNTING_URL.format(id=drawing_id)).json()
-    values = {label["name"]: label["value"] for label in prefill["labels"]}
-    assert values["cabinet"] == 9 and values["countertop"] == 1
-
-
-def test_counting_put_missing_a_label_is_400(client, drawing_id):
-    response = client.put(
-        COUNTING_URL.format(id=drawing_id),
-        json={"cabinet": 4, "countertop": 2, "elevation": 1},  # no elevation_callout
-    )
-    assert response.status_code == 400
-
-
-def test_counting_put_non_integer_is_400(client, drawing_id):
-    response = client.put(
-        COUNTING_URL.format(id=drawing_id),
-        json={
-            "cabinet": "lots",
-            "countertop": 2,
-            "elevation": 1,
-            "elevation_callout": 0,
-        },
-    )
-    assert response.status_code == 400
-
-
-def test_counting_put_float_is_rejected_not_truncated(client, drawing_id):
-    # A fractional total is a mistake, not something to silently truncate to 2.
-    response = client.put(
-        COUNTING_URL.format(id=drawing_id),
-        json={
-            "cabinet": 2.7,
-            "countertop": 2,
-            "elevation": 1,
-            "elevation_callout": 0,
-        },
-    )
-    assert response.status_code == 400
-
-
-def test_counting_put_unknown_drawing_is_404(client):
-    response = client.put(
-        COUNTING_URL.format(id=999),
-        json={"cabinet": 0, "countertop": 0, "elevation": 0, "elevation_callout": 0},
     )
     assert response.status_code == 404
 
@@ -242,47 +164,21 @@ def test_location_import_creates_boxes_and_reports_problems(
         assert LocationGroundTruthService(session).boxes_by_page(drawing_id)
 
 
-def test_location_import_derives_counting_when_opted_in(client, drawing_id, page_dims):
-    # The default-off derive flag, when set on the multipart form, writes the counting GT from
-    # the accepted boxes (ADR 0025). The shared fixture doc lands exactly one cabinet box.
+def test_location_import_ignores_a_derive_counting_field(
+    client, engine, drawing_id, page_dims
+):
+    # The import does exactly one thing now (ADR 0032): a stale client still sending the
+    # retired derive flag gets a normal location import, not an error and not a second write.
     response = client.post(
         LOCATION_URL.format(id=drawing_id),
         files=_upload(_objects(page_dims)),
         data={"derive_counting": "true"},
     )
+
     assert response.status_code == 200
-
-    totals = {
-        label["name"]: label["value"]
-        for label in client.get(COUNTING_URL.format(id=drawing_id)).json()["labels"]
-    }
-    # Only the covered label (cabinet) is written; the labels these boxes do not cover stay
-    # unentered (null), not asserted as zero.
-    assert totals == {
-        "cabinet": 1,
-        "countertop": None,
-        "elevation": None,
-        "elevation_callout": None,
-    }
-
-
-def test_location_import_leaves_counting_untouched_by_default(
-    client, drawing_id, page_dims
-):
-    # Without the flag the import touches only location GT; a pre-existing counting total for
-    # the Drawing survives unchanged.
-    client.put(
-        COUNTING_URL.format(id=drawing_id),
-        json={"cabinet": 9, "countertop": 0, "elevation": 0, "elevation_callout": 0},
-    )
-
-    client.post(LOCATION_URL.format(id=drawing_id), files=_upload(_objects(page_dims)))
-
-    totals = {
-        label["name"]: label["value"]
-        for label in client.get(COUNTING_URL.format(id=drawing_id)).json()["labels"]
-    }
-    assert totals["cabinet"] == 9
+    assert response.json()["created"] == 1
+    with Session(engine) as session:
+        assert LocationGroundTruthService(session).boxes_by_page(drawing_id)
 
 
 def test_location_import_rejects_non_json_file_with_400(client, drawing_id):

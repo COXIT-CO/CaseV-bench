@@ -4,8 +4,7 @@ The CLI drives the *same* shared services as the UI and writes to the same SQLit
 so a CLI run and an equivalent UI run are the same Run / Results / Predictions in the one
 store, with no second source of truth to drift. Its args map onto that model: a PDF to
 ingest as a Drawing, a Task, the models, and which prompt version to pin. The legacy
-``object_counting`` / ``object_location`` task names still parse so existing invocations
-keep working.
+``object_location`` task name still parses so existing invocations keep working.
 
 ``execute_cli_run`` is the injectable seam: it takes an open ``Session`` and an
 ``OpenRouterAdapter`` so a test can drive the whole path against a temp DB with a stubbed
@@ -37,11 +36,9 @@ DEFAULT_MODELS = [
     "google/gemini-2.5-flash",
 ]
 
-# Accept the current Task names and the POC's ``object_*`` spellings, both mapped to the
+# Accept the current Task name and the POC's ``object_*`` spelling, both mapped to the
 # canonical Task the shared services speak.
 TASK_ALIASES = {
-    "counting": Task.counting,
-    "object_counting": Task.counting,
     "location": Task.location,
     "object_location": Task.location,
 }
@@ -49,7 +46,7 @@ TASK_ALIASES = {
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run object counting / location detection over a PDF's pages, "
+        description="Run object location detection over a PDF's pages, "
         "persisting to the shared SQLite store."
     )
     parser.add_argument("--project", default="prj0001")
@@ -58,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--name", default=None, help="Drawing name (defaults to the PDF stem)."
     )
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
-    parser.add_argument("--task", choices=sorted(TASK_ALIASES), default="counting")
+    parser.add_argument("--task", choices=sorted(TASK_ALIASES), default="location")
     parser.add_argument(
         "--prompt-family",
         default="default",

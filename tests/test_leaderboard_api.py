@@ -67,7 +67,7 @@ def test_leaderboard_api_ranks_scored_rows(
     _launch_and_wait(client, drawing_id, location_prompt.id)
     import_gt(drawing_id)
 
-    response = client.get(f"/api/leaderboard?task=location&drawing_id={drawing_id}")
+    response = client.get(f"/api/leaderboard?drawing_id={drawing_id}")
     assert response.status_code == 200
     body = response.json()
 
@@ -104,9 +104,7 @@ def test_leaderboard_api_sort_by_precision(
     _launch_and_wait(client, drawing_id, location_prompt.id)
     import_gt(drawing_id)
 
-    body = client.get(
-        f"/api/leaderboard?task=location&drawing_id={drawing_id}&sort=precision"
-    ).json()
+    body = client.get(f"/api/leaderboard?drawing_id={drawing_id}&sort=precision").json()
     assert body["sort"] == "precision"
 
 
@@ -117,9 +115,7 @@ def test_leaderboard_api_unknown_sort_falls_back_to_task_default(
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     _launch_and_wait(client, drawing_id, location_prompt.id)
 
-    body = client.get(
-        f"/api/leaderboard?task=location&drawing_id={drawing_id}&sort=bogus"
-    ).json()
+    body = client.get(f"/api/leaderboard?drawing_id={drawing_id}&sort=bogus").json()
     # A stale/unknown metric never 500s; it falls back to the board default (spec §A.2).
     assert body["sort"] == "f1"
 
@@ -132,9 +128,7 @@ def test_leaderboard_api_unscored_rows_have_null_rank_and_metrics(
     _launch_and_wait(client, drawing_id, location_prompt.id)
 
     # No GT imported → every Result is unscored, distinct from a zero score.
-    rows = client.get(f"/api/leaderboard?task=location&drawing_id={drawing_id}").json()[
-        "rows"
-    ]
+    rows = client.get(f"/api/leaderboard?drawing_id={drawing_id}").json()["rows"]
     assert len(rows) == 2
     assert all(r["scored"] is False for r in rows)
     assert all(r["rank"] is None for r in rows)
@@ -161,7 +155,7 @@ def test_leaderboard_api_filters_by_prompt_family(
     import_gt(drawing_id)
 
     body = client.get(
-        f"/api/leaderboard?task=location&drawing_id={drawing_id}&prompt_family=terse"
+        f"/api/leaderboard?drawing_id={drawing_id}&prompt_family=terse"
     ).json()
     assert body["prompt_family"] == "terse"
     assert {r["prompt_family"] for r in body["rows"]} == {"terse"}
@@ -186,7 +180,7 @@ def test_leaderboard_api_filters_by_prompt_family_and_version(
     import_gt(drawing_id)
 
     body = client.get(
-        f"/api/leaderboard?task=location&drawing_id={drawing_id}"
+        f"/api/leaderboard?drawing_id={drawing_id}"
         f"&prompt_family=custom&prompt_version=2"
     ).json()
     assert body["prompt_family"] == "custom"
@@ -199,24 +193,32 @@ def test_leaderboard_api_filters_by_prompt_family_and_version(
 
 def test_leaderboard_api_version_without_family_is_400(client):
     """A ``prompt_version`` without a ``prompt_family`` is ambiguous → 400 (ticket 04)."""
-    response = client.get("/api/leaderboard?task=location&prompt_version=2")
+    response = client.get("/api/leaderboard?prompt_version=2")
     assert response.status_code == 400
     assert "prompt_family" in response.json()["detail"]
 
 
 def test_leaderboard_api_empty_board(client):
-    body = client.get("/api/leaderboard?task=location").json()
+    body = client.get("/api/leaderboard").json()
     assert body["rows"] == []
     assert body["task"] == "location"
 
 
-def test_leaderboard_api_defaults_to_the_counting_board(client):
-    """The one assertion in this module that is still about counting: with no ``?task=`` the
-    endpoint resolves its default. Kept because the port must not drop coverage — it is the
-    only test of the parameter's default, and ticket 04 (which collapses the discriminator)
-    is what removes it."""
-    body = client.get("/api/leaderboard").json()
-    assert body["task"] == "counting"
+def test_leaderboard_api_ignores_a_stale_task_parameter(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service, import_gt
+):
+    """There is one board now (ADR 0032). A stale client still sending ``?task=counting``
+    gets the location board with its rates, not an empty counting one."""
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    _launch_and_wait(client, drawing_id, location_prompt.id)
+    import_gt(drawing_id)
+
+    body = client.get("/api/leaderboard?task=counting").json()
+
+    assert body["task"] == "location"
+    assert body["sort"] == "f1"
+    assert [row["f1"] for row in body["rows"]] == [1.0, 0.0]
 
 
 def test_leaderboard_api_result_ids_link_to_detail(
@@ -226,9 +228,7 @@ def test_leaderboard_api_result_ids_link_to_detail(
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     _launch_and_wait(client, drawing_id, location_prompt.id)
 
-    rows = client.get(f"/api/leaderboard?task=location&drawing_id={drawing_id}").json()[
-        "rows"
-    ]
+    rows = client.get(f"/api/leaderboard?drawing_id={drawing_id}").json()["rows"]
     with Session(engine) as session:
         real_ids = {r.id for r in session.exec(select(Result)).all()}
     assert {r["result_id"] for r in rows} == real_ids

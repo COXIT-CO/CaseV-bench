@@ -23,9 +23,9 @@ def test_launch_options_lists_prompts_drawings_and_catalog(client, engine):
     seed_location_drawing_id(engine)
     body = client.get("/api/runs/launch-options").json()
 
-    # Both seeded Tasks' default families are offered so the prompt's Task drives the Run.
-    tasks = {p["task"] for p in body["prompts"]}
-    assert {"counting", "location"} <= tasks
+    # The seeded default family is offered so the prompt's Task drives the Run.
+    assert {p["task"] for p in body["prompts"]} == {"location"}
+    assert any(p["family"] == "default" for p in body["prompts"])
     assert body["drawings"][0] == {"id": 1, "name": "sample", "page_count": 1}
     slugs = {c["slug"] for c in body["catalog"]}
     assert SONNET in slugs
@@ -195,7 +195,7 @@ def test_leaderboard_does_not_split_rows_by_knob(
     _launch(client, location_prompt.id, drawing_id, models=[SONNET], max_tokens=4096)
     _launch(client, location_prompt.id, drawing_id, models=[SONNET], max_tokens=8192)
 
-    rows = client.get("/api/leaderboard?task=location").json()["rows"]
+    rows = client.get("/api/leaderboard").json()["rows"]
     sonnet_rows = [r for r in rows if r["model"] == SONNET]
     assert len(sonnet_rows) == 2
     assert {(r["prompt_family"], r["prompt_version"]) for r in sonnet_rows} == {
