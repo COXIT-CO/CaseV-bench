@@ -117,8 +117,8 @@ class ReportService:
         self.session = session
 
     def build(self, run: Run) -> ReportFile:
-        """Assemble the standalone HTML for a terminal location ``run`` (the route has already
-        validated task + status). Returns the download filename and the HTML string."""
+        """Assemble the standalone HTML for a terminal ``run`` (the route has already
+        validated its status). Returns the download filename and the HTML string."""
         drawing = self.session.get(Drawing, run.drawing_id)
         prompt = self.session.get(Prompt, run.prompt_id)
         pages = list(drawing.pages)

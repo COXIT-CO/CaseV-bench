@@ -1,8 +1,8 @@
 """Prompt authoring & immutable versioning (spec: Prompts; ADR 0009).
 
-Every edit appends a new version within a ``(task, family)`` lineage; prior versions
-are never mutated, so a Run can pin exact text forever. The shipped prompt ``.md`` file
-seeds the initial ``default`` family so prior POC work carries over.
+Every edit appends a new version within a ``family`` lineage; prior versions are never
+mutated, so a Run can pin exact text forever. The shipped prompt ``.md`` file seeds the
+initial ``default`` family so prior POC work carries over.
 """
 
 from pathlib import Path
@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlmodel import Session, func, select
 
 from core.config import settings
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.run import Result, Run
 from core.services.deletion import RunCascadeCounts, cascade_delete_runs
 
@@ -34,63 +34,53 @@ class PromptService:
         # per-Result overlay files (ADR-0016); authoring never touches it.
         self.overlay_root = Path(overlay_root)
 
-    def create(self, task: Task, family: str, text: str) -> Prompt:
+    def create(self, family: str, text: str) -> Prompt:
         """Author a new prompt family at version 1. Fails if the family exists."""
-        if self.latest(task, family) is not None:
-            raise ValueError(
-                f"prompt family {family!r} already exists for task {task.value}"
-            )
-        return self._append(task, family, version=1, text=text)
+        if self.latest(family) is not None:
+            raise ValueError(f"prompt family {family!r} already exists")
+        return self._append(family, version=1, text=text)
 
-    def edit(self, task: Task, family: str, text: str) -> Prompt:
+    def edit(self, family: str, text: str) -> Prompt:
         """Append the next immutable version to an existing family."""
-        latest = self.latest(task, family)
+        latest = self.latest(family)
         if latest is None:
-            raise ValueError(
-                f"no prompt family {family!r} for task {task.value} to edit"
-            )
-        return self._append(task, family, version=latest.version + 1, text=text)
+            raise ValueError(f"no prompt family {family!r} to edit")
+        return self._append(family, version=latest.version + 1, text=text)
 
-    def latest(self, task: Task, family: str) -> Prompt | None:
+    def latest(self, family: str) -> Prompt | None:
         """The newest version of a family, or None if it doesn't exist."""
         return self.session.exec(
             select(Prompt)
-            .where(Prompt.task == task, Prompt.family == family)
+            .where(Prompt.family == family)
             .order_by(Prompt.version.desc())
         ).first()
 
-    def get(self, task: Task, family: str, version: int) -> Prompt | None:
-        """One exact ``(task, family, version)``, or None — so a caller can pin a
-        specific immutable version without hand-rolling the by-key query."""
+    def get(self, family: str, version: int) -> Prompt | None:
+        """One exact ``(family, version)``, or None — so a caller can pin a specific
+        immutable version without hand-rolling the by-key query."""
         return self.session.exec(
             select(Prompt).where(
-                Prompt.task == task,
                 Prompt.family == family,
                 Prompt.version == version,
             )
         ).first()
 
-    def history(self, task: Task, family: str) -> list[Prompt]:
+    def history(self, family: str) -> list[Prompt]:
         """Every version of a family, newest-first (spec: browse version history)."""
         return list(
             self.session.exec(
                 select(Prompt)
-                .where(Prompt.task == task, Prompt.family == family)
+                .where(Prompt.family == family)
                 .order_by(Prompt.version.desc())
             )
         )
 
-    def families(self, task: Task) -> list[str]:
-        """Distinct family names for a Task, sorted — so a counting prompt is never
-        offered for a location run (Task-scoping)."""
-        rows = self.session.exec(
-            select(Prompt.family).where(Prompt.task == task).distinct()
-        )
-        return sorted(rows)
+    def families(self) -> list[str]:
+        """Every distinct family name, sorted — the flat namespace the Prompts list
+        renders (ADR 0032)."""
+        return sorted(self.session.exec(select(Prompt.family).distinct()))
 
-    def collateral_by_version(
-        self, task: Task, family: str
-    ) -> dict[int, RunCascadeCounts]:
+    def collateral_by_version(self, family: str) -> dict[int, RunCascadeCounts]:
         """Per-version ``(runs, results)`` a delete of each version would cascade, keyed by
         version number (ADR-0016), so the history view can state each version's blast radius
         before committing — and a family delete's total is their sum, since a Run pins exactly
@@ -98,30 +88,28 @@ class PromptService:
         ``api → core`` boundary (ADR-0015)."""
         return {
             p.version: self._collateral([p.id])
-            for p in self.session.exec(
-                select(Prompt).where(Prompt.task == task, Prompt.family == family)
-            )
+            for p in self.session.exec(select(Prompt).where(Prompt.family == family))
         }
 
-    def delete_version(self, task: Task, family: str, version: int) -> RunCascadeCounts:
+    def delete_version(self, family: str, version: int) -> RunCascadeCounts:
         """Permanently delete one immutable version and cascade the Runs that pinned it —
         their Results, Predictions, Scores, and overlay files — returning the collateral
         counts the confirm dialog showed (ADR-0016). The family's other versions and their
         Runs are untouched, even when this one sat mid-lineage (a cosmetic v1, v3 gap). Raises
         ``ValueError`` when there is no such version so the route can 404."""
-        prompt = self.get(task, family, version)
+        prompt = self.get(family, version)
         if prompt is None:
-            raise ValueError(f"no prompt {family!r} v{version} for task {task.value}")
+            raise ValueError(f"no prompt {family!r} v{version}")
         return self._cascade_and_delete([prompt])
 
-    def delete_family(self, task: Task, family: str) -> RunCascadeCounts:
+    def delete_family(self, family: str) -> RunCascadeCounts:
         """Permanently delete an entire family — every version and every Run pinning any of
         them (reusing the Run-deletion machinery, so their Results/Predictions/Scores/overlay
         files go too) — returning the collateral counts the confirm dialog showed (ADR-0016).
         Raises ``ValueError`` when the family doesn't exist so the route can 404."""
-        prompts = self.history(task, family)
+        prompts = self.history(family)
         if not prompts:
-            raise ValueError(f"no prompt family {family!r} for task {task.value}")
+            raise ValueError(f"no prompt family {family!r}")
         return self._cascade_and_delete(prompts)
 
     def _collateral(self, prompt_ids: list[int]) -> RunCascadeCounts:
@@ -152,8 +140,8 @@ class PromptService:
             self.session.exec(select(Run.id).where(Run.prompt_id.in_(prompt_ids))).all()
         )
 
-    def _append(self, task: Task, family: str, version: int, text: str) -> Prompt:
-        prompt = Prompt(task=task, family=family, version=version, text=text)
+    def _append(self, family: str, version: int, text: str) -> Prompt:
+        prompt = Prompt(family=family, version=version, text=text)
         self.session.add(prompt)
         self.session.commit()
         self.session.refresh(prompt)
@@ -169,7 +157,7 @@ def seed_default_prompts(
     every startup.
     """
     service = PromptService(session)
-    if service.latest(Task.location, DEFAULT_FAMILY) is not None:
+    if service.latest(DEFAULT_FAMILY) is not None:
         return
     text = (prompts_dir / _SEED_DIR / "v0001.md").read_text().strip()
-    service.create(Task.location, family=DEFAULT_FAMILY, text=text)
+    service.create(family=DEFAULT_FAMILY, text=text)

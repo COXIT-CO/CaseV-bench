@@ -26,7 +26,7 @@ function renderPrompts() {
     <>
       <Routes>
         <Route path="/prompts" element={<Prompts />} />
-        <Route path="/prompts/:task/:family" element={<div>history page</div>} />
+        <Route path="/prompts/:family" element={<div>history page</div>} />
       </Routes>
       <LocationProbe />
     </>,
@@ -48,10 +48,9 @@ describe("Prompts list", () => {
     expect(screen.getByText("latest v3")).toBeInTheDocument();
     expect(screen.getByText("3 versions")).toBeInTheDocument();
     expect(screen.getByText("default")).toBeInTheDocument();
-    // No task grouping: neither a section heading nor the counting group's families.
+    // No task grouping: no section heading wraps the families.
     expect(screen.queryByRole("heading", { name: "counting" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "location" })).not.toBeInTheDocument();
-    expect(screen.queryByText("cabinet-count-v2")).not.toBeInTheDocument();
   });
 
   it("links a family to its history page", async () => {
@@ -60,15 +59,12 @@ describe("Prompts list", () => {
 
     await userEvent.click(await screen.findByText("boxes"));
     expect(await screen.findByText("history page")).toBeInTheDocument();
-    expect(screen.getByTestId("url")).toHaveTextContent(
-      "/prompts/location/boxes",
-    );
+    expect(screen.getByTestId("url")).toHaveTextContent("/prompts/boxes");
   });
 
   it("creates a new family without a task choice and routes to its history page", async () => {
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     vi.mocked(api.createPrompt).mockResolvedValue({
-      task: "location",
       family: "fixtures",
       version: 1,
     });
@@ -83,12 +79,12 @@ describe("Prompts list", () => {
 
     await waitFor(() =>
       expect(api.createPrompt).toHaveBeenCalledWith(
-        { task: "location", family: "fixtures", text: "Locate fixtures" },
+        { family: "fixtures", text: "Locate fixtures" },
         expect.anything(),
       ),
     );
     expect(await screen.findByText("history page")).toBeInTheDocument();
-    expect(screen.getByTestId("url")).toHaveTextContent("/prompts/location/fixtures");
+    expect(screen.getByTestId("url")).toHaveTextContent("/prompts/fixtures");
   });
 
   it("surfaces the service message when creating a duplicate family", async () => {

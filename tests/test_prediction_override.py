@@ -2,7 +2,7 @@
 (ADR 0020, ticket 07). Exercises the ``PredictionOverrideService`` seam directly: setting an
 override validates + persists without touching the model's original output, flips the overlay
 render to the edited boxes, leaves the Score equal to the original; invalid input is rejected
-with nothing persisted; revert restores the original; counting Predictions reject the edit.
+with nothing persisted; and revert restores the original.
 """
 
 import pytest
@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.prediction_override import (
@@ -65,12 +65,11 @@ def _location_result(engine, tmp_path, *, with_gt: bool = True) -> int:
             )
             session.commit()
 
-        prompt = Prompt(task=Task.location, family="boxes", version=1, text="find")
+        prompt = Prompt(family="boxes", version=1, text="find")
         session.add(prompt)
         session.commit()
         session.refresh(prompt)
         run = Run(
-            task=Task.location,
             prompt_id=prompt.id,
             drawing_id=drawing.id,
             status=RunStatus.done,
@@ -99,59 +98,6 @@ def _location_result(engine, tmp_path, *, with_gt: bool = True) -> int:
                 raw_content=original.model_dump_json(),
                 parsed_json=original.model_dump_json(),
                 overlay_path=None,
-            )
-        )
-        session.commit()
-        return result.id
-
-
-def _counting_result(engine) -> int:
-    with Session(engine) as session:
-        drawing = Drawing(name="kitchen")
-        session.add(drawing)
-        session.commit()
-        session.refresh(drawing)
-        page = Page(
-            drawing_id=drawing.id,
-            page_number=1,
-            image_path="/tmp/page.png",
-            width_px=100,
-            height_px=100,
-        )
-        session.add(page)
-        session.commit()
-        session.refresh(page)
-        prompt = Prompt(task=Task.counting, family="strict", version=1, text="count")
-        session.add(prompt)
-        session.commit()
-        session.refresh(prompt)
-        run = Run(
-            task=Task.counting,
-            prompt_id=prompt.id,
-            drawing_id=drawing.id,
-            status=RunStatus.done,
-            progress=1,
-            total_units=1,
-            dpi=150,
-            downsample_px=1568,
-            max_tokens=1024,
-            temperature=0.0,
-        )
-        session.add(run)
-        session.commit()
-        session.refresh(run)
-        result = Result(run_id=run.id, model="m")
-        session.add(result)
-        session.commit()
-        session.refresh(result)
-        session.add(
-            Prediction(
-                result_id=result.id,
-                page_id=page.id,
-                page_number=1,
-                status=PredictionStatus.ok,
-                raw_content='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
-                parsed_json='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
             )
         )
         session.commit()
@@ -238,16 +184,6 @@ def test_invalid_override_is_rejected_and_nothing_persisted(engine, tmp_path, pa
             select(Prediction).where(Prediction.result_id == result_id)
         ).first()
         assert pred.edited_json is None
-
-
-def test_counting_prediction_rejects_the_edit(engine):
-    result_id = _counting_result(engine)
-    edited = LocationResult(
-        detections=[_detection(0.1, 0.1, 0.2, 0.2)]
-    ).model_dump_json()
-    with Session(engine) as session:
-        with pytest.raises(PredictionOverrideError):
-            PredictionOverrideService(session).set_override(result_id, 1, edited)
 
 
 def test_missing_prediction_raises_lookup_error(engine, tmp_path):

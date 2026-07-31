@@ -18,7 +18,6 @@ from pathlib import Path
 from conftest import LOCATION_BOXES_JSON
 from PIL import Image
 
-from core.models.prompt import Task
 from core.services import pdf_processing
 from core.services.drawing import DrawingService
 from core.services.pdf_processing import PDFProcessingService, render_run_page
@@ -45,7 +44,7 @@ def _ingest_image(session, sample_image, tmp_path):
 def _launch(session, stub_adapter, prompt, drawing, knobs, overlay_root) -> None:
     stub_adapter.responses = {MODEL: LOCATION_BOXES_JSON}
     RunService(session, stub_adapter, knobs=knobs, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
 
 

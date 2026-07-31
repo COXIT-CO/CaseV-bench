@@ -16,7 +16,7 @@ from sqlmodel import Session
 
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.models.score import Score
@@ -49,9 +49,8 @@ def _overlay(tmp_path, name) -> str:
     return str(path)
 
 
-def _run(session, drawing_id, prompt_id, *, task=Task.location, status=RunStatus.done):
+def _run(session, drawing_id, prompt_id, *, status=RunStatus.done):
     run = Run(
-        task=task,
         prompt_id=prompt_id,
         drawing_id=drawing_id,
         status=status,
@@ -68,9 +67,7 @@ def _run(session, drawing_id, prompt_id, *, task=Task.location, status=RunStatus
     return run
 
 
-def _seed_report_run(
-    engine, tmp_path, *, task=Task.location, status=RunStatus.done, with_gt=True
-) -> int:
+def _seed_report_run(engine, tmp_path, *, status=RunStatus.done, with_gt=True) -> int:
     """A two-page location Run over three models: a perfect model (F1 1.0), a salvaged model
     (one matching + one spurious box, ``error`` status → F1 0.67), and a wholly-failed model
     (no boxes → F1 0). GT sits on page 1 only, so page 2 is visual-only. Returns the Run id.
@@ -112,12 +109,12 @@ def _seed_report_run(
             )
             session.commit()
 
-        prompt = Prompt(task=Task.location, family="boxes", version=3, text="find")
+        prompt = Prompt(family="boxes", version=3, text="find")
         session.add(prompt)
         session.commit()
         session.refresh(prompt)
 
-        run = _run(session, drawing.id, prompt.id, task=task, status=status)
+        run = _run(session, drawing.id, prompt.id, status=status)
 
         # Perfect model: exact match on p1, a spare box on the GT-less p2.
         good = Result(run_id=run.id, model=GOOD)
@@ -430,8 +427,6 @@ def test_score_table_gains_no_threshold_column():
     assert set(Score.model_fields) == {
         "id",
         "result_id",
-        "total_absolute_error",
-        "exact_match_count",
         "precision",
         "recall",
         "f1",
@@ -470,7 +465,7 @@ def _seed_single_model_run(engine, tmp_path, *, parsed_json, status) -> int:
                 y_max=0.5,
             )
         )
-        prompt = Prompt(task=Task.location, family="boxes", version=1, text="f")
+        prompt = Prompt(family="boxes", version=1, text="f")
         session.add(prompt)
         session.commit()
         session.refresh(prompt)

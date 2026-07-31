@@ -99,13 +99,15 @@ describe("Leaderboard", () => {
     expect(screen.getByTestId("url")).not.toHaveTextContent("task");
   });
 
-  it("ignores a stale ?task= in the URL and still asks for the location board", async () => {
+  it("never sends a task with the board request", async () => {
     board();
     renderBoard("/?task=counting");
 
     await screen.findByRole("columnheader", { name: "F1" });
+    // A stale ``?task=`` in the URL is not a filter the SPA knows about, so it is neither
+    // parsed nor forwarded (ADR 0032).
     expect(api.leaderboard).toHaveBeenCalledWith(
-      expect.objectContaining({ task: "location" }),
+      expect.not.objectContaining({ task: expect.anything() }),
     );
   });
 
@@ -142,7 +144,6 @@ describe("Leaderboard", () => {
 
     await screen.findByRole("columnheader", { name: "F1" });
     expect(api.leaderboard).toHaveBeenCalledWith({
-      task: "location",
       drawing_id: 3,
       prompt_family: null,
       prompt_version: null,
@@ -217,7 +218,6 @@ describe("Leaderboard", () => {
 
     await screen.findByRole("columnheader", { name: "F1" });
     expect(api.leaderboard).toHaveBeenCalledWith({
-      task: "location",
       drawing_id: null,
       prompt_family: "boxes",
       prompt_version: 2,
@@ -250,8 +250,7 @@ describe("Leaderboard", () => {
     expect(
       screen.getByRole("option", { name: "boxes" }),
     ).toBeInTheDocument();
-    // The API still groups families by Task (flattened in ticket 04); the counting group's
-    // families never reach the dropdown.
+    // Only the families the listing returned; nothing else reaches the dropdown.
     expect(familyFilter).not.toHaveTextContent("cabinet-count-v2");
   });
 

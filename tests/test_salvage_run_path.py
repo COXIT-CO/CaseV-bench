@@ -13,7 +13,6 @@ from pathlib import Path
 from conftest import seed_page_images
 
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Task
 from core.models.results import LocationResult
 from core.models.run import PredictionStatus, RunStatus
 from core.services.prompt import PromptService
@@ -51,7 +50,7 @@ def _seed_location(session, tmp_path):
     )
     session.commit()
     session.refresh(drawing)
-    prompt = PromptService(session).create(Task.location, "default", "find them")
+    prompt = PromptService(session).create("default", "find them")
     return drawing, prompt
 
 
@@ -65,7 +64,7 @@ def _launch(session, stub_adapter, tmp_path, content):
     drawing, prompt = _seed_location(session, tmp_path)
     stub_adapter.responses = {MODEL: content}
     run = RunService(session, stub_adapter, overlay_root=tmp_path / "overlays").launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
     assert run.status == RunStatus.done
     return _only_prediction(run)
@@ -105,7 +104,7 @@ def test_truncated_location_array_salvages_boxes_and_renders_overlay(
     overlay_root = tmp_path / "overlays"
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
     pred = _only_prediction(run)
 
@@ -134,7 +133,7 @@ def test_empty_location_array_is_scored_ok_with_no_boxes(
     overlay_root = tmp_path / "overlays"
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
     pred = _only_prediction(run)
 
@@ -154,7 +153,7 @@ def test_total_garbage_location_is_error_with_no_boxes(session, stub_adapter, tm
     overlay_root = tmp_path / "overlays"
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
     pred = _only_prediction(run)
 
@@ -175,7 +174,7 @@ def test_bad_first_parse_then_clean_retry_is_scored_ok(session, stub_adapter, tm
     stub_adapter.send_image_prompt = send
 
     run = RunService(session, stub_adapter, overlay_root=tmp_path / "overlays").launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
     pred = _only_prediction(run)
 
@@ -203,7 +202,7 @@ def test_salvage_survives_a_raising_retry(session, stub_adapter, tmp_path):
     overlay_root = tmp_path / "overlays"
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
     pred = _only_prediction(run)
 
@@ -219,7 +218,7 @@ def test_clean_first_parse_does_not_retry(session, stub_adapter, tmp_path):
     drawing, prompt = _seed_location(session, tmp_path)
     stub_adapter.responses = {MODEL: CLEAN_BOXES}
     RunService(session, stub_adapter, overlay_root=tmp_path / "overlays").launch(
-        Task.location, prompt.id, drawing.id, [MODEL]
+        prompt.id, drawing.id, [MODEL]
     )
     # A clean parse short-circuits the retry: exactly one adapter call.
     assert len([c for c in stub_adapter.calls if c["model"] == MODEL]) == 1

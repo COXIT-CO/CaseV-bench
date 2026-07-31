@@ -2,7 +2,7 @@ import * as React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
-import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
+import { ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
   useAppendPromptVersion,
@@ -11,40 +11,22 @@ import {
   usePromptHistory,
 } from "@/hooks/queries";
 import { formatDate } from "@/lib/format";
-import type { PromptHistoryResponse, PromptVersion, Task } from "@/types";
+import type { PromptHistoryResponse, PromptVersion } from "@/types";
 
 // A prompt family's immutable version history + the tuning loop (ADR 0011, spec §A.5/§B.2):
 // every version listed newest-first, a side-by-side compare/read of any two versions (the
 // loop the tool exists for), and an "edit" that appends the next immutable version
-// (`POST …/versions`, ADR 0009) — prior versions are never mutated. The two seeded prompts
-// (`default` per Task) land here too.
-
-/** The two Tasks that can appear in the `/prompts/:task/:family` path. */
-function parseTask(raw: string | undefined): Task | null {
-  return raw === "counting" || raw === "location" ? raw : null;
-}
+// (`POST …/versions`, ADR 0009) — prior versions are never mutated. The seeded `default`
+// family lands here too.
 
 export function PromptHistory() {
-  const { task: rawTask, family: rawFamily } = useParams();
-  const task = parseTask(rawTask);
-  const family = rawFamily ?? "";
+  // `/prompts/:family` only matches a non-empty segment, so the family is always present —
+  // there is no invalid-path case left to guard now that the task segment is gone, and an
+  // unknown family is the API's `404` surfaced through the error block below.
+  const { family = "" } = useParams();
 
-  const { data, isLoading, isError, error } = usePromptHistory(
-    task ?? "",
-    family,
-    task !== null,
-  );
+  const { data, isLoading, isError, error } = usePromptHistory(family);
 
-  if (!task) {
-    return (
-      <Shell family={family}>
-        <EmptyState
-          title="Prompt not found"
-          description="That task is not a valid prompt task."
-        />
-      </Shell>
-    );
-  }
   if (isLoading) {
     return (
       <Shell family={family}>
@@ -62,10 +44,10 @@ export function PromptHistory() {
 
   return (
     <Shell family={family}>
-      <Header task={task} family={family} detail={data} />
+      <Header family={family} detail={data} />
       <CompareVersions versions={data.versions} />
-      <VersionList task={task} family={family} versions={data.versions} />
-      <EditForm task={task} family={family} latest={data.versions[0]} />
+      <VersionList family={family} versions={data.versions} />
+      <EditForm family={family} latest={data.versions[0]} />
     </Shell>
   );
 }
@@ -91,11 +73,9 @@ function Shell({
 }
 
 function Header({
-  task,
   family,
   detail,
 }: {
-  task: Task;
   family: string;
   detail: PromptHistoryResponse;
 }) {
@@ -103,19 +83,13 @@ function Header({
   return (
     <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">
-          {family}{" "}
-          <span className="align-middle text-sm font-normal capitalize text-muted-foreground">
-            {task}
-          </span>
-        </h1>
+        <h1 className="text-xl font-semibold tracking-tight">{family}</h1>
         <p className="mt-1 text-[13px] text-muted-foreground">
           {count} immutable version{count === 1 ? "" : "s"} — pick two to compare, or
           append a new one below.
         </p>
       </div>
       <DeleteFamilyButton
-        task={task}
         family={family}
         runCount={detail.run_count}
         resultCount={detail.result_count}
@@ -128,12 +102,10 @@ function Header({
  * that states the collateral (ADR-0016). On success the list/board/runs/meta are invalidated
  * and we route back to the Prompts list, since this history page no longer has a family. */
 function DeleteFamilyButton({
-  task,
   family,
   runCount,
   resultCount,
 }: {
-  task: Task;
   family: string;
   runCount: number;
   resultCount: number;
@@ -161,7 +133,7 @@ function DeleteFamilyButton({
       pending={deleteFamily.isPending}
       error={deleteFamily.error}
       onConfirm={() =>
-        deleteFamily.mutateAsync({ task, family }).then(() => navigate("/prompts"))
+        deleteFamily.mutateAsync(family).then(() => navigate("/prompts"))
       }
     />
   );
@@ -261,11 +233,9 @@ function VersionPane({
  * remaining history is otherwise untouched. Each row states how many Runs pinned that version,
  * the collateral its delete cascades. */
 function VersionList({
-  task,
   family,
   versions,
 }: {
-  task: Task;
   family: string;
   versions: PromptVersion[];
 }) {
@@ -291,7 +261,6 @@ function VersionList({
                 {version.run_count} run{version.run_count === 1 ? "" : "s"} pinned
               </span>
               <DeleteVersionButton
-                task={task}
                 family={family}
                 version={version}
                 isLastVersion={versions.length === 1}
@@ -308,18 +277,16 @@ function VersionList({
  * collateral (ADR-0016). On success the history refetches in place; but deleting a family's
  * only version leaves nothing to show, so we route back to the Prompts list in that case. */
 function DeleteVersionButton({
-  task,
   family,
   version,
   isLastVersion,
 }: {
-  task: Task;
   family: string;
   version: PromptVersion;
   isLastVersion: boolean;
 }) {
   const navigate = useNavigate();
-  const deleteVersion = useDeletePromptVersion(task, family);
+  const deleteVersion = useDeletePromptVersion(family);
 
   return (
     <ConfirmDeleteDialog
@@ -353,16 +320,14 @@ function DeleteVersionButton({
  * text so a tweak starts from where the family is; submitting never mutates a prior
  * version (spec §A.5). */
 function EditForm({
-  task,
   family,
   latest,
 }: {
-  task: Task;
   family: string;
   latest: PromptVersion;
 }) {
   const [text, setText] = React.useState(latest.text);
-  const append = useAppendPromptVersion(task, family);
+  const append = useAppendPromptVersion(family);
 
   // When a new version lands, re-baseline the draft on it so the next edit builds forward.
   React.useEffect(() => {

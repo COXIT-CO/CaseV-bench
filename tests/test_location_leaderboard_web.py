@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 
 from api.deps import get_run_service
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.services.location_ground_truth import LocationGroundTruthService
 from core.services.run import RunService
 
@@ -53,9 +53,7 @@ def _seed_drawing(engine, tmp_path) -> int:
 
 def _location_prompt_id(engine) -> int:
     with Session(engine) as session:
-        return (
-            session.exec(select(Prompt).where(Prompt.task == Task.location)).first().id
-        )
+        return session.exec(select(Prompt)).first().id
 
 
 def _import_gt(engine, drawing_id) -> None:
@@ -112,5 +110,4 @@ def test_location_result_detail_shows_iou_score(
     assert detail.status_code == 200
     body = detail.json()
     # A location Result is scored on IoU@0.5 P/R/F1.
-    assert body["task"] == "location"
     assert body["location_score"] is not None

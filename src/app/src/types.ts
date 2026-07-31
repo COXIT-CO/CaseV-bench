@@ -2,17 +2,6 @@
 // Pydantic response models so the client stays honest about what the API returns. Feature
 // types (LeaderboardRow, ResultDetail, …) are added by their own slices.
 
-/** The Tasks the API's contract still names. */
-export type Task = "counting" | "location";
-
-/**
- * The only Task this SPA drives (ADR 0032): the benchmark is location-only, and no screen
- * offers a choice. The API is still Task-shaped, so every request that needs a task sends
- * this one; the parameter and the route segment disappear when the contract flattens
- * (ticket 04), taking `Task` with them.
- */
-export const SOLE_TASK: Task = "location";
-
 /** Run lifecycle status. */
 export type RunStatus = "queued" | "running" | "done" | "failed";
 
@@ -22,7 +11,6 @@ export type PredictionStatus = "ok" | "error";
 /** `GET /api/meta` — the slice-0 proof payload (src/web/api.py::ApiMeta). */
 export interface ApiMeta {
   app: string;
-  tasks: Task[];
   labels: string[];
   drawing_count: number;
   run_count: number;
@@ -59,7 +47,6 @@ export interface LeaderboardRow {
 /** `GET /api/leaderboard` — the ranked board plus the filter surface (spec §A.2). The
  * server echoes the resolved `prompt_family`/`prompt_version` it filtered on (ticket 04). */
 export interface LeaderboardResponse {
-  task: Task;
   drawing_id: number | null;
   prompt_family: string | null;
   prompt_version: number | null;
@@ -73,7 +60,6 @@ export interface LeaderboardResponse {
 /** The filter/sort state the Leaderboard mirrors into the URL (spec §B.3). `prompt_version`
  * is only meaningful with a `prompt_family` — the API rejects a version without one (ticket 04). */
 export interface LeaderboardParams {
-  task: Task;
   drawing_id: number | null;
   prompt_family: string | null;
   prompt_version: number | null;
@@ -125,7 +111,6 @@ export interface ResultPrediction {
 export interface ResultDetailResponse {
   result_id: number;
   model: string;
-  task: Task;
   prompt_family: string;
   prompt_version: number;
   run_id: number;
@@ -148,7 +133,6 @@ export function isTerminalRunStatus(status: RunStatus | undefined): boolean {
 /** One line of the run history list (`GET /api/runs`, spec §A.4). */
 export interface RunListItem {
   id: number;
-  task: Task;
   status: RunStatus;
   progress: number;
   total_units: number;
@@ -163,10 +147,9 @@ export interface RunHistoryResponse {
   runs: RunListItem[];
 }
 
-/** One selectable prompt version in the launch form; its `task` drives the Run's Task. */
+/** One selectable prompt version in the launch form. */
 export interface LaunchPrompt {
   id: number;
-  task: Task;
   family: string;
   version: number;
 }
@@ -211,7 +194,6 @@ export interface RunDeleted {
 export interface RunCreated {
   id: number;
   status: RunStatus;
-  task: Task;
   total_units: number;
 }
 
@@ -224,7 +206,6 @@ export interface RunResult {
 /** The run header + live progress on the detail page. */
 export interface RunRef {
   id: number;
-  task: Task;
   status: RunStatus;
   progress: number;
   total_units: number;
@@ -269,31 +250,17 @@ export interface RunStatusResponse {
   results: RunResult[];
 }
 
-/** One family in the Task-grouped Prompts list (src/web/api.py::PromptFamilyOut): its
- * name, newest version, and version count. */
+/** One family in the Prompts list (src/web/api.py::PromptFamilyOut): its name, newest
+ * version, and version count. */
 export interface PromptFamily {
   name: string;
   latest_version: number;
   count: number;
 }
 
-/** All of one Task's prompt families (Task-scoping, ADR 0009). */
-export interface PromptGroup {
-  task: Task;
-  families: PromptFamily[];
-}
-
-/** `GET /api/prompts` — the fixed Task taxonomy + each Task's families (spec §A.5). */
+/** `GET /api/prompts` — every prompt family, flat (spec §A.5, ADR 0032). */
 export interface PromptsResponse {
-  tasks: Task[];
-  groups: PromptGroup[];
-}
-
-/** The prompt families every screen means when it says "the families": the listing is still
- * Task-grouped, so the one group the SPA drives is unwrapped here rather than at each call
- * site. Goes away with the groups themselves when the listing flattens (ticket 04). */
-export function promptFamilies(groups: PromptGroup[]): PromptFamily[] {
-  return groups.find((group) => group.task === SOLE_TASK)?.families ?? [];
+  families: PromptFamily[];
 }
 
 /** One immutable version in a family's history; `text` rides along so compare/read needs
@@ -308,19 +275,18 @@ export interface PromptVersion {
   result_count: number;
 }
 
-/** `GET /api/prompts/{task}/{family}` — the family's versions newest-first (spec §A.5). The
+/** `GET /api/prompts/{family}` — the family's versions newest-first (spec §A.5). The
  * family-level `run_count`/`result_count` are the whole-family delete's collateral (the Runs
  * + Results pinning any version), so the "delete family" confirm states the blast radius up
  * front (ADR-0016, ticket 09). */
 export interface PromptHistoryResponse {
-  task: Task;
   family: string;
   versions: PromptVersion[];
   run_count: number;
   result_count: number;
 }
 
-/** `DELETE /api/prompts/{task}/{family}` or `…/versions/{version}` → the collateral the
+/** `DELETE /api/prompts/{family}` or `…/versions/{version}` → the collateral the
  * cascade removed (ADR-0016, ticket 09): the Runs + Results that pinned the deleted
  * version(s) — the delete's receipt, the same `(runs, results)` shape the Run and Drawing
  * deletes return. */
@@ -329,16 +295,14 @@ export interface PromptDeleted {
   results: number;
 }
 
-/** `POST /api/prompts` body: author a new family's v1 for a Task. */
+/** `POST /api/prompts` body: author a new family's v1. */
 export interface PromptCreateRequest {
-  task: Task;
   family: string;
   text: string;
 }
 
 /** The just-written version returned from create/append, so the SPA routes to it. */
 export interface PromptVersionRef {
-  task: Task;
   family: string;
   version: number;
 }

@@ -4,11 +4,12 @@ Reusable seams:
 - ``engine`` / ``session``: a temporary SQLite database, isolated per test.
 - ``stub_adapter``: a canned OpenRouter adapter, so tests never hit the network.
 - **Location seeding** (spec-drop-counting: Seams): a location prompt fixture plus
-  factories for a seeded location Run and seeded location ground truth. Task-neutral
-  behaviour — background execution, orphan reconciliation, render-on-demand, the runs /
-  library / leaderboard APIs, run execution, the CLI — is exercised through *these*
-  rather than through a counting Run, which was only ever the cheapest thing to build.
-  One definition here replaces the near-identical copy each of those modules carried.
+  factories for a seeded location Run, a seeded Score, and seeded location ground truth.
+  The behaviour that is not about location at all — background execution, orphan
+  reconciliation, render-on-demand, the runs / library / leaderboard APIs, run execution,
+  the CLI, the delete cascades — is exercised through *these*, since location is the only
+  thing the benchmark runs (ADR 0032). One definition here replaces the near-identical
+  copy each of those modules carried.
 """
 
 import json
@@ -25,8 +26,9 @@ from api.deps import get_run_service
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
 from core.db import init_db, make_engine
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.run import Result, Run, RunStatus
+from core.models.score import Score
 from core.services.location_ground_truth import LocationGroundTruthService
 from core.services.pdf_processing import page_image_filename
 from core.services.prompt import PromptService
@@ -254,12 +256,10 @@ def location_prompt(session) -> Prompt:
 
     Reuses the app's seeded row when the lifespan has already run, so a test that mixes this
     fixture with the HTTP seam pins the same Prompt the launch form offers rather than a
-    second family that would collide on ``(task, family, version)``.
+    second family that would collide on ``(family, version)``.
     """
     service = PromptService(session)
-    return service.latest(Task.location, "default") or service.create(
-        Task.location, "default", "find them"
-    )
+    return service.latest("default") or service.create("default", "find them")
 
 
 @pytest.fixture
@@ -282,7 +282,6 @@ def seed_location_run():
     ) -> Run:
         knobs = RunKnobs()
         run = Run(
-            task=Task.location,
             prompt_id=prompt_id,
             drawing_id=drawing_id,
             status=status,
@@ -315,6 +314,16 @@ def seed_location_gt():
         return LocationGroundTruthService(session).import_objects(drawing_id, document)
 
     return _seed
+
+
+def scored_score(result_id: int) -> Score:
+    """A Score row for a Result, for the delete-cascade tests that only need one to exist
+    so the cascade has something to take. Its three metrics are required (ADR 0032), so a
+    row cannot be seeded metric-less; the values themselves are never asserted on.
+    """
+    return Score(
+        result_id=result_id, precision=1.0, recall=1.0, f1=1.0, per_label_json="[]"
+    )
 
 
 @pytest.fixture

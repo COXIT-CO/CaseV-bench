@@ -21,10 +21,10 @@ vi.mock("@/api", async () => {
 });
 import { api } from "@/api";
 
-function renderHistory(route = "/prompts/location/boxes") {
+function renderHistory(route = "/prompts/boxes") {
   return renderWithProviders(
     <Routes>
-      <Route path="/prompts/:task/:family" element={<PromptHistory />} />
+      <Route path="/prompts/:family" element={<PromptHistory />} />
       <Route path="/prompts" element={<div>prompts list</div>} />
     </Routes>,
     { route },
@@ -77,7 +77,6 @@ describe("PromptHistory", () => {
   it("appends a new immutable version from the edit form", async () => {
     vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY);
     vi.mocked(api.appendPromptVersion).mockResolvedValue({
-      task: "location",
       family: "boxes",
       version: 3,
     });
@@ -92,7 +91,6 @@ describe("PromptHistory", () => {
 
     await waitFor(() =>
       expect(api.appendPromptVersion).toHaveBeenCalledWith(
-        "location",
         "boxes",
         "Count base + wall cabinets separately.",
       ),
@@ -110,7 +108,7 @@ describe("PromptHistory", () => {
 
   it("reads a single-version family (compare against itself)", async () => {
     vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY_SINGLE);
-    renderHistory("/prompts/location/default");
+    renderHistory("/prompts/default");
 
     const paneA = (await screen.findByLabelText("Version A")) as HTMLSelectElement;
     const paneB = screen.getByLabelText("Version B") as HTMLSelectElement;
@@ -126,20 +124,13 @@ describe("PromptHistory", () => {
   it("shows an error block when the family is unknown", async () => {
     const { ApiError } = await vi.importActual<typeof import("@/api")>("@/api");
     vi.mocked(api.promptHistory).mockRejectedValue(
-      new ApiError(404, "no prompt family 'ghost' for task location"),
+      new ApiError(404, "no prompt family 'ghost'"),
     );
-    renderHistory("/prompts/location/ghost");
+    renderHistory("/prompts/ghost");
 
     expect(
       await screen.findByText(/no prompt family 'ghost'/),
     ).toBeInTheDocument();
-  });
-
-  it("treats an invalid task in the URL as not found", async () => {
-    renderHistory("/prompts/bogus/default");
-    expect(await screen.findByText("Prompt not found")).toBeInTheDocument();
-    // The bad-task guard short-circuits before any fetch.
-    expect(api.promptHistory).not.toHaveBeenCalled();
   });
 
   it("deletes the whole family after a confirmation stating the family collateral", async () => {
@@ -163,10 +154,7 @@ describe("PromptHistory", () => {
     await user.click(confirm);
 
     await waitFor(() =>
-      expect(api.deletePromptFamily).toHaveBeenCalledWith(
-        "location",
-        "boxes",
-      ),
+      expect(api.deletePromptFamily).toHaveBeenCalledWith("boxes"),
     );
     // On success we route back to the Prompts list.
     expect(await screen.findByText("prompts list")).toBeInTheDocument();
@@ -188,11 +176,7 @@ describe("PromptHistory", () => {
     await user.click(screen.getAllByRole("button", { name: "Delete v2" }).at(-1)!);
 
     await waitFor(() =>
-      expect(api.deletePromptVersion).toHaveBeenCalledWith(
-        "location",
-        "boxes",
-        2,
-      ),
+      expect(api.deletePromptVersion).toHaveBeenCalledWith("boxes", 2),
     );
     // The family still has other versions, so we stay put (no route to the list).
     expect(screen.queryByText("prompts list")).not.toBeInTheDocument();
@@ -202,17 +186,13 @@ describe("PromptHistory", () => {
     const user = userEvent.setup();
     vi.mocked(api.promptHistory).mockResolvedValue(PROMPT_HISTORY_SINGLE);
     vi.mocked(api.deletePromptVersion).mockResolvedValue({ runs: 0, results: 0 });
-    renderHistory("/prompts/location/default");
+    renderHistory("/prompts/default");
 
     await user.click(await screen.findByRole("button", { name: "Delete v1" }));
     await user.click(screen.getAllByRole("button", { name: "Delete v1" }).at(-1)!);
 
     await waitFor(() =>
-      expect(api.deletePromptVersion).toHaveBeenCalledWith(
-        "location",
-        "default",
-        1,
-      ),
+      expect(api.deletePromptVersion).toHaveBeenCalledWith("default", 1),
     );
     // Deleting the only version leaves nothing to show, so we route back to the list.
     expect(await screen.findByText("prompts list")).toBeInTheDocument();

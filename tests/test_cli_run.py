@@ -8,11 +8,12 @@ the same Run / Results / Predictions a UI run would (there is no JSON-log path a
 
 from pathlib import Path
 
+import pytest
 from conftest import LOCATION_BOXES_JSON
 from sqlmodel import select
 
-from core.cli import execute_cli_run
-from core.models.prompt import Prompt, Task
+from core.cli import execute_cli_run, parse_args
+from core.models.prompt import Prompt
 from core.models.results import LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, RunStatus
 from core.services.prompt import PromptService, seed_default_prompts
@@ -20,6 +21,15 @@ from core.services.run import RunKnobs
 
 SONNET = "anthropic/claude-sonnet-4.5"
 GPT = "openai/gpt-5-mini"
+
+
+def test_cli_takes_no_task_flag():
+    """The task alias map and its ``--task`` flag are gone (ADR 0032): a plain invocation
+    parses into a launch, and one still carrying the flag is rejected outright rather than
+    quietly ignored."""
+    assert parse_args(["--models", SONNET]).models == [SONNET]
+    with pytest.raises(SystemExit):
+        parse_args(["--task", "location"])
 
 
 def test_cli_run_persists_run_results_predictions(
@@ -33,7 +43,6 @@ def test_cli_run_persists_run_results_predictions(
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.location,
         models=[SONNET, GPT],
         cache_root=tmp_path / "cache",
         overlay_root=overlay_root,
@@ -79,7 +88,7 @@ def test_cli_run_defaults_to_latest_prompt_version(
 ):
     seed_default_prompts(session)
     # Append a second immutable version of the default location family.
-    PromptService(session).edit(Task.location, "default", "find them, carefully")
+    PromptService(session).edit("default", "find them, carefully")
     stub_adapter.default = LOCATION_BOXES_JSON
 
     run = execute_cli_run(
@@ -87,7 +96,6 @@ def test_cli_run_defaults_to_latest_prompt_version(
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.location,
         models=[SONNET],
         cache_root=tmp_path / "cache",
         overlay_root=overlay_root,
@@ -100,7 +108,7 @@ def test_cli_run_pins_requested_prompt_version(
     session, stub_adapter, sample_pdf, tmp_path, overlay_root
 ):
     seed_default_prompts(session)
-    PromptService(session).edit(Task.location, "default", "find them, carefully")
+    PromptService(session).edit("default", "find them, carefully")
     stub_adapter.default = LOCATION_BOXES_JSON
 
     run = execute_cli_run(
@@ -108,7 +116,6 @@ def test_cli_run_pins_requested_prompt_version(
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.location,
         models=[SONNET],
         prompt_version=1,
         cache_root=tmp_path / "cache",
@@ -130,7 +137,6 @@ def test_cli_run_caches_pages_under_given_root(
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.location,
         models=[SONNET],
         cache_root=cache_root,
         overlay_root=overlay_root,
@@ -153,14 +159,12 @@ def test_cli_run_location_persists_predictions_and_overlays(
         stub_adapter,
         pdf_path=sample_pdf,
         name="sample",
-        task=Task.location,
         models=[SONNET],
         cache_root=tmp_path / "cache",
         overlay_root=overlay_root,
     )
 
     assert run.status == RunStatus.done
-    assert run.task == Task.location
     (result,) = session.exec(select(Result).where(Result.run_id == run.id)).all()
     preds = session.exec(
         select(Prediction)

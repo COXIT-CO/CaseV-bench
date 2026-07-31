@@ -17,7 +17,6 @@ import type {
 /** A representative `GET /api/meta` payload shared across tests. */
 export const META: ApiMeta = {
   app: "Prompt & Config Lab",
-  tasks: ["counting", "location"],
   labels: ["cabinet", "countertop", "elevation", "elevation_callout"],
   drawing_count: 3,
   run_count: 7,
@@ -31,7 +30,6 @@ const DRAWINGS = [
 
 /** The board (P/R/F1 columns): two scored rows (a rank-1 leader) and one unscored row. */
 export const LOCATION_BOARD: LeaderboardResponse = {
-  task: "location",
   drawing_id: null,
   prompt_family: null,
   prompt_version: null,
@@ -87,7 +85,6 @@ export const LOCATION_BOARD: LeaderboardResponse = {
 
 /** An empty board — no Results yet. */
 export const EMPTY_BOARD: LeaderboardResponse = {
-  task: "location",
   drawing_id: null,
   prompt_family: null,
   prompt_version: null,
@@ -102,7 +99,6 @@ export const EMPTY_BOARD: LeaderboardResponse = {
 export const LOCATION_RESULT: ResultDetailResponse = {
   result_id: 90,
   model: "anthropic/claude-sonnet-4.5",
-  task: "location",
   prompt_family: "boxes",
   prompt_version: 2,
   run_id: 12,
@@ -245,7 +241,6 @@ export const RUN_HISTORY: RunHistoryResponse = {
   runs: [
     {
       id: 812,
-      task: "location",
       status: "running",
       progress: 3,
       total_units: 6,
@@ -256,7 +251,6 @@ export const RUN_HISTORY: RunHistoryResponse = {
     },
     {
       id: 811,
-      task: "location",
       status: "done",
       progress: 6,
       total_units: 6,
@@ -268,14 +262,11 @@ export const RUN_HISTORY: RunHistoryResponse = {
   ],
 };
 
-/** The launch form's option set: three prompts, two drawings, three curated models. The
- * endpoint still offers every prompt version regardless of Task (flattened in ticket 04), so
- * the leftover counting prompt is in the payload — the form must not offer it. */
+/** The launch form's option set: two prompts, two drawings, three curated models. */
 export const LAUNCH_OPTIONS: LaunchOptionsResponse = {
   prompts: [
-    { id: 9, task: "location", family: "boxes", version: 3 },
-    { id: 4, task: "location", family: "loc-v1", version: 2 },
-    { id: 7, task: "counting", family: "count-totals", version: 1 },
+    { id: 9, family: "boxes", version: 3 },
+    { id: 4, family: "loc-v1", version: 2 },
   ],
   drawings: [
     { id: 3, name: "prj0001", page_count: 4 },
@@ -297,7 +288,7 @@ export const EMPTY_LAUNCH_OPTIONS: LaunchOptionsResponse = {
 
 /** A run detail whose knobs snapshot and result rows the detail page renders. */
 export const RUN_DETAIL: RunDetailResponse = {
-  run: { id: 812, task: "location", status: "running", progress: 3, total_units: 6 },
+  run: { id: 812, status: "running", progress: 3, total_units: 6 },
   prompt: { family: "strict-json", version: 9 },
   drawing: { id: 3, name: "prj0001" },
   knobs: {
@@ -312,22 +303,11 @@ export const RUN_DETAIL: RunDetailResponse = {
   ],
 };
 
-/** The Prompts list. The API is still Task-grouped (flattened in ticket 04), so the counting
- * group is still in the payload — the SPA reads only the location one. */
+/** The Prompts list — one flat family collection (ADR 0032). */
 export const PROMPTS: PromptsResponse = {
-  tasks: ["counting", "location"],
-  groups: [
-    {
-      task: "counting",
-      families: [{ name: "cabinet-count-v2", latest_version: 3, count: 3 }],
-    },
-    {
-      task: "location",
-      families: [
-        { name: "boxes", latest_version: 3, count: 3 },
-        { name: "default", latest_version: 1, count: 1 },
-      ],
-    },
+  families: [
+    { name: "boxes", latest_version: 3, count: 3 },
+    { name: "default", latest_version: 1, count: 1 },
   ],
 };
 
@@ -335,7 +315,6 @@ export const PROMPTS: PromptsResponse = {
  * (ADR-0016): v2 is pinned by 2 runs / 5 results, v1 by 1 run / 3 results, so the family
  * total is 3 runs / 8 results. */
 export const PROMPT_HISTORY: PromptHistoryResponse = {
-  task: "location",
   family: "boxes",
   run_count: 3,
   result_count: 8,
@@ -360,7 +339,6 @@ export const PROMPT_HISTORY: PromptHistoryResponse = {
 /** A single-version family — compare falls back to reading v1 against itself. No runs pin it,
  * so deleting it (its sole version) removes an empty-collateral family. */
 export const PROMPT_HISTORY_SINGLE: PromptHistoryResponse = {
-  task: "location",
   family: "default",
   run_count: 0,
   result_count: 0,

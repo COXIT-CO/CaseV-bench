@@ -14,7 +14,7 @@ scores against seeded GT.
 
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.scoring import ScoringService
@@ -58,13 +58,12 @@ def _seed_drawing_with_pages(session, n_pages: int) -> tuple[Drawing, list[Page]
     return drawing, pages
 
 
-def _seed_result(session, drawing, task: Task) -> Result:
-    prompt = Prompt(task=task, family="boxes", version=1, text="find boxes")
+def _seed_location_result(session, drawing) -> Result:
+    prompt = Prompt(family="boxes", version=1, text="find boxes")
     session.add(prompt)
     session.commit()
     session.refresh(prompt)
     run = Run(
-        task=task,
         prompt_id=prompt.id,
         drawing_id=drawing.id,
         status=RunStatus.done,
@@ -81,10 +80,6 @@ def _seed_result(session, drawing, task: Task) -> Result:
     session.commit()
     session.refresh(result)
     return result
-
-
-def _seed_location_result(session, drawing) -> Result:
-    return _seed_result(session, drawing, Task.location)
 
 
 def _add_prediction(session, result, page, *, status, parsed_json, parse_error=None):

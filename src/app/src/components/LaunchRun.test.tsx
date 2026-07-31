@@ -42,7 +42,6 @@ describe("Launch form Advanced knobs", () => {
     vi.mocked(api.createRun).mockResolvedValue({
       id: 1,
       status: "queued",
-      task: "location",
       total_units: 1,
     });
   });

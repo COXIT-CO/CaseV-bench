@@ -25,7 +25,6 @@ export function useLeaderboard(params: LeaderboardParams) {
   return useQuery({
     queryKey: [
       "leaderboard",
-      params.task,
       params.drawing_id,
       params.prompt_family,
       params.prompt_version,
@@ -146,13 +145,13 @@ export function useRunStatus(id: number) {
   });
 }
 
-/** Prompt families grouped by Task for the Prompts list (spec §A.5). */
+/** Every prompt family for the Prompts list (spec §A.5). */
 export function usePrompts() {
   return useQuery({ queryKey: ["prompts"], queryFn: api.prompts });
 }
 
 /**
- * Author a new prompt family's v1. On success the grouped list is stale, so it is
+ * Author a new prompt family's v1. On success the family list is stale, so it is
  * invalidated; the caller routes to the new family's history page (spec §A.5).
  */
 export function useCreatePrompt() {
@@ -165,32 +164,28 @@ export function useCreatePrompt() {
   });
 }
 
-/** One family's immutable version history, newest-first, keyed by its `(task, family)`
- * (spec §A.5). `enabled` lets the screen skip the fetch for an invalid `(task, family)`
- * path rather than firing a doomed request. */
-export function usePromptHistory(
-  task: string,
-  family: string,
-  enabled = true,
-) {
+/** One family's immutable version history, newest-first, keyed by its `family`
+ * (spec §A.5). `enabled` lets a screen with no family chosen — the Leaderboard's version
+ * filter before a family is picked — skip the fetch rather than fire a doomed request. */
+export function usePromptHistory(family: string, enabled = true) {
   return useQuery({
-    queryKey: ["prompt-history", task, family],
-    queryFn: () => api.promptHistory(task, family),
+    queryKey: ["prompt-history", family],
+    queryFn: () => api.promptHistory(family),
     enabled,
   });
 }
 
 /**
  * "Edit" a family by appending the next immutable version (ADR 0009). On success both the
- * family's history and the grouped list (its latest version / count moved) are stale, so
+ * family's history and the family list (its latest version / count moved) are stale, so
  * both are invalidated (spec §A.5).
  */
-export function useAppendPromptVersion(task: string, family: string) {
+export function useAppendPromptVersion(family: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (text: string) => api.appendPromptVersion(task, family, text),
+    mutationFn: (text: string) => api.appendPromptVersion(family, text),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prompt-history", task, family] });
+      queryClient.invalidateQueries({ queryKey: ["prompt-history", family] });
       queryClient.invalidateQueries({ queryKey: ["prompts"] });
     },
   });
@@ -198,19 +193,18 @@ export function useAppendPromptVersion(task: string, family: string) {
 
 /**
  * Delete one immutable version and cascade the Runs that pinned it (ADR-0016, ticket 09). On
- * success the family's history, the grouped list (its latest version / count moved, or the
+ * success the family's history, the family list (its latest version / count moved, or the
  * family vanished if that was its last version), the run history, the Leaderboard (the pinned
  * Runs' Results leave the board), and the shell's meta counts are all stale, so each is
  * invalidated. The caller decides where to route (stay, or back to the list if the family is
  * now empty).
  */
-export function useDeletePromptVersion(task: string, family: string) {
+export function useDeletePromptVersion(family: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (version: number) =>
-      api.deletePromptVersion(task, family, version),
+    mutationFn: (version: number) => api.deletePromptVersion(family, version),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["prompt-history", task, family] });
+      queryClient.invalidateQueries({ queryKey: ["prompt-history", family] });
       queryClient.invalidateQueries({ queryKey: ["prompts"] });
       queryClient.invalidateQueries({ queryKey: ["runs"] });
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
@@ -221,15 +215,14 @@ export function useDeletePromptVersion(task: string, family: string) {
 
 /**
  * Delete a whole prompt family — every version and every Run pinning any of them (ADR-0016,
- * ticket 09). On success the grouped list, the run history, the Leaderboard, and the shell's
+ * ticket 09). On success the family list, the run history, the Leaderboard, and the shell's
  * meta counts are all stale, so each is invalidated; the caller routes back to the Prompts
  * list, since the family's history page no longer has a family to show.
  */
 export function useDeletePromptFamily() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ task, family }: { task: string; family: string }) =>
-      api.deletePromptFamily(task, family),
+    mutationFn: (family: string) => api.deletePromptFamily(family),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prompts"] });
       queryClient.invalidateQueries({ queryKey: ["runs"] });

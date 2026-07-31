@@ -11,7 +11,7 @@ import pytest
 from conftest import LOCATION_BOXES_JSON, seed_location_drawing_id
 from sqlmodel import Session, select
 
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.run import Result
 
 ACCURATE = "anthropic/claude-sonnet-4.5"
@@ -71,8 +71,7 @@ def test_leaderboard_api_ranks_scored_rows(
     assert response.status_code == 200
     body = response.json()
 
-    # Filter surface: the board's task, its ranking metrics, the drawings dropdown.
-    assert body["task"] == "location"
+    # Filter surface: the ranking metrics and the drawings dropdown.
     assert body["sort"] == "f1"
     assert body["metrics"] == ["f1", "precision", "recall"]
     assert body["label_count"] == 4
@@ -108,7 +107,7 @@ def test_leaderboard_api_sort_by_precision(
     assert body["sort"] == "precision"
 
 
-def test_leaderboard_api_unknown_sort_falls_back_to_task_default(
+def test_leaderboard_api_unknown_sort_falls_back_to_the_default_metric(
     client, engine, stub_adapter, location_prompt, temp_overlay_run_service
 ):
     drawing_id = seed_location_drawing_id(engine)
@@ -142,10 +141,8 @@ def test_leaderboard_api_filters_by_prompt_family(
     drawing_id = seed_location_drawing_id(engine)
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     with Session(engine) as session:
-        terse = Prompt(task=Task.location, family="terse", version=1, text="find")
-        verbose = Prompt(
-            task=Task.location, family="verbose", version=1, text="find well"
-        )
+        terse = Prompt(family="terse", version=1, text="find")
+        verbose = Prompt(family="verbose", version=1, text="find well")
         session.add(terse)
         session.add(verbose)
         session.commit()
@@ -169,8 +166,8 @@ def test_leaderboard_api_filters_by_prompt_family_and_version(
     drawing_id = seed_location_drawing_id(engine)
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     with Session(engine) as session:
-        v1 = Prompt(task=Task.location, family="custom", version=1, text="find")
-        v2 = Prompt(task=Task.location, family="custom", version=2, text="find more")
+        v1 = Prompt(family="custom", version=1, text="find")
+        v2 = Prompt(family="custom", version=2, text="find more")
         session.add(v1)
         session.add(v2)
         session.commit()
@@ -201,14 +198,14 @@ def test_leaderboard_api_version_without_family_is_400(client):
 def test_leaderboard_api_empty_board(client):
     body = client.get("/api/leaderboard").json()
     assert body["rows"] == []
-    assert body["task"] == "location"
 
 
 def test_leaderboard_api_ignores_a_stale_task_parameter(
     client, engine, stub_adapter, location_prompt, temp_overlay_run_service, import_gt
 ):
-    """There is one board now (ADR 0032). A stale client still sending ``?task=counting``
-    gets the location board with its rates, not an empty counting one."""
+    """There is one board and no ``task`` parameter (ADR 0032). A stale client still
+    sending ``?task=counting`` gets that board with its rates all the same — the parameter
+    is ignored, not honoured and not an error."""
     drawing_id = seed_location_drawing_id(engine)
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     _launch_and_wait(client, drawing_id, location_prompt.id)
@@ -216,7 +213,6 @@ def test_leaderboard_api_ignores_a_stale_task_parameter(
 
     body = client.get("/api/leaderboard?task=counting").json()
 
-    assert body["task"] == "location"
     assert body["sort"] == "f1"
     assert [row["f1"] for row in body["rows"]] == [1.0, 0.0]
 

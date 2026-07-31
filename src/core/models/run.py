@@ -1,7 +1,7 @@
 """Run / Result / Prediction tables — one launched experiment and its stored
 outputs (spec: Runs & execution; glossary: Run, Result, Prediction; ADR 0006).
 
-A ``Run`` is one execution of ``(task, prompt version, drawing, N models)``. It
+A ``Run`` is one execution of ``(prompt version, drawing, N models)``. It
 snapshots the per-run knobs used (DPI, downsample long-edge, max_tokens, temperature)
 so a result stays reproducible; the knobs are recorded and displayed but are not a
 Leaderboard rank axis (Configuration stays ``(prompt version, model)``; ADR 0018).
@@ -16,8 +16,6 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlmodel import Field, Relationship, SQLModel
-
-from core.models.prompt import Task
 
 
 def _utcnow() -> datetime:
@@ -46,7 +44,6 @@ class Run(SQLModel, table=True):
     __tablename__ = "run"
 
     id: int | None = Field(default=None, primary_key=True)
-    task: Task = Field(index=True)
     prompt_id: int = Field(foreign_key="prompt.id", index=True)
     drawing_id: int = Field(foreign_key="drawing.id", index=True)
 

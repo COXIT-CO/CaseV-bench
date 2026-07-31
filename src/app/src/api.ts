@@ -155,23 +155,23 @@ export const api = {
   /**
    * The ranked Leaderboard, filtered by Drawing/prompt and ranked by a metric (spec §A.2).
    * Params map 1:1 to the URL query the SPA mirrors; `null` values are omitted so the server
-   * applies its defaults ("All drawings", the default sort). `task` is not a user choice —
-   * the API is still Task-shaped and the SPA always sends `location` (ADR 0032, ticket 04).
+   * applies its defaults ("All drawings", the default sort). With every filter at its default
+   * the query is empty, so the `?` is dropped rather than sent bare.
    */
   leaderboard: ({
-    task,
     drawing_id,
     prompt_family,
     prompt_version,
     sort,
   }: LeaderboardParams) => {
-    const query = new URLSearchParams({ task });
+    const query = new URLSearchParams();
     if (drawing_id !== null) query.set("drawing_id", String(drawing_id));
     if (prompt_family !== null) query.set("prompt_family", prompt_family);
     if (prompt_version !== null)
       query.set("prompt_version", String(prompt_version));
     if (sort !== null) query.set("sort", sort);
-    return getJson<LeaderboardResponse>(`/api/leaderboard?${query}`);
+    const suffix = query.size > 0 ? `?${query}` : "";
+    return getJson<LeaderboardResponse>(`/api/leaderboard${suffix}`);
   },
 
   /** One Result's drill-down: header refs, the score block, and the per-page predictions (spec §A.3). */
@@ -216,7 +216,7 @@ export const api = {
   runStatus: (id: number) =>
     getJson<RunStatusResponse>(`/api/runs/${id}/status`),
 
-  /** Prompt families grouped by Task, each with its latest version + count (spec §A.5). */
+  /** Every prompt family with its latest version + count (spec §A.5). */
   prompts: () => getJson<PromptsResponse>("/api/prompts"),
 
   /** Author a new family's v1; a duplicate family surfaces the service `400` (spec §A.5). */
@@ -225,31 +225,27 @@ export const api = {
 
   /** A family's immutable version history, newest-first, each version's text included so
    * compare/read needs no follow-up fetch (spec §A.5). */
-  promptHistory: (task: string, family: string) =>
-    getJson<PromptHistoryResponse>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}`,
-    ),
+  promptHistory: (family: string) =>
+    getJson<PromptHistoryResponse>(`/api/prompts/${encodeURIComponent(family)}`),
 
   /** "Edit" = append the next immutable version to a family (ADR 0009, spec §A.5). */
-  appendPromptVersion: (task: string, family: string, text: string) =>
+  appendPromptVersion: (family: string, text: string) =>
     postJson<PromptVersionRef>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions`,
+      `/api/prompts/${encodeURIComponent(family)}/versions`,
       { text },
     ),
 
   /** Permanently delete one immutable version, cascading the Runs that pinned it; returns the
    * collateral counts removed as the delete's receipt (ADR-0016, ticket 09). */
-  deletePromptVersion: (task: string, family: string, version: number) =>
+  deletePromptVersion: (family: string, version: number) =>
     deleteJson<PromptDeleted>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions/${version}`,
+      `/api/prompts/${encodeURIComponent(family)}/versions/${version}`,
     ),
 
   /** Permanently delete a whole family — every version and every Run pinning any of them;
    * returns the collateral counts removed as the delete's receipt (ADR-0016, ticket 09). */
-  deletePromptFamily: (task: string, family: string) =>
-    deleteJson<PromptDeleted>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}`,
-    ),
+  deletePromptFamily: (family: string) =>
+    deleteJson<PromptDeleted>(`/api/prompts/${encodeURIComponent(family)}`),
 
   /** The Library catalog of Drawings with page counts, newest-first (spec §A.6). */
   drawings: () => getJson<DrawingsResponse>("/api/drawings"),

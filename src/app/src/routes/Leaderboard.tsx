@@ -18,7 +18,6 @@ import {
   metricLabel,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { SOLE_TASK, promptFamilies } from "@/types";
 import type { LeaderboardRow } from "@/types";
 
 // The Landing page (ADR 0011, spec §A.2/§B.3): every Result ranked best-first, filtered by
@@ -58,7 +57,6 @@ export function Leaderboard() {
   const sort = searchParams.get("sort");
 
   const { data, isLoading, isError, error } = useLeaderboard({
-    task: SOLE_TASK,
     drawing_id: drawingId,
     prompt_family: promptFamily,
     prompt_version: promptVersion,
@@ -68,9 +66,8 @@ export function Leaderboard() {
   // The family dropdown lists the prompt families; the version dropdown is populated from
   // the chosen family's history.
   const { data: promptsData } = usePrompts();
-  const familyOptions = promptFamilies(promptsData?.groups ?? []);
+  const familyOptions = promptsData?.families ?? [];
   const { data: historyData } = usePromptHistory(
-    SOLE_TASK,
     promptFamily ?? "",
     promptFamily !== null,
   );

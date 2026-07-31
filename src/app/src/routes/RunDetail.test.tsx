@@ -103,22 +103,6 @@ describe("RunDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the Download report link for a counting run (location-only)", async () => {
-    vi.mocked(api.run).mockResolvedValue({
-      ...RUN_DETAIL,
-      run: { ...RUN_DETAIL.run, task: "counting" },
-    });
-    vi.mocked(api.runStatus).mockResolvedValue(RUN_STATUS_DONE);
-    renderDetail();
-
-    await screen.findByText("Run #812");
-    // Terminal, so the run is deletable — but reports are location-only.
-    await screen.findByRole("button", { name: "Delete run" });
-    expect(
-      screen.queryByRole("link", { name: "Download report" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("treats a non-numeric id as not found", async () => {
     renderDetail("/runs/not-a-number");
     expect(await screen.findByText("Run not found")).toBeInTheDocument();

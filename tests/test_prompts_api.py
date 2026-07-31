@@ -1,9 +1,9 @@
 """JSON contract for Prompts (spec §A.5, ticket 05). These are the twins of the Jinja
-``/prompts`` list, its authoring form, the version-history page, and its "edit" form:
-families grouped by Task (Task-scoping, ADR 0009), creating a new family's v1, browsing a
+``/prompts`` list, its authoring form, the version-history page, and its "edit" form: the
+flat family list (ADR 0032 — no task groups them), creating a new family's v1, browsing a
 family's immutable version history newest-first with each version's text (so compare needs
-no extra round-trip), and appending the next immutable version. The two shipped prompts are
-seeded on app startup, so both Tasks start with a ``default`` family.
+no extra round-trip), and appending the next immutable version. The shipped prompt is
+seeded on app startup, so the listing always holds a ``default`` family.
 
 Deleting a prompt at either granularity (ticket 09, ADR-0016) is covered at the bottom: the
 DELETE routes cascade the pinning Runs and return the collateral counts, and the history
@@ -15,7 +15,7 @@ from sqlmodel import Session, select
 
 from api.deps import get_prompt_service
 from core.models.drawing import Drawing
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.run import Result, Run
 from core.services.prompt import PromptService
 
@@ -32,7 +32,6 @@ def _pin_run(engine, prompt_id: int) -> int:
         session.commit()
         session.refresh(drawing)
         run = Run(
-            task=Task.location,
             prompt_id=prompt_id,
             drawing_id=drawing.id,
             dpi=200,
@@ -52,10 +51,10 @@ def _author_family(engine, family: str, n_versions: int) -> list[int]:
     """Author ``family`` v1..vN and return the prompt-row ids, oldest-first."""
     with Session(engine) as session:
         service = PromptService(session)
-        service.create(Task.location, family, "v1")
+        service.create(family, "v1")
         for _ in range(2, n_versions + 1):
-            service.edit(Task.location, family, "next")
-        return [p.id for p in service.history(Task.location, family)[::-1]]
+            service.edit(family, "next")
+        return [p.id for p in service.history(family)[::-1]]
 
 
 @pytest.fixture
@@ -71,61 +70,38 @@ def delete_capable_prompts(app, engine, tmp_path):
     return _svc
 
 
-def test_list_groups_seeded_families_by_task(client):
+def test_list_returns_a_flat_family_collection(client):
     body = client.get("/api/prompts").json()
 
-    assert body["tasks"] == ["counting", "location"]
-    groups = {g["task"]: g["families"] for g in body["groups"]}
-    assert set(groups) == {"counting", "location"}
-    # The seeded ``default`` family reports its latest version and version count. Only
-    # location is seeded now (ADR 0032), so the counting group is empty.
-    location_default = next(f for f in groups["location"] if f["name"] == "default")
-    assert location_default == {"name": "default", "latest_version": 1, "count": 1}
-    assert groups["counting"] == []
+    # A bare ``families`` collection — no per-task wrapper and no task key anywhere
+    # (ADR 0032).
+    assert set(body) == {"families"}
+    default = next(f for f in body["families"] if f["name"] == "default")
+    assert default == {"name": "default", "latest_version": 1, "count": 1}
 
 
-def test_create_makes_v1_and_lists_it_under_its_task(client):
-    resp = client.post(
-        "/api/prompts",
-        json={"task": "counting", "family": "kitchen", "text": "count cabinets"},
-    )
+def test_create_makes_v1_and_lists_it(client):
+    resp = client.post("/api/prompts", json={"family": "kitchen", "text": "find them"})
     assert resp.status_code == 201
-    assert resp.json() == {"task": "counting", "family": "kitchen", "version": 1}
+    assert resp.json() == {"family": "kitchen", "version": 1}
 
-    groups = {
-        g["task"]: g["families"] for g in client.get("/api/prompts").json()["groups"]
-    }
-    kitchen = next(f for f in groups["counting"] if f["name"] == "kitchen")
+    families = client.get("/api/prompts").json()["families"]
+    kitchen = next(f for f in families if f["name"] == "kitchen")
     assert kitchen == {"name": "kitchen", "latest_version": 1, "count": 1}
-    # Task-scoped: a counting family is never offered under location.
-    assert not any(f["name"] == "kitchen" for f in groups["location"])
 
 
 def test_create_duplicate_family_is_400_with_service_message(client):
-    client.post(
-        "/api/prompts",
-        json={"task": "counting", "family": "dupe", "text": "a"},
-    )
-    again = client.post(
-        "/api/prompts",
-        json={"task": "counting", "family": "dupe", "text": "b"},
-    )
+    client.post("/api/prompts", json={"family": "dupe", "text": "a"})
+    again = client.post("/api/prompts", json={"family": "dupe", "text": "b"})
     assert again.status_code == 400
     assert "already exists" in again.json()["detail"]
 
 
 def test_history_is_newest_first_with_each_versions_text(client):
-    client.post(
-        "/api/prompts",
-        json={"task": "location", "family": "doors", "text": "locate v1"},
-    )
-    client.post(
-        "/api/prompts/location/doors/versions",
-        json={"text": "locate v2"},
-    )
+    client.post("/api/prompts", json={"family": "doors", "text": "locate v1"})
+    client.post("/api/prompts/doors/versions", json={"text": "locate v2"})
 
-    body = client.get("/api/prompts/location/doors").json()
-    assert body["task"] == "location"
+    body = client.get("/api/prompts/doors").json()
     assert body["family"] == "doors"
     # Newest-first, and each version carries its text so compare needs no follow-up fetch.
     assert [v["version"] for v in body["versions"]] == [2, 1]
@@ -133,35 +109,35 @@ def test_history_is_newest_first_with_each_versions_text(client):
     assert all(v["created_at"] for v in body["versions"])
 
 
+def test_the_old_task_segment_path_does_not_resolve(client):
+    """A stale client asking at ``/prompts/<task>/<family>`` gets a 404 rather than a
+    family that happens to be named after a task (ADR 0032: retired paths fail loudly).
+    """
+    client.post("/api/prompts", json={"family": "doors", "text": "locate v1"})
+
+    assert client.get("/api/prompts/location/doors").status_code == 404
+
+
 def test_append_version_never_mutates_prior_versions(client):
-    client.post(
-        "/api/prompts",
-        json={"task": "counting", "family": "cab", "text": "v1 text"},
-    )
-    resp = client.post(
-        "/api/prompts/counting/cab/versions",
-        json={"text": "v2 text"},
-    )
+    client.post("/api/prompts", json={"family": "cab", "text": "v1 text"})
+    resp = client.post("/api/prompts/cab/versions", json={"text": "v2 text"})
     assert resp.status_code == 201
-    assert resp.json() == {"task": "counting", "family": "cab", "version": 2}
+    assert resp.json() == {"family": "cab", "version": 2}
 
     versions = {
         v["version"]: v["text"]
-        for v in client.get("/api/prompts/counting/cab").json()["versions"]
+        for v in client.get("/api/prompts/cab").json()["versions"]
     }
     # The v1 row is untouched by the edit (immutable append, ADR 0009).
     assert versions == {1: "v1 text", 2: "v2 text"}
 
 
 def test_history_unknown_family_is_404(client):
-    assert client.get("/api/prompts/counting/ghost").status_code == 404
+    assert client.get("/api/prompts/ghost").status_code == 404
 
 
 def test_append_to_unknown_family_is_404(client):
-    resp = client.post(
-        "/api/prompts/counting/ghost/versions",
-        json={"text": "x"},
-    )
+    resp = client.post("/api/prompts/ghost/versions", json={"text": "x"})
     assert resp.status_code == 404
 
 
@@ -171,7 +147,7 @@ def test_history_reports_delete_collateral_counts(client, engine):
     _pin_run(engine, v2_id)  # two Runs pin v2
     _pin_run(engine, v2_id)
 
-    body = client.get("/api/prompts/location/cabinets").json()
+    body = client.get("/api/prompts/cabinets").json()
 
     per_version = {v["version"]: v for v in body["versions"]}
     assert (per_version[1]["run_count"], per_version[1]["result_count"]) == (1, 1)
@@ -188,14 +164,13 @@ def test_delete_version_cascades_pinning_runs_and_returns_counts(
     run_v1 = _pin_run(engine, v1_id)
     run_v2 = _pin_run(engine, v2_id)
 
-    resp = client.delete("/api/prompts/location/doors/versions/1")
+    resp = client.delete("/api/prompts/doors/versions/1")
     assert resp.status_code == 200
     assert resp.json() == {"runs": 1, "results": 1}
 
     # v1 is gone from the history (now just v2) and its Run with it; v2's Run survives.
     versions = [
-        v["version"]
-        for v in client.get("/api/prompts/location/doors").json()["versions"]
+        v["version"] for v in client.get("/api/prompts/doors").json()["versions"]
     ]
     assert versions == [2]
     with Session(engine) as session:
@@ -210,12 +185,12 @@ def test_delete_family_cascades_every_version_and_returns_counts(
     _pin_run(engine, v1_id)
     _pin_run(engine, v2_id)
 
-    resp = client.delete("/api/prompts/location/windows")
+    resp = client.delete("/api/prompts/windows")
     assert resp.status_code == 200
     assert resp.json() == {"runs": 2, "results": 2}
 
     # The family no longer resolves, and no Run is left behind.
-    assert client.get("/api/prompts/location/windows").status_code == 404
+    assert client.get("/api/prompts/windows").status_code == 404
     with Session(engine) as session:
         assert session.exec(select(Run)).all() == []
         assert (
@@ -224,10 +199,7 @@ def test_delete_family_cascades_every_version_and_returns_counts(
 
 
 def test_delete_unknown_version_and_family_are_404(client, delete_capable_prompts):
-    _author_family_via_api = client.post(
-        "/api/prompts",
-        json={"task": "location", "family": "present", "text": "v1"},
-    )
-    assert _author_family_via_api.status_code == 201
-    assert client.delete("/api/prompts/location/present/versions/99").status_code == 404
-    assert client.delete("/api/prompts/location/ghost").status_code == 404
+    authored = client.post("/api/prompts", json={"family": "present", "text": "v1"})
+    assert authored.status_code == 201
+    assert client.delete("/api/prompts/present/versions/99").status_code == 404
+    assert client.delete("/api/prompts/ghost").status_code == 404

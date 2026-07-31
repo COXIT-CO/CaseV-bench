@@ -30,7 +30,7 @@ from importlib.metadata import PackageNotFoundError, version
 from location_scorer import score as score_boxes
 from sqlmodel import Session, select
 
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.results import OBJECT_LABELS, LabeledBox, LocationResult
 from core.models.run import Result, Run
 from core.models.score import Score
@@ -299,11 +299,23 @@ class ScoringService:
                 self.session.delete(existing)
             return None
 
-        score = existing or Score(result_id=result.id)
-        score.precision = computed.precision
-        score.recall = computed.recall
-        score.f1 = computed.f1
-        score.per_label_json = computed.to_json()
+        # A Score row is never metric-less (ADR 0032), so a new row takes its metrics at
+        # construction rather than being filled in afterwards; a recompute rewrites the
+        # existing row in place so the Score keeps its identity (ADR 0004).
+        if existing is None:
+            score = Score(
+                result_id=result.id,
+                precision=computed.precision,
+                recall=computed.recall,
+                f1=computed.f1,
+                per_label_json=computed.to_json(),
+            )
+        else:
+            score = existing
+            score.precision = computed.precision
+            score.recall = computed.recall
+            score.f1 = computed.f1
+            score.per_label_json = computed.to_json()
         self.session.add(score)
         return score
 
@@ -363,7 +375,6 @@ class ScoringService:
             select(Result, Run, Prompt)
             .join(Run, Result.run_id == Run.id)
             .join(Prompt, Run.prompt_id == Prompt.id)
-            .where(Run.task == Task.location)
         )
         if drawing_id is not None:
             stmt = stmt.where(Run.drawing_id == drawing_id)

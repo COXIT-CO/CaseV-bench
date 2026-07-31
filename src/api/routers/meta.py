@@ -8,7 +8,6 @@ from sqlmodel import Session, SQLModel, select
 
 from api.deps import get_session
 from core.models.drawing import Drawing
-from core.models.prompt import Task
 from core.models.results import OBJECT_LABELS
 from core.models.run import Result, Run
 
@@ -21,10 +20,9 @@ router = APIRouter(prefix="/api", tags=["meta"])
 
 class ApiMeta(BaseModel):
     """App-level facts the SPA shell renders to prove it is talking to the live API:
-    the app name, the fixed Task/ObjectType taxonomy, and current domain-row counts."""
+    the app name, the fixed ObjectType taxonomy, and current domain-row counts."""
 
     app: str
-    tasks: list[str]
     labels: list[str]
     drawing_count: int
     run_count: int
@@ -40,7 +38,6 @@ def _count(session: Session, model: type[SQLModel]) -> int:
 def meta(session: Session = Depends(get_session)) -> ApiMeta:
     return ApiMeta(
         app=APP_TITLE,
-        tasks=[t.value for t in Task],
         labels=list(OBJECT_LABELS),
         drawing_count=_count(session, Drawing),
         run_count=_count(session, Run),

@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 
 from api.deps import get_run_service
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.services.run import RunService
 
 SONNET = "anthropic/claude-sonnet-4.5"
@@ -48,9 +48,7 @@ def _seed_drawing(engine, tmp_path) -> int:
 
 def _location_prompt_id(engine) -> int:
     with Session(engine) as session:
-        return (
-            session.exec(select(Prompt).where(Prompt.task == Task.location)).first().id
-        )
+        return session.exec(select(Prompt)).first().id
 
 
 def test_location_run_launches_and_serves_overlay(

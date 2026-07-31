@@ -9,7 +9,6 @@ from sqlmodel import Session, select
 from api.deps import get_session
 from api.routers.common import LeaderboardDrawing
 from core.models.drawing import Drawing
-from core.models.prompt import Task
 from core.models.results import OBJECT_LABELS
 from core.models.run import Run
 from core.services.scoring import LocationLeaderboardMetric, ScoringService
@@ -44,12 +43,9 @@ class LeaderboardResponse(BaseModel):
     resolved Drawing/sort, the valid ``sort`` metrics, the Drawing dropdown, the taxonomy
     size, and the already-ranked rows.
 
-    ``task`` is now a constant echo — there is one board (ADR 0032) — kept only so the SPA's
-    still-Task-shaped contract keeps parsing until ticket 04 flattens it. ``label_count`` is
-    the fixed taxonomy's size; it was the exact-match denominator the counting board ranked
-    on, and it outlives that use as the row count a per-label breakdown covers."""
+    ``label_count`` is the fixed taxonomy's size — the row count a per-label breakdown
+    covers."""
 
-    task: str
     drawing_id: int | None
     prompt_family: str | None
     prompt_version: int | None
@@ -137,7 +133,6 @@ def leaderboard(
         )
 
     return LeaderboardResponse(
-        task=Task.location.value,
         drawing_id=drawing_id,
         prompt_family=prompt_family,
         prompt_version=prompt_version,

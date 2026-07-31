@@ -1,6 +1,7 @@
-"""Prompts (spec §A.5): the Task-grouped family list, authoring, version history, and the
-"edit" that appends the next immutable version (ADR 0009). Same ``PromptService`` methods,
-so authoring never mutates a prior version and Task-scoping is preserved."""
+"""Prompts (spec §A.5): the family list, authoring, version history, and the "edit" that
+appends the next immutable version (ADR 0009). Same ``PromptService`` methods, so authoring
+never mutates a prior version. Families live in one flat namespace — nothing groups or
+scopes them (ADR 0032)."""
 
 from datetime import datetime
 
@@ -8,15 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from api.deps import get_prompt_service
-from core.models.prompt import Task
 from core.services.prompt import PromptService
 
 router = APIRouter(prefix="/api", tags=["prompts"])
 
 
 class PromptFamilyOut(BaseModel):
-    """One family in the Task-grouped list: its name, its newest version, and how many
-    versions it has (so the list shows ``latest vN · N versions`` without a follow-up).
+    """One family in the list: its name, its newest version, and how many versions it has
+    (so the list shows ``latest vN · N versions`` without a follow-up).
     """
 
     name: str
@@ -24,19 +24,10 @@ class PromptFamilyOut(BaseModel):
     count: int
 
 
-class PromptGroupOut(BaseModel):
-    """All of one Task's families (Task-scoping, ADR 0009)."""
-
-    task: str
-    families: list[PromptFamilyOut]
-
-
 class PromptsResponse(BaseModel):
-    """``GET /api/prompts``: the fixed Task taxonomy plus each Task's families, so the SPA
-    renders a group per Task even when a Task has no families yet."""
+    """``GET /api/prompts``: every prompt family, flat (ADR 0032)."""
 
-    tasks: list[str]
-    groups: list[PromptGroupOut]
+    families: list[PromptFamilyOut]
 
 
 class PromptVersionOut(BaseModel):
@@ -54,13 +45,12 @@ class PromptVersionOut(BaseModel):
 
 
 class PromptHistoryResponse(BaseModel):
-    """``GET /api/prompts/{task}/{family}``: the family's versions newest-first. The
-    family-level ``run_count``/``result_count`` are the whole-family delete's collateral (the
-    Runs + Results pinning any version — the sum of the per-version counts, since a Run pins
+    """``GET /api/prompts/{family}``: the family's versions newest-first. The family-level
+    ``run_count``/``result_count`` are the whole-family delete's collateral (the Runs +
+    Results pinning any version — the sum of the per-version counts, since a Run pins
     exactly one version) so the "delete family" confirm states the blast radius (ADR-0016).
     """
 
-    task: str
     family: str
     versions: list[PromptVersionOut]
     run_count: int
@@ -77,16 +67,15 @@ class PromptDeletedOut(BaseModel):
 
 
 class PromptCreateRequest(BaseModel):
-    """``POST /api/prompts`` body: author a new family's v1 for a Task."""
+    """``POST /api/prompts`` body: author a new family's v1."""
 
-    task: Task
     family: str
     text: str
 
 
 class PromptVersionCreateRequest(BaseModel):
-    """``POST /api/prompts/{task}/{family}/versions`` body: the "edit" that appends the
-    next immutable version. Only the text changes; the ``(task, family)`` come from the URL.
+    """``POST /api/prompts/{family}/versions`` body: the "edit" that appends the next
+    immutable version. Only the text changes; the ``family`` comes from the URL.
     """
 
     text: str
@@ -95,7 +84,6 @@ class PromptVersionCreateRequest(BaseModel):
 class PromptVersionRef(BaseModel):
     """The just-written version returned from create/append so the SPA routes to it."""
 
-    task: str
     family: str
     version: int
 
@@ -104,23 +92,18 @@ class PromptVersionRef(BaseModel):
 def list_prompts(
     service: PromptService = Depends(get_prompt_service),
 ) -> PromptsResponse:
-    """Families grouped by Task with each family's latest version + count (spec §A.5).
-    Every Task appears even with no families, so the SPA renders an empty group rather
-    than dropping the Task."""
-    groups: list[PromptGroupOut] = []
-    for task in Task:
-        families: list[PromptFamilyOut] = []
-        for family in service.families(task):
-            versions = service.history(task, family)
-            families.append(
-                PromptFamilyOut(
-                    name=family,
-                    latest_version=versions[0].version,
-                    count=len(versions),
-                )
+    """Every family with its latest version + count (spec §A.5)."""
+    families: list[PromptFamilyOut] = []
+    for family in service.families():
+        versions = service.history(family)
+        families.append(
+            PromptFamilyOut(
+                name=family,
+                latest_version=versions[0].version,
+                count=len(versions),
             )
-        groups.append(PromptGroupOut(task=task.value, families=families))
-    return PromptsResponse(tasks=[t.value for t in Task], groups=groups)
+        )
+    return PromptsResponse(families=families)
 
 
 @router.post("/prompts", response_model=PromptVersionRef, status_code=201)
@@ -132,17 +115,14 @@ def create_prompt(
     ``ValueError`` surfaced as ``400`` with its message (mirrors the Jinja handler)."""
     family = payload.family.strip()
     try:
-        prompt = service.create(payload.task, family=family, text=payload.text)
+        prompt = service.create(family=family, text=payload.text)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return PromptVersionRef(
-        task=prompt.task.value, family=prompt.family, version=prompt.version
-    )
+    return PromptVersionRef(family=prompt.family, version=prompt.version)
 
 
-@router.get("/prompts/{task}/{family}", response_model=PromptHistoryResponse)
+@router.get("/prompts/{family}", response_model=PromptHistoryResponse)
 def prompt_history(
-    task: Task,
     family: str,
     service: PromptService = Depends(get_prompt_service),
 ) -> PromptHistoryResponse:
@@ -151,15 +131,11 @@ def prompt_history(
     as a whole carry their delete-collateral counts (the Runs + Results that pinned them) so
     the delete confirms can state the blast radius (ADR-0016). An unknown family (no versions)
     is a ``404``."""
-    versions = service.history(task, family)
+    versions = service.history(family)
     if not versions:
-        raise HTTPException(
-            status_code=404,
-            detail=f"no prompt family {family!r} for task {task.value}",
-        )
-    collateral = service.collateral_by_version(task, family)
+        raise HTTPException(status_code=404, detail=f"no prompt family {family!r}")
+    collateral = service.collateral_by_version(family)
     return PromptHistoryResponse(
-        task=task.value,
         family=family,
         versions=[
             PromptVersionOut(
@@ -177,12 +153,11 @@ def prompt_history(
 
 
 @router.post(
-    "/prompts/{task}/{family}/versions",
+    "/prompts/{family}/versions",
     response_model=PromptVersionRef,
     status_code=201,
 )
 def append_prompt_version(
-    task: Task,
     family: str,
     payload: PromptVersionCreateRequest,
     service: PromptService = Depends(get_prompt_service),
@@ -191,20 +166,17 @@ def append_prompt_version(
     mutated (spec §A.5). An unknown family is the service's ``ValueError`` surfaced as a
     ``404`` (mirrors the Jinja edit handler)."""
     try:
-        prompt = service.edit(task, family=family, text=payload.text)
+        prompt = service.edit(family=family, text=payload.text)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    return PromptVersionRef(
-        task=prompt.task.value, family=prompt.family, version=prompt.version
-    )
+    return PromptVersionRef(family=prompt.family, version=prompt.version)
 
 
 @router.delete(
-    "/prompts/{task}/{family}/versions/{version}",
+    "/prompts/{family}/versions/{version}",
     response_model=PromptDeletedOut,
 )
 def delete_prompt_version(
-    task: Task,
     family: str,
     version: int,
     service: PromptService = Depends(get_prompt_service),
@@ -215,15 +187,14 @@ def delete_prompt_version(
     Returns the collateral counts the confirm dialog showed; an unknown version is a ``404``.
     """
     try:
-        counts = service.delete_version(task, family, version)
+        counts = service.delete_version(family, version)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return PromptDeletedOut(runs=counts.runs, results=counts.results)
 
 
-@router.delete("/prompts/{task}/{family}", response_model=PromptDeletedOut)
+@router.delete("/prompts/{family}", response_model=PromptDeletedOut)
 def delete_prompt_family(
-    task: Task,
     family: str,
     service: PromptService = Depends(get_prompt_service),
 ) -> PromptDeletedOut:
@@ -231,7 +202,7 @@ def delete_prompt_family(
     (so they leave the Leaderboard too) (ADR-0016, ticket 09). Returns the collateral counts
     the confirm dialog showed; an unknown family is a ``404``."""
     try:
-        counts = service.delete_family(task, family)
+        counts = service.delete_family(family)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return PromptDeletedOut(runs=counts.runs, results=counts.results)

@@ -33,10 +33,9 @@ router = APIRouter(prefix="/api", tags=["runs"])
 class RunHistoryItem(BaseModel):
     """One row of the run history list: the launch tuple plus live progress, denormalized
     with the prompt family/version and drawing name so the list renders without follow-up
-    fetches (``Run #id — task — status (progress n / total)``)."""
+    fetches (``Run #id — status (progress n / total)``)."""
 
     id: int
-    task: str
     status: str
     progress: int
     total_units: int
@@ -51,10 +50,9 @@ class RunHistoryResponse(BaseModel):
 
 
 class LaunchPrompt(BaseModel):
-    """One selectable prompt version; its ``task`` drives the launched Run's Task."""
+    """One selectable prompt version the launch form offers."""
 
     id: int
-    task: str
     family: str
     version: int
 
@@ -72,9 +70,9 @@ class LaunchOptionsResponse(BaseModel):
 
 class RunCreateRequest(BaseModel):
     """The launch body. The server resolves ``models`` (curated) + ``free_text`` into the
-    final slug list as the source of truth, and runs against the prompt's own Task. The
-    Advanced knobs default to the common one-click launch: ``dpi``/``downsample_px``/
-    ``max_tokens`` pre-filled and ``temperature`` at ``0.0``. ``temperature: null`` selects the
+    final slug list as the source of truth. The Advanced knobs default to the common
+    one-click launch: ``dpi``/``downsample_px``/``max_tokens`` pre-filled and
+    ``temperature`` at ``0.0``. ``temperature: null`` selects the
     provider default (omitted from the payload); ``downsample_px: null`` sends full-resolution
     images (no downsample) (tickets 04/05, ADR 0018/0019)."""
 
@@ -93,7 +91,6 @@ class RunCreatedOut(BaseModel):
 
     id: int
     status: str
-    task: str
     total_units: int
 
 
@@ -118,7 +115,6 @@ class RunRef(BaseModel):
     """The run header + live progress the detail page renders."""
 
     id: int
-    task: str
     status: str
     progress: int
     total_units: int
@@ -165,7 +161,6 @@ def list_runs(session: Session = Depends(get_session)) -> RunHistoryResponse:
         runs=[
             RunHistoryItem(
                 id=run.id,
-                task=run.task.value,
                 status=run.status.value,
                 progress=run.progress,
                 total_units=run.total_units,
@@ -181,18 +176,16 @@ def list_runs(session: Session = Depends(get_session)) -> RunHistoryResponse:
 
 @router.get("/runs/launch-options", response_model=LaunchOptionsResponse)
 def launch_options(session: Session = Depends(get_session)) -> LaunchOptionsResponse:
-    """The launch form's option set. Every prompt version is offered; the chosen prompt's
-    own Task drives the Run, so there is no separate task picker (mirrors the Jinja page).
-    """
+    """The launch form's option set: every prompt version, every Drawing, and the curated
+    model catalog (mirrors the Jinja page)."""
     prompts = session.exec(
-        select(Prompt).order_by(Prompt.task, Prompt.family, Prompt.version.desc())
+        select(Prompt).order_by(Prompt.family, Prompt.version.desc())
     ).all()
     drawings = session.exec(select(Drawing).order_by(Drawing.created_at.desc())).all()
     catalog = ModelCatalogService(session).list_catalog()
     return LaunchOptionsResponse(
         prompts=[
-            LaunchPrompt(id=p.id, task=p.task.value, family=p.family, version=p.version)
-            for p in prompts
+            LaunchPrompt(id=p.id, family=p.family, version=p.version) for p in prompts
         ],
         drawings=[
             LeaderboardDrawing(id=d.id, name=d.name, page_count=len(d.pages))
@@ -206,18 +199,12 @@ def launch_options(session: Session = Depends(get_session)) -> LaunchOptionsResp
 def create_run(
     payload: RunCreateRequest,
     request: Request,
-    session: Session = Depends(get_session),
     service: RunService = Depends(get_run_service),
 ) -> RunCreatedOut:
     """Insert the queued Run and return at once; the fan-out runs on an in-process
-    background task the SPA then polls (ADR 0006). The Run's Task is the chosen prompt's
-    own Task; the slug list is resolved server-side as the source of truth. A bad prompt
-    or an empty selection is a ``400`` (mirrors the Jinja launch handler)."""
-    prompt = session.get(Prompt, payload.prompt_id)
-    if prompt is None:
-        raise HTTPException(
-            status_code=400, detail=f"no prompt with id {payload.prompt_id}"
-        )
+    background task the SPA then polls (ADR 0006). The slug list is resolved server-side as
+    the source of truth. A bad prompt or an empty selection is a ``400`` (mirrors the Jinja
+    launch handler)."""
     slugs = ModelCatalogService.resolve_selection(payload.models, payload.free_text)
     # The chosen Advanced knobs ride on the service so both create_run's snapshot and the
     # background runner's request path read the same values (ticket 04; the runner shares
@@ -229,16 +216,13 @@ def create_run(
         temperature=payload.temperature,
     )
     try:
-        run = service.create_run(
-            prompt.task, payload.prompt_id, payload.drawing_id, slugs
-        )
+        run = service.create_run(payload.prompt_id, payload.drawing_id, slugs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     service.background_runner(request.app.state.engine).submit(run.id)
     return RunCreatedOut(
         id=run.id,
         status=run.status.value,
-        task=run.task.value,
         total_units=run.total_units,
     )
 
@@ -256,7 +240,6 @@ def run_detail(
     return RunDetailResponse(
         run=RunRef(
             id=run.id,
-            task=run.task.value,
             status=run.status.value,
             progress=run.progress,
             total_units=run.total_units,

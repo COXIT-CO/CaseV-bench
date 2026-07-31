@@ -12,7 +12,7 @@ from sqlmodel import Session
 
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 
@@ -78,14 +78,12 @@ def _seed_location_result(engine, tmp_path, *, with_gt: bool) -> int:
             )
             session.commit()
 
-        prompt = Prompt(
-            task=Task.location, family="boxes", version=2, text="find boxes"
-        )
+        prompt = Prompt(family="boxes", version=2, text="find boxes")
         session.add(prompt)
         session.commit()
         session.refresh(prompt)
 
-        run = _done_run(session, Task.location, prompt.id, drawing.id)
+        run = _done_run(session, prompt.id, drawing.id)
         result = Result(run_id=run.id, model=ACCURATE)
         session.add(result)
         session.commit()
@@ -119,9 +117,8 @@ def _seed_location_result(engine, tmp_path, *, with_gt: bool) -> int:
         return result.id
 
 
-def _done_run(session, task, prompt_id, drawing_id) -> Run:
+def _done_run(session, prompt_id, drawing_id) -> Run:
     run = Run(
-        task=task,
         prompt_id=prompt_id,
         drawing_id=drawing_id,
         status=RunStatus.done,
@@ -145,7 +142,6 @@ def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp
 
     # The header refs the drill-down puts above the score.
     assert body["result_id"] == result_id
-    assert body["task"] == "location"
     assert body["model"] == ACCURATE
     assert body["prompt_family"] == "boxes"
     assert body["prompt_version"] == 2
@@ -196,13 +192,11 @@ def test_salvaged_location_error_surfaces_boxes_and_json(client, engine, tmp_pat
         session.add(page)
         session.commit()
         session.refresh(page)
-        prompt = Prompt(
-            task=Task.location, family="boxes", version=1, text="find boxes"
-        )
+        prompt = Prompt(family="boxes", version=1, text="find boxes")
         session.add(prompt)
         session.commit()
         session.refresh(prompt)
-        run = _done_run(session, Task.location, prompt.id, drawing.id)
+        run = _done_run(session, prompt.id, drawing.id)
         result = Result(run_id=run.id, model=ACCURATE)
         session.add(result)
         session.commit()

@@ -11,11 +11,10 @@ exist exactly as production writes them, then deleted.
 import json
 from pathlib import Path
 
-from conftest import seed_page_images
+from conftest import scored_score, seed_page_images
 from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Task
 from core.models.run import Prediction, Result, Run
 from core.models.score import Score
 from core.services.prompt import PromptService
@@ -60,10 +59,10 @@ def _seed_drawing(session, tmp_path: Path, name: str, n_pages: int = 2) -> Drawi
 def _launch_location_run(session, stub_adapter, tmp_path, overlay_root, name: str):
     """Launch a 2-model, 2-page location Run so it has Results, Predictions, and overlays."""
     drawing = _seed_drawing(session, tmp_path, name)
-    prompt = PromptService(session).create(Task.location, name, "find them")
+    prompt = PromptService(session).create(name, "find them")
     stub_adapter.responses = {SONNET: BOXES_JSON, GPT: BOXES_JSON}
     return RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [SONNET, GPT]
+        prompt.id, drawing.id, [SONNET, GPT]
     )
 
 
@@ -79,7 +78,7 @@ def test_delete_run_removes_rows_files_and_returns_counts(
     ).all()
     overlay_dirs = [overlay_root / str(rid) for rid in result_ids]
     # A Score attaches to a Result and must go with it.
-    session.add(Score(result_id=result_ids[0], per_label_json="[]"))
+    session.add(scored_score(result_ids[0]))
     session.commit()
 
     # Preconditions: rows and overlay files are all present.

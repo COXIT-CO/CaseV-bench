@@ -23,8 +23,7 @@ def test_launch_options_lists_prompts_drawings_and_catalog(client, engine):
     seed_location_drawing_id(engine)
     body = client.get("/api/runs/launch-options").json()
 
-    # The seeded default family is offered so the prompt's Task drives the Run.
-    assert {p["task"] for p in body["prompts"]} == {"location"}
+    # The seeded default family is offered.
     assert any(p["family"] == "default" for p in body["prompts"])
     assert body["drawings"][0] == {"id": 1, "name": "sample", "page_count": 1}
     slugs = {c["slug"] for c in body["catalog"]}
@@ -51,7 +50,6 @@ def test_create_run_returns_queued_run_and_detail_carries_knobs(
     assert resp.status_code == 201
     created = resp.json()
     assert created["status"] == "queued"
-    assert created["task"] == "location"
     assert created["total_units"] == 1
 
     detail = client.get(f"/api/runs/{created['id']}").json()
@@ -247,7 +245,6 @@ def test_run_history_lists_launched_runs_newest_first(
 
     runs = client.get("/api/runs").json()["runs"]
     row = next(r for r in runs if r["id"] == run_id)
-    assert row["task"] == "location"
     assert row["prompt_family"] == "default"
     assert row["prompt_version"] == 1
     assert row["drawing_name"] == "sample"

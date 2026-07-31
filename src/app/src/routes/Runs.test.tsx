@@ -83,7 +83,6 @@ describe("Runs history", () => {
     vi.mocked(api.createRun).mockResolvedValue({
       id: 900,
       status: "queued",
-      task: "location",
       total_units: 4,
     });
     renderRuns();

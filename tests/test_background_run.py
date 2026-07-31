@@ -14,7 +14,6 @@ import time
 from conftest import LOCATION_BOXES_JSON, seed_location_drawing
 from sqlmodel import Session, select
 
-from core.models.prompt import Task
 from core.models.run import Prediction, PredictionStatus, RunStatus
 from core.services.run import BackgroundRunner, RunService
 
@@ -31,7 +30,7 @@ def test_create_run_is_queued_and_returns_before_execution(
     drawing = seed_location_drawing(session, n_pages=2)
 
     run = RunService(session, stub_adapter).create_run(
-        Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
+        location_prompt.id, drawing.id, [SONNET, GPT]
     )
 
     assert run.status == RunStatus.queued
@@ -53,7 +52,7 @@ def test_background_run_reaches_done_with_progress_and_predictions(
             GPT: LOCATION_BOXES_JSON,
         }
         run = RunService(session, stub_adapter).create_run(
-            Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
+            location_prompt.id, drawing.id, [SONNET, GPT]
         )
         run_id = run.id
 
@@ -78,7 +77,7 @@ def test_models_run_in_parallel_with_pages_sequential(
     with Session(engine) as session:
         drawing = seed_location_drawing(session, n_pages=3)
         run = RunService(session, _ConcurrencyAdapter()).create_run(
-            Task.location, location_prompt.id, drawing.id, [SONNET, GPT, GEMINI]
+            location_prompt.id, drawing.id, [SONNET, GPT, GEMINI]
         )
         run_id = run.id
 
@@ -103,7 +102,7 @@ def test_model_error_recorded_without_losing_other_models(
     with Session(engine) as session:
         drawing = seed_location_drawing(session, n_pages=1)
         run = RunService(session, _ConcurrencyAdapter()).create_run(
-            Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
+            location_prompt.id, drawing.id, [SONNET, GPT]
         )
         run_id = run.id
 

@@ -71,7 +71,6 @@ class ResultDetailResponse(BaseModel):
 
     result_id: int
     model: str
-    task: str
     prompt_family: str
     prompt_version: int
     run_id: int
@@ -137,7 +136,6 @@ def result_detail(
     return ResultDetailResponse(
         result_id=result.id,
         model=result.model,
-        task=run.task.value,
         prompt_family=prompt.family,
         prompt_version=prompt.version,
         run_id=run.id,
@@ -212,9 +210,9 @@ def set_prediction_override(
     """Set a location Prediction's manual JSON override (ADR 0020, ticket 07): validate the
     corrected boxes against ``LocationResult`` (taxonomy labels, 0–1 coords) and persist them,
     leaving the model's original output and its Score untouched. Invalid JSON / a bad label /
-    an out-of-range coordinate is a ``400`` with a precise message and nothing persisted;
-    editing a counting Prediction is a ``400`` (location-only); an unknown (Result, page) is a
-    ``404``. Returns the updated Prediction so the SPA redraws the overlay and shows the badge.
+    an out-of-range coordinate is a ``400`` with a precise message and nothing persisted; an
+    unknown (Result, page) is a ``404``. Returns the updated Prediction so the SPA redraws
+    the overlay and shows the badge.
     """
     service = PredictionOverrideService(session)
     try:
@@ -236,8 +234,8 @@ def revert_prediction_override(
     session: Session = Depends(get_session),
 ) -> PredictionOut:
     """Revert a location Prediction to the model's output by clearing its override (ADR 0020,
-    ticket 07); a no-op when unedited. An unknown (Result, page) is a ``404``; a counting
-    Prediction is a ``400`` (location-only). Returns the reverted Prediction."""
+    ticket 07); a no-op when unedited. An unknown (Result, page) is a ``404``. Returns the
+    reverted Prediction."""
     service = PredictionOverrideService(session)
     try:
         prediction = service.revert(result_id, page_number)

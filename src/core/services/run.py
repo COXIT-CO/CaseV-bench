@@ -34,7 +34,7 @@ from sqlmodel import Session, select
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
 from core.config import settings
 from core.models.drawing import Drawing
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.results import LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.deletion import RunCascadeCounts, cascade_delete_runs
@@ -117,13 +117,10 @@ class RunService:
         self.knobs = knobs
         self.overlay_root = overlay_root
 
-    def create_run(
-        self, task: Task, prompt_id: int, drawing_id: int, models: list[str]
-    ) -> Run:
+    def create_run(self, prompt_id: int, drawing_id: int, models: list[str]) -> Run:
         """Insert a ``queued`` Run with one Result per model and the knob snapshot."""
-        prompt = self.session.get(Prompt, prompt_id)
-        if prompt is None or prompt.task != task:
-            raise ValueError(f"no {task.value} prompt with id {prompt_id}")
+        if self.session.get(Prompt, prompt_id) is None:
+            raise ValueError(f"no prompt with id {prompt_id}")
         drawing = self.session.get(Drawing, drawing_id)
         if drawing is None:
             raise ValueError(f"no drawing with id {drawing_id}")
@@ -131,7 +128,6 @@ class RunService:
             raise ValueError("a Run needs at least one model")
 
         run = Run(
-            task=task,
             prompt_id=prompt_id,
             drawing_id=drawing_id,
             status=RunStatus.queued,
@@ -167,14 +163,12 @@ class RunService:
             engine, self.adapter, self.knobs, overlay_root=self.overlay_root
         )
 
-    def launch(
-        self, task: Task, prompt_id: int, drawing_id: int, models: list[str]
-    ) -> Run:
+    def launch(self, prompt_id: int, drawing_id: int, models: list[str]) -> Run:
         """Create a Run and run it to completion, blocking until done — a synchronous
         convenience for the CLI and tests. The web launch path instead calls
         ``create_run`` and hands the id to a ``BackgroundRunner`` so the request
         returns while the work continues (ADR 0006)."""
-        run = self.create_run(task, prompt_id, drawing_id, models)
+        run = self.create_run(prompt_id, drawing_id, models)
         self.background_runner(self.session.get_bind()).execute_run(run.id)
         self.session.refresh(run)
         return run

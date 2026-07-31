@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { useCreatePrompt, usePrompts } from "@/hooks/queries";
-import { SOLE_TASK, promptFamilies } from "@/types";
 import type { PromptFamily } from "@/types";
 
 // The Prompts list + authoring form (ADR 0011, spec §A.5/§B.2): every prompt family in a
@@ -32,7 +31,7 @@ export function Prompts() {
         <ErrorBlock error={error} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <FamilyList families={promptFamilies(data.groups)} />
+          <FamilyList families={data.families} />
           <CreatePromptCard />
         </div>
       )}
@@ -55,7 +54,7 @@ function FamilyList({ families }: { families: PromptFamily[] }) {
       {families.map((family) => (
         <Link
           key={family.name}
-          to={`/prompts/${encodeURIComponent(SOLE_TASK)}/${encodeURIComponent(family.name)}`}
+          to={`/prompts/${encodeURIComponent(family.name)}`}
           className="flex items-center justify-between gap-4 rounded-lg border bg-card px-3.5 py-3 transition-colors hover:border-primary/50"
         >
           <span className="font-medium">{family.name}</span>
@@ -89,12 +88,9 @@ function CreatePromptCard() {
     event.preventDefault();
     if (!canSubmit) return;
     createPrompt.mutate(
-      { task: SOLE_TASK, family: family.trim(), text },
+      { family: family.trim(), text },
       {
-        onSuccess: (ref) =>
-          navigate(
-            `/prompts/${encodeURIComponent(ref.task)}/${encodeURIComponent(ref.family)}`,
-          ),
+        onSuccess: (ref) => navigate(`/prompts/${encodeURIComponent(ref.family)}`),
       },
     );
   }

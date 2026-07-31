@@ -7,11 +7,12 @@ with no GT the Results render as unscored, not zero."""
 import json
 from pathlib import Path
 
+import pytest
 from PIL import Image
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Task
 from core.models.score import Score
 from core.services.location_ground_truth import LocationGroundTruthService
 from core.services.prompt import PromptService
@@ -95,10 +96,10 @@ def _import_gt(session, drawing) -> None:
 
 
 def _launch(session, stub_adapter, drawing, overlay_root):
-    prompt = PromptService(session).create(Task.location, "default", "find them")
+    prompt = PromptService(session).create("default", "find them")
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     return RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [ACCURATE, SLOPPY]
+        prompt.id, drawing.id, [ACCURATE, SLOPPY]
     )
 
 
@@ -149,13 +150,13 @@ def test_location_leaderboard_filters_by_prompt_family_and_version(
     drawing = _seed_drawing(session, tmp_path)
     stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
     prompt_service = PromptService(session)
-    v1 = prompt_service.create(Task.location, "default", "find them")
-    v2 = prompt_service.edit(Task.location, "default", "find them carefully")
-    other = prompt_service.create(Task.location, "terse", "find")
+    v1 = prompt_service.create("default", "find them")
+    v2 = prompt_service.edit("default", "find them carefully")
+    other = prompt_service.create("terse", "find")
     run_service = RunService(session, stub_adapter, overlay_root=tmp_path / "overlays")
-    run_service.launch(Task.location, v1.id, drawing.id, [ACCURATE])
-    run_service.launch(Task.location, v2.id, drawing.id, [SLOPPY])
-    run_service.launch(Task.location, other.id, drawing.id, [ACCURATE])
+    run_service.launch(v1.id, drawing.id, [ACCURATE])
+    run_service.launch(v2.id, drawing.id, [SLOPPY])
+    run_service.launch(other.id, drawing.id, [ACCURATE])
     _import_gt(session, drawing)
 
     scoring = ScoringService(session)
@@ -185,6 +186,18 @@ def test_location_result_is_unscored_without_ground_truth(
     assert all(r.scored is False for r in rows)
     assert all(r.f1 is None for r in rows)
     assert session.exec(select(Score)).all() == []
+
+
+def test_a_score_row_cannot_be_written_without_its_metrics(session):
+    """A Score row exists **iff** the Result was scored (ADR 0032): the service deletes the
+    row when a Drawing has no GT rather than nulling its metrics, so the columns state that
+    invariant and a metric-less row is rejected by the schema, not merely by convention.
+    """
+    session.add(Score(result_id=1, per_label_json="[]"))
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
 
 
 def test_location_score_is_recomputed_when_ground_truth_changes(

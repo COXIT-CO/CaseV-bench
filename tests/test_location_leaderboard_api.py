@@ -10,9 +10,8 @@ from conftest import seed_page_images
 from sqlmodel import Session, select
 
 from api.deps import get_run_service
-from core.adapters.openrouter import get_openrouter_adapter
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.services.location_ground_truth import LocationGroundTruthService
 from core.services.run import RunService
 
@@ -51,9 +50,7 @@ def _seed_drawing(engine, tmp_path) -> int:
 
 def _location_prompt_id(engine) -> int:
     with Session(engine) as session:
-        return (
-            session.exec(select(Prompt).where(Prompt.task == Task.location)).first().id
-        )
+        return session.exec(select(Prompt)).first().id
 
 
 def _import_gt(engine, drawing_id) -> None:
@@ -104,7 +101,6 @@ def test_location_leaderboard_api_ranks_by_prf1(
 
     body = client.get(f"/api/leaderboard?drawing_id={drawing_id}").json()
 
-    assert body["task"] == "location"
     assert body["sort"] == "f1"
     assert body["metrics"] == ["f1", "precision", "recall"]
 
@@ -143,11 +139,7 @@ def test_location_leaderboard_api_filters_by_prompt_family(
 
     seeded_family = None
     with Session(engine) as session:
-        seeded_family = (
-            session.exec(select(Prompt).where(Prompt.task == Task.location))
-            .first()
-            .family
-        )
+        seeded_family = session.exec(select(Prompt)).first().family
 
     body = client.get(
         f"/api/leaderboard?drawing_id={drawing_id}" f"&prompt_family={seeded_family}"

@@ -8,7 +8,6 @@ aborting the Run or affecting other models.
 from conftest import LOCATION_BOXES_JSON, seed_location_drawing
 from sqlmodel import select
 
-from core.models.prompt import Task
 from core.models.results import LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, RunStatus
 from core.services.run import RunService
@@ -24,7 +23,7 @@ def test_run_persists_results_and_predictions(
     stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON, GPT: LOCATION_BOXES_JSON}
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
+        location_prompt.id, drawing.id, [SONNET, GPT]
     )
 
     assert run.status == RunStatus.done
@@ -60,7 +59,7 @@ def test_unparseable_model_records_failure_without_aborting(
     stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON, GPT: "not json at all"}
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
+        location_prompt.id, drawing.id, [SONNET, GPT]
     )
 
     # A model failure does not abort the Run.
@@ -101,7 +100,7 @@ def test_raising_adapter_is_recorded_not_aborting(
     stub_adapter.send_image_prompt = send
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, location_prompt.id, drawing.id, [SONNET, GPT]
+        location_prompt.id, drawing.id, [SONNET, GPT]
     )
 
     assert run.status == RunStatus.done
