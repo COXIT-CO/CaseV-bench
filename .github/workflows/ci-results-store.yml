@@ -1,0 +1,159 @@
+name: CI — results-store schema
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/results_store/**"
+      - "alembic.ini"
+      - "pyproject.toml"
+      - ".github/workflows/ci-results-store.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/results_store/**"
+      - "alembic.ini"
+      - ".github/workflows/ci-results-store.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  # Job name is the branch-protection status context — keep it stable.
+  results-store:
+    name: results-store
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # A newer push to the same PR cancels this one — safe, because nothing outside the container
+    # is touched. **Never on `main`**: `apply` needs this job, so cancelling it here would cancel
+    # the application too. `upgrade head` on the following merge would catch up, but the commit
+    # that carried the migration would show a cancelled run, which reads as a failure nobody
+    # caused.
+    concurrency:
+      group: ci-${{ github.workflow }}-verify-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+    services:
+      # The same major version as the shared store, so `numeric` and JSONB behave here the way
+      # they behave where real results live.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: casev_bench_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+
+    env:
+      # A throwaway container, connected to as its superuser.
+      CASEV_EXPERIMENTS_DDL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/casev_bench_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The declared floor in pyproject.toml, so `requires-python` is enforced rather than
+          # aspirational.
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install -e .
+
+      # Both schemas, because the drift check below is only meaningful if there is something in
+      # `service` for autogenerate to wrongly propose dropping. The bootstrap owns these on the
+      # real database; here they are two lines.
+      - name: Create the schemas
+        run: |
+          psql "$CASEV_EXPERIMENTS_DDL_DATABASE_URL" -v ON_ERROR_STOP=1 -c '
+            CREATE SCHEMA experiments;
+            CREATE SCHEMA service;
+            CREATE TABLE service.a_table_ci_planted (id int PRIMARY KEY);'
+
+      # The `-n` is required: alembic.ini has no `[alembic]` section, so a bare
+      # `alembic upgrade head` fails rather than picking a target.
+      - name: Migrate from nothing
+        run: alembic -n experiments upgrade head
+
+      - name: The version table is in `experiments`
+        run: |
+          set -e
+          schema=$(psql "$CASEV_EXPERIMENTS_DDL_DATABASE_URL" -Atc \
+            "SELECT table_schema FROM information_schema.tables WHERE table_name='alembic_version'")
+          echo "alembic_version is in: $schema"
+          [ "$schema" = "experiments" ]
+
+      # The check that keeps `models.py` and the revisions from becoming two representations of
+      # one table. If they have drifted, autogenerate has something to say and this fails.
+      #
+      # It also covers the `include_object` filter: `service.a_table_ci_planted` exists and is
+      # not in the metadata, so an unfiltered autogenerate would propose dropping it — which
+      # would show up here as a non-empty revision.
+      - name: models.py and the revisions agree
+        run: |
+          set -e
+          alembic -n experiments revision --autogenerate -m "ci drift check" >/dev/null
+          new=$(ls -t src/results_store/alembic/versions/*.py | head -1)
+          echo "--- generated ---"; cat "$new"
+          if grep -qE '^\s+op\.' "$new"; then
+            echo "::error::models.py has drifted from the committed revisions, or autogenerate"
+            echo "::error::reached outside the experiments schema. The proposed operations are above."
+            exit 1
+          fi
+
+  # Applying to the shared database. Runs only on `main`, only after `results-store` passes,
+  # and only with the `experiments_ddl` credential — which lives in the environment's secrets
+  # and nowhere else. This job is the operator: developers hold `experiments_rw`, which Postgres
+  # refuses for any DDL here.
+  apply:
+    name: apply-to-shared-store
+    needs: results-store
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # No `cancel-in-progress`. Cancelling a migration mid-flight is how a schema ends up in a
+    # state nobody wrote down; queue them instead.
+    concurrency:
+      group: ci-${{ github.workflow }}-apply
+      cancel-in-progress: false
+
+    # Scopes the credential, and gives somewhere to add a required reviewer if applying on merge
+    # ever needs to become applying on approval.
+    environment: shared-results-store
+
+    env:
+      CASEV_EXPERIMENTS_DDL_DATABASE_URL: ${{ secrets.EXPERIMENTS_DDL_DATABASE_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install -e .
+
+      # What is about to change, before it changes. `upgrade head` is quiet about a no-op, and
+      # a no-op is the common case — most merges touch code, not the schema.
+      - name: Show pending revisions
+        run: |
+          alembic -n experiments current
+          alembic -n experiments history --indicate-current
+
+      - name: Apply
+        run: alembic -n experiments upgrade head
+
+      - name: Confirm
+        run: alembic -n experiments current
