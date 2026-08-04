@@ -29,6 +29,8 @@ class PromptRun(db.Model):
     model = db.Column(db.String(100), nullable=False)
     workflow = db.Column(db.String(32), nullable=False, default="count")
     dpi = db.Column(db.Integer, nullable=False, default=200)
+    tile_size = db.Column(db.Integer, nullable=False, default=1400)
+    tile_overlap_pct = db.Column(db.Integer, nullable=False, default=20)
     status = db.Column(db.Enum(PromptStatus), nullable=False, default=PromptStatus.PENDING)
     response = db.Column(db.Text, nullable=True)
     result_json = db.Column(db.Text, nullable=True)

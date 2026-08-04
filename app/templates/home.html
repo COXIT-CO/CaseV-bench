@@ -24,17 +24,26 @@
           <option value="count">Count objects</option>
           <option value="locate">Locate + draw boxes</option>
           <option value="locate_2pass">Locate (2-pass, crop-based)</option>
+          <option value="locate_tiled">Locate (tiled, sliding-window)</option>
         </select>
       </label>
       <label>DPI <input type="number" name="dpi" value="200" min="72" max="600"></label>
       <label>Model
         <select name="model">{% for m in available_models %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
       </label>
+      <label id="tile-size-field" style="display:none">Tile size (px)<input type="number" name="tile_size" min="300" max="4000" value="1400"></label>
+      <label id="tile-overlap-field" style="display:none">Tile overlap (%)<input type="number" name="tile_overlap_pct" min="0" max="60" value="20"></label>
     </div>
     <p class="muted" id="workflow-2pass-hint" style="display:none;margin:-6px 0 12px">
       Pass 1 finds elevations on the full sheet; pass 2 crops each elevation from the
       original image and looks for cabinets/countertops separately at higher resolution.
       Uses more requests per sheet (roughly 1 + one per elevation found).
+    </p>
+    <p class="muted" id="workflow-tiled-hint" style="display:none;margin:-6px 0 12px">
+      Cuts the full-resolution page into a grid of overlapping tiles and runs the same
+      full prompt on every tile independently, then merges and deduplicates detections
+      found in more than one tile. One request per tile per page — tile count depends
+      on tile size, overlap, and page resolution.
     </p>
 
     <p class="field-label">Expected JSON (paste or upload)</p>
@@ -65,6 +74,9 @@
   const list = document.getElementById('file-preview-list');
   const workflowSelect = document.querySelector('select[name="workflow"]');
   const hint = document.getElementById('workflow-2pass-hint');
+  const tiledHint = document.getElementById('workflow-tiled-hint');
+  const tileSizeField = document.getElementById('tile-size-field');
+  const tileOverlapField = document.getElementById('tile-overlap-field');
 
   function iconFor(name) {
     const ext = name.split('.').pop().toLowerCase();
@@ -92,7 +104,11 @@
   }
 
   function renderWorkflowHint() {
+    const isTiled = workflowSelect.value === 'locate_tiled';
     hint.style.display = workflowSelect.value === 'locate_2pass' ? '' : 'none';
+    tiledHint.style.display = isTiled ? '' : 'none';
+    tileSizeField.style.display = isTiled ? '' : 'none';
+    tileOverlapField.style.display = isTiled ? '' : 'none';
   }
 
   filesInput.addEventListener('change', render);

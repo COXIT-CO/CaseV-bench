@@ -26,14 +26,22 @@
               <option value="count" {% if selected_run and selected_run.workflow == 'count' %}selected{% endif %}>Count objects</option>
               <option value="locate" {% if selected_run and selected_run.workflow == 'locate' %}selected{% endif %}>Locate + draw boxes</option>
               <option value="locate_2pass" {% if selected_run and selected_run.workflow == 'locate_2pass' %}selected{% endif %}>Locate (2-pass, crop-based)</option>
+              <option value="locate_tiled" {% if selected_run and selected_run.workflow == 'locate_tiled' %}selected{% endif %}>Locate (tiled, sliding-window)</option>
             </select></label>
             <label>DPI<input type="number" name="dpi" min="72" max="600" value="{{ selected_run.dpi if selected_run else 200 }}"></label>
             <label>Model<select name="model">{% for m in available_models %}<option value="{{ m }}" {% if selected_run and m == selected_run.model %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
+            <label id="tile-size-field" style="display:none">Tile size (px)<input type="number" name="tile_size" min="300" max="4000" value="{{ selected_run.tile_size if selected_run else 1400 }}"></label>
+            <label id="tile-overlap-field" style="display:none">Tile overlap (%)<input type="number" name="tile_overlap_pct" min="0" max="60" value="{{ selected_run.tile_overlap_pct if selected_run else 20 }}"></label>
           </div>
           <p class="muted" style="margin:-6px 0 12px">
             2-pass: pass 1 finds elevations on the full sheet; pass 2 crops each elevation
             from the original image and looks for cabinets/countertops separately at higher
             resolution. Uses roughly 1 + one request per elevation found on the sheet.
+          </p>
+          <p class="muted" id="workflow-tiled-hint" style="display:none;margin:-6px 0 12px">
+            Tiled: cuts the full-resolution page into a grid of overlapping tiles and runs
+            the same full prompt on every tile independently, then merges and deduplicates
+            detections found in more than one tile.
           </p>
           <p class="field-label">Expected JSON</p>
           <p class="muted" style="margin:-6px 0 8px">
@@ -173,6 +181,24 @@
   </div></div>
   {% endif %}
 </div>
+<script>
+(function () {
+  const workflowSelect = document.querySelector('select[name="workflow"]');
+  const tiledHint = document.getElementById('workflow-tiled-hint');
+  const tileSizeField = document.getElementById('tile-size-field');
+  const tileOverlapField = document.getElementById('tile-overlap-field');
+
+  function renderTiledFields() {
+    const isTiled = workflowSelect.value === 'locate_tiled';
+    tiledHint.style.display = isTiled ? '' : 'none';
+    tileSizeField.style.display = isTiled ? '' : 'none';
+    tileOverlapField.style.display = isTiled ? '' : 'none';
+  }
+
+  workflowSelect.addEventListener('change', renderTiledFields);
+  renderTiledFields();
+})();
+</script>
 <script src="{{ url_for('static', filename='js/prompt_run.js') }}"></script>
 </body>
 </html>

@@ -34,6 +34,20 @@ def _form_dpi() -> int:
         raise ValueError("DPI must be a number between 72 and 600.")
 
 
+def _form_tile_settings() -> tuple[int, int]:
+    """Only meaningful for locate_tiled; other workflows just get these defaults back."""
+    try:
+        tile_size = max(300, min(
+            int(request.form.get('tile_size', 1400)), 4000))
+    except (TypeError, ValueError):
+        raise ValueError("Tile size must be a number between 300 and 4000.")
+    try:
+        tile_overlap_pct = max(0, min(int(request.form.get('tile_overlap_pct', 20)), 60))
+    except (TypeError, ValueError):
+        raise ValueError("Tile overlap must be a number between 0 and 60.")
+    return tile_size, tile_overlap_pct
+
+
 def _derive_name(user_prompt: str) -> str:
     return (user_prompt[:50] + '…') if len(user_prompt) > 50 else user_prompt
 
@@ -68,11 +82,13 @@ def create_prompt_route():
         flash('User prompt cannot be empty.', 'error')
         return redirect(url_for('routes.index'))
     try:
+        tile_size, tile_overlap_pct = _form_tile_settings()
         prompt = create_prompt(
             name=_derive_name(user_prompt), user_prompt=user_prompt, system_prompt=system_prompt,
             model=model, workflow=workflow, dpi=_form_dpi(), files=files,
             expected_text=request.form.get('expected_json'),
             expected_file=request.files.get('expected_file'),
+            tile_size=tile_size, tile_overlap_pct=tile_overlap_pct,
         )
     except ValueError as exc:
         flash(str(exc), 'error')
@@ -104,6 +120,7 @@ def prompt_rename(prompt_id: int):
 def prompt_update(prompt_id: int):
     user_prompt = request.form.get('user_prompt', '')
     try:
+        tile_size, tile_overlap_pct = _form_tile_settings()
         prompt, forked = update_or_fork_prompt(
             prompt_id=prompt_id,
             user_prompt=user_prompt,
@@ -114,6 +131,7 @@ def prompt_update(prompt_id: int):
             expected_text=request.form.get('expected_json'),
             expected_file=request.files.get('expected_file'),
             fork_name=_derive_name(user_prompt.strip()),
+            tile_size=tile_size, tile_overlap_pct=tile_overlap_pct,
         )
     except ValueError as exc:
         flash(str(exc), 'error')

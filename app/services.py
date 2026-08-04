@@ -29,13 +29,26 @@ from app.result_parser import (
     extract_objects,
     normalize_expected,
 )
+from app.tiling_utils import compute_tile_grid, crop_pixel_region, deduplicate_objects
 
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
 # 'locate_2pass': pass 1 finds elevation/elevation_callout on the full sheet;
 # pass 2 crops the original image to each elevation box and finds
 # cabinet/countertop inside that crop at much higher effective resolution.
-WORKFLOWS = {'count', 'locate', 'locate_2pass'}
+# 'locate_tiled': independent alternative to locate_2pass — no viewport hierarchy,
+# just cuts the full page into overlapping fixed-size tiles and runs the same
+# full prompt on every tile, then dedups detections found in more than one tile.
+WORKFLOWS = {'count', 'locate', 'locate_2pass', 'locate_tiled'}
 IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+
+# Fallback defaults for locate_tiled — _create_run always stores tile_size/
+# tile_overlap_pct per run, so these only matter if a PromptRun is ever
+# constructed without going through it.
+TILE_SIZE_PX = 1400
+TILE_OVERLAP_FRAC = 0.2
+# Not yet configurable per run — next candidate to expose if tile-boundary
+# dedup quality turns out to matter in practice.
+TILE_DEDUP_IOU = 0.5
 
 
 def allowed_file(filename: str) -> bool:
@@ -166,7 +179,8 @@ def delete_prompt_run(run_id: int) -> int:
 
 def create_prompt(name: str, user_prompt: str, system_prompt: str, model: str,
                   workflow: str, dpi: int, files=None, expected_text: str | None = None,
-                  expected_file=None) -> Prompt:
+                  expected_file=None, tile_size: int | None = None,
+                  tile_overlap_pct: int | None = None) -> Prompt:
     if workflow not in WORKFLOWS:
         raise ValueError("Unknown workflow.")
     prompt = Prompt(
@@ -180,7 +194,11 @@ def create_prompt(name: str, user_prompt: str, system_prompt: str, model: str,
     file_path = save_uploaded_file(files, prompt.id)
     if file_path:
         prompt.file_path = file_path
-    run = _create_run(prompt.id, model, workflow, dpi)
+    run = _create_run(
+        prompt.id, model, workflow, dpi,
+        tile_size=tile_size if tile_size is not None else TILE_SIZE_PX,
+        tile_overlap_pct=tile_overlap_pct if tile_overlap_pct is not None else int(TILE_OVERLAP_FRAC * 100),
+    )
     db.session.commit()
     _start_processing_thread(run.id)
     return prompt
@@ -206,7 +224,8 @@ def rename_prompt(prompt_id: int, new_name: str) -> Prompt:
 def update_or_fork_prompt(prompt_id: int, user_prompt: str, system_prompt: str,
                           model: str, workflow: str, dpi: int,
                           expected_text: str | None = None, expected_file=None,
-                          fork_name: str | None = None) -> tuple[Prompt, bool]:
+                          fork_name: str | None = None, tile_size: int | None = None,
+                          tile_overlap_pct: int | None = None) -> tuple[Prompt, bool]:
     """Runs the given config against `prompt_id`. If user_prompt or system_prompt differs
     from the stored version by even one character, forks into a brand-new Prompt (copying
     input files) instead of mutating the original, so different prompt texts can be compared
@@ -223,6 +242,9 @@ def update_or_fork_prompt(prompt_id: int, user_prompt: str, system_prompt: str,
     expected_provided = expected_text is not None or (expected_file and getattr(expected_file, 'filename', ''))
     expected_json = _parse_expected(expected_text, expected_file) if expected_provided else None
 
+    tile_size = tile_size if tile_size is not None else TILE_SIZE_PX
+    tile_overlap_pct = tile_overlap_pct if tile_overlap_pct is not None else int(TILE_OVERLAP_FRAC * 100)
+
     text_changed = (user_prompt != (original.content or '')) or (system_prompt != (original.system_prompt or ''))
 
     if text_changed:
@@ -236,7 +258,7 @@ def update_or_fork_prompt(prompt_id: int, user_prompt: str, system_prompt: str,
         db.session.add(forked)
         db.session.flush()
         forked.file_path = _copy_prompt_files(original, forked)
-        run = _create_run(forked.id, model, workflow, dpi)
+        run = _create_run(forked.id, model, workflow, dpi, tile_size=tile_size, tile_overlap_pct=tile_overlap_pct)
         db.session.commit()
         _start_processing_thread(run.id)
         return forked, True
@@ -244,15 +266,23 @@ def update_or_fork_prompt(prompt_id: int, user_prompt: str, system_prompt: str,
     # No text change: just a re-run / config tweak on the same prompt.
     if expected_provided:
         original.expected_json = expected_json
-    run = _create_run(original.id, model, workflow, dpi)
+    run = _create_run(original.id, model, workflow, dpi, tile_size=tile_size, tile_overlap_pct=tile_overlap_pct)
     db.session.commit()
     _start_processing_thread(run.id)
     return original, False
 
 
-def _create_run(prompt_id: int, model: str, workflow: str, dpi: int) -> PromptRun:
+def _create_run(prompt_id: int, model: str, workflow: str, dpi: int,
+                tile_size: int = TILE_SIZE_PX,
+                tile_overlap_pct: int = int(TILE_OVERLAP_FRAC * 100)) -> PromptRun:
     dpi = max(72, min(int(dpi), 600))
-    run = PromptRun(prompt_id=prompt_id, model=model, workflow=workflow, dpi=dpi, status=PromptStatus.PENDING)
+    tile_size = max(300, min(int(tile_size), 4000))
+    tile_overlap_pct = max(0, min(int(tile_overlap_pct), 60))
+    run = PromptRun(
+        prompt_id=prompt_id, model=model, workflow=workflow, dpi=dpi,
+        tile_size=tile_size, tile_overlap_pct=tile_overlap_pct,
+        status=PromptStatus.PENDING,
+    )
     db.session.add(run)
     db.session.flush()
     run.artifacts_path = os.path.join(get_prompt_folder(prompt_id), 'runs', str(run.id))
@@ -431,6 +461,70 @@ def _process_page_two_pass(run: PromptRun, page_index: int, image_path: str, roo
     }
 
 
+def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: str) -> dict:
+    """SAHI-style sliding-window tiling: cuts the ORIGINAL full-resolution page
+    image into a grid of overlapping tile_size x tile_size tiles (compute_tile_grid),
+    runs the full stored prompt on every tile independently — no viewport hierarchy,
+    every tile is checked for all four labels — remaps each tile's local 0..1000
+    boxes back into full-page coordinates, then deduplicates detections of the same
+    object that showed up in more than one overlapping tile (greedy IoU-based NMS,
+    since there are no confidence scores to rank duplicates by).
+    """
+    tiles_dir = os.path.join(root, 'tiles')
+    os.makedirs(tiles_dir, exist_ok=True)
+
+    with Image.open(image_path) as im:
+        full_px_size = im.convert("RGB").size
+    width, height = full_px_size
+
+    grid = compute_tile_grid(width, height, run.tile_size, run.tile_overlap_pct / 100.0)
+
+    errors: list[str] = []
+    raw_objects: list[dict] = []
+    tile_details = []
+
+    for i, px_box in enumerate(grid, start=1):
+        tile_filename = f"page_{page_index + 1:04d}_tile_{i:03d}.png"
+        tile_path = os.path.join(tiles_dir, tile_filename)
+        crop_pixel_region(image_path, px_box, tile_path)
+
+        raw_response, parsed, tile_error = _call_vision_model(
+            run, run.prompt.system_prompt or None, run.prompt.content, tile_path
+        )
+        if tile_error:
+            errors.append(f"Page {page_index + 1} tile {i}: {tile_error}")
+
+        tile_objects = extract_objects(parsed, page_index) if parsed is not None else []
+        for obj in tile_objects:
+            full_box = remap_crop_box_to_full(obj["box"], px_box, full_px_size)
+            remapped = dict(obj)
+            remapped["box"] = full_box
+            remapped["left"], remapped["top"], remapped["right"], remapped["bottom"] = full_box
+            raw_objects.append(remapped)
+
+        tile_details.append({
+            "tile_index": i,
+            "tile_box_px": list(px_box),
+            "tile_image": _relative_artifact(tile_path, root),
+            "raw_response": raw_response,
+            "objects_found": len(tile_objects),
+            "error": tile_error,
+        })
+
+    deduped_objects = deduplicate_objects(raw_objects, TILE_DEDUP_IOU)
+
+    return {
+        "objects": deduped_objects,
+        "raw_response": "",
+        "error": "; ".join(errors) if errors else None,
+        "extra": {
+            "tiles": tile_details,
+            "tile_count": len(grid),
+            "objects_before_dedup": len(raw_objects),
+        },
+    }
+
+
 def process_prompt_run(run_id: int) -> None:
     run = PromptRun.query.get(run_id)
     if run is None:
@@ -459,11 +553,11 @@ def process_prompt_run(run_id: int) -> None:
         if not image_paths:
             raise ValueError("No PDF or image files are available for this run.")
 
-        two_pass = run.workflow == 'locate_2pass'
-
         for page_index, image_path in enumerate(image_paths):
-            if two_pass:
+            if run.workflow == 'locate_2pass':
                 page_result = _process_page_two_pass(run, page_index, image_path, root)
+            elif run.workflow == 'locate_tiled':
+                page_result = _process_page_tiled(run, page_index, image_path, root)
             else:
                 page_result = _process_page_single_pass(run, page_index, image_path)
 
@@ -474,7 +568,7 @@ def process_prompt_run(run_id: int) -> None:
                 errors.append(f"Page {page_index + 1}: {page_error}")
 
             annotated_path = None
-            if run.workflow in ('locate', 'locate_2pass'):
+            if run.workflow in ('locate', 'locate_2pass', 'locate_tiled'):
                 # For location runs, the extracted object list is the source of truth.
                 page_counts = extract_counts(page_objects)
                 merged_objects.extend(page_objects)
@@ -508,7 +602,7 @@ def process_prompt_run(run_id: int) -> None:
         comparison = build_comparison(total_counts, expected)
 
         location_score = None
-        if run.workflow in ('locate', 'locate_2pass') and run.prompt.expected_json:
+        if run.workflow in ('locate', 'locate_2pass', 'locate_tiled') and run.prompt.expected_json:
             raw_expected = json.loads(run.prompt.expected_json)
             if is_bbox_ground_truth(raw_expected):
                 try:
@@ -544,7 +638,7 @@ def process_prompt_run(run_id: int) -> None:
             "files": [os.path.basename(path) for path in _input_files(run.prompt)],
             "pages": page_results,
             "counts": total_counts,
-            "objects": merged_objects if run.workflow in ('locate', 'locate_2pass') else [],
+            "objects": merged_objects if run.workflow in ('locate', 'locate_2pass', 'locate_tiled') else [],
             "expected_summary": expected,
             "comparison": comparison,
             "location_score": location_score,
@@ -583,7 +677,7 @@ def recompute_run_metrics(run_id: int) -> PromptRun:
 
     location_score = None
     errors = []
-    if run.workflow in ('locate', 'locate_2pass') and run.prompt.expected_json:
+    if run.workflow in ('locate', 'locate_2pass', 'locate_tiled') and run.prompt.expected_json:
         raw_expected = json.loads(run.prompt.expected_json)
         if is_bbox_ground_truth(raw_expected):
             try:
