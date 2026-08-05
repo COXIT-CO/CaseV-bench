@@ -24,6 +24,7 @@ from sqlmodel import Session
 from api.app import create_app
 from api.deps import get_run_service
 from core.adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
+from core.config import settings
 from core.db import init_db, make_engine
 from core.models.drawing import Drawing, Page
 from core.models.prompt import Prompt
@@ -113,6 +114,22 @@ class StubOpenRouterAdapter:
         )
         content = self.responses.get(model, self.default)
         return {"choices": [{"message": {"content": content}}]}
+
+
+@pytest.fixture(autouse=True)
+def never_publish_to_the_shared_store(monkeypatch):
+    """No test may reach the team's shared results store (scope 9, ticket 05).
+
+    A completed Run publishes its scores to whatever ``CASEV_EXPERIMENTS_DATABASE_URL``
+    points at, and ``settings`` reads ``src/core/.env`` — so on the laptop of a developer who
+    has configured the store (which the README tells them to), running the suite would append
+    dozens of junk rows to a table nobody is allowed to delete from. Unset here rather than
+    left to each test, because the tests that would do it are the ordinary run-path ones that
+    have no idea the store exists. A test that means to exercise publishing injects its own
+    store object and never touches these.
+    """
+    monkeypatch.setattr(settings, "experiments_database_url", None)
+    monkeypatch.setattr(settings, "experiments_author", None)
 
 
 @pytest.fixture

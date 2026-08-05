@@ -23,6 +23,10 @@ dependencies = [
     # app the one place a scorer change could silently move published numbers. Bumping is
     # a deliberate edit here plus a lockfile change, visible in the diff.
     "location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=src/packages/location-scorer",
+    # The shared results store is Postgres and the Lab writes to it with its own INSERT
+    # (scope 9, ticket 05) — so a driver is needed even though the Lab's own database stays
+    # SQLite. Binary wheels, since no developer laptop should need libpq to run the Lab.
+    "psycopg[binary] (>=3.2,<4.0)",
 ]
 
 

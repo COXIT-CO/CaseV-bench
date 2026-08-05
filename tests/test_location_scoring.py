@@ -143,3 +143,35 @@ def test_degenerate_ground_truth_box_raises_rather_than_capping_recall():
 
     with pytest.raises(ValueError):
         score_location({1: [_box(CAB, 0.0, 0.0, 0.4, 0.4)]}, gt)
+
+
+def test_scorer_output_is_carried_back_whole():
+    # The shared results store keeps `location-scorer`'s return value verbatim (scope 9,
+    # ticket 05), so `score_location` has to hand back what the library actually returned —
+    # `per_page` and the counts included — not only what the Score row summarizes.
+    gt = {1: [_box(CAB, 0.0, 0.0, 0.4, 0.4)], 2: [_box(CTR, 0.5, 0.5, 0.7, 0.7)]}
+    predicted = {1: [_box(CAB, 0.0, 0.0, 0.4, 0.4)]}
+
+    score = score_location(predicted, gt)
+
+    output = score.scorer_output
+    assert output["counts"] == {"tp": 1, "fp": 0, "fn": 1}
+    assert output["iou_threshold"] == score.iou_threshold
+    assert output["metrics"]["f1"] == score.f1
+    assert [page["page"] for page in output["per_page"]] == [1, 2]
+
+
+def test_include_objects_adds_best_iou_and_is_off_by_default():
+    # `best_iou` on a miss is the whole reason the store keeps the blob (spec: user story
+    # 5) — but it is a per-box listing, so nothing pays for it unless it asks.
+    gt = {1: [_box(CAB, 0.0, 0.0, 1.0, 1.0)]}
+    predicted = {1: [_box(CAB, 0.0, 0.0, 0.4, 1.0)]}  # IoU 0.4 — under the threshold
+
+    assert "objects" not in score_location(predicted, gt).scorer_output
+
+    detailed = score_location(predicted, gt, include_objects=True)
+
+    objects = detailed.scorer_output["objects"]
+    assert objects["fn"][0]["best_iou"] == pytest.approx(0.4)
+    # The rates are the same either way; `objects` adds detail and changes nothing.
+    assert detailed.f1 == score_location(predicted, gt).f1

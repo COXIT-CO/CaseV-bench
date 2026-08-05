@@ -11,7 +11,9 @@ boundary):
   (ADR 0006): it advances ``status`` (queued → running → done/failed) and a
   ``progress`` counter, fanning models out in parallel under a bounded concurrency
   cap while pages run **sequentially per model**. The HTMX frontend polls a status
-  endpoint and swaps in results when finished.
+  endpoint and swaps in results when finished. A Run that reaches ``done`` then offers
+  its scores to the shared results store (``services.results_store``, scope 9 ticket 05)
+  — best-effort, after the commit, and incapable of failing the Run.
 
 Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — the
 labeled boxes parsed from the model's JSON plus a prediction-overlay PNG drawn on the
@@ -39,6 +41,7 @@ from core.models.results import LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.deletion import RunCascadeCounts, cascade_delete_runs
 from core.services.pdf_processing import DEFAULT_DPI, render_run_page
+from core.services.results_store import ResultsStoreConfig, publish_completed_run
 from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, salvage_json
 
 # The default temperature a Run pins for reproducibility; a Run may instead set None to
@@ -111,11 +114,13 @@ class RunService:
         adapter: OpenRouterAdapter,
         knobs: RunKnobs = RunKnobs(),
         overlay_root: Path = DEFAULT_OVERLAY_ROOT,
+        results_store: ResultsStoreConfig | None = None,
     ):
         self.session = session
         self.adapter = adapter
         self.knobs = knobs
         self.overlay_root = overlay_root
+        self.results_store = results_store
 
     def create_run(self, prompt_id: int, drawing_id: int, models: list[str]) -> Run:
         """Insert a ``queued`` Run with one Result per model and the knob snapshot."""
@@ -155,12 +160,17 @@ class RunService:
         return cascade_delete_runs(self.session, [run_id], self.overlay_root)
 
     def background_runner(self, engine: Engine) -> "BackgroundRunner":
-        """A ``BackgroundRunner`` sharing this service's adapter and knob snapshot, so
-        the background execution path can't drift from what ``create_run`` recorded.
+        """A ``BackgroundRunner`` sharing this service's adapter, knob snapshot and
+        results-store destination, so the background execution path can't drift from what
+        ``create_run`` recorded — nor publish somewhere this service was not pointed at.
         The runner needs the engine (not the request-bound session) to open a fresh
         session per worker thread (ADR 0006)."""
         return BackgroundRunner(
-            engine, self.adapter, self.knobs, overlay_root=self.overlay_root
+            engine,
+            self.adapter,
+            self.knobs,
+            overlay_root=self.overlay_root,
+            results_store=self.results_store,
         )
 
     def launch(self, prompt_id: int, drawing_id: int, models: list[str]) -> Run:
@@ -194,12 +204,17 @@ class BackgroundRunner:
         knobs: RunKnobs = RunKnobs(),
         max_workers: int = DEFAULT_MAX_CONCURRENCY,
         overlay_root: Path = DEFAULT_OVERLAY_ROOT,
+        results_store: ResultsStoreConfig | None = None,
     ):
         self.engine = engine
         self.adapter = adapter
         self.knobs = knobs
         self.max_workers = max_workers
         self.overlay_root = overlay_root
+        # Where a finished Run's scores are published (scope 9, ticket 05). ``None`` means
+        # "whatever the environment configures", which is normally nothing at all — tests
+        # inject a recorder. Publishing is best-effort by construction and cannot fail a Run.
+        self.results_store = results_store
         self._write_lock = threading.Lock()
 
     def submit(self, run_id: int) -> threading.Thread:
@@ -213,7 +228,9 @@ class BackgroundRunner:
         """Drive one Run to a terminal state. Snapshots what workers need up front,
         marks the Run ``running``, fans the models out under the concurrency cap, then
         records ``done`` — or ``failed`` if a worker hit a genuine persistence error
-        (a *model* failure is recorded as a Prediction and never fails the Run)."""
+        (a *model* failure is recorded as a Prediction and never fails the Run). A ``done``
+        Run's scores are then published to the shared results store, if one is configured.
+        """
         with Session(self.engine) as session:
             run = session.get(Run, run_id)
             run.status = RunStatus.running
@@ -254,6 +271,10 @@ class BackgroundRunner:
             run = session.get(Run, run_id)
             run.status = RunStatus.failed if errors else RunStatus.done
             session.commit()
+            # Last, and after the commit: the Run is complete and durable before its scores
+            # are offered to the shared store, so a store outage costs the record of an
+            # experiment and never the experiment itself (scope 9, ticket 05).
+            publish_completed_run(session, run, self.results_store)
 
     def _execute_result(
         self,

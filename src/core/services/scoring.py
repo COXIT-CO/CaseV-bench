@@ -100,6 +100,12 @@ class LocationScore:
     ``(scorer version, iou_threshold)`` the reproducibility anchor and has ``score()`` echo
     it "for exactly this reason". A Report stamps this value, so anything that stamped a
     constant instead would keep printing 0.50 beside numbers scored at something else.
+
+    ``scorer_output`` is the library's return value **verbatim** — every field above is
+    derived from it, and it additionally carries ``per_page`` and (when asked) the per-box
+    ``objects`` listing with ``best_iou``. The shared results store keeps this blob whole as
+    its source of truth (scope 9, ticket 05): a summary cannot be un-summarized later, so it
+    is carried rather than reduced. Nothing in the Lab's own Score row reads it.
     """
 
     per_label: list[LabelLocationScore]
@@ -107,6 +113,7 @@ class LocationScore:
     recall: float
     f1: float
     iou_threshold: float
+    scorer_output: dict
 
     def to_json(self) -> str:
         return json.dumps(
@@ -176,6 +183,7 @@ def score_location(
     predicted_by_page: Mapping[int, Sequence[LocationBox]],
     gt_by_page: Mapping[int, Sequence[LocationBox]],
     iou_threshold: float = LOCATION_IOU_THRESHOLD,
+    include_objects: bool = False,
 ) -> LocationScore | None:
     """Score predicted boxes against location GT, both keyed by page (ADR 0004).
 
@@ -206,6 +214,12 @@ def score_location(
     scoring runs per Result inside a Leaderboard build, so this fails the whole board rather
     than quietly ranking one Drawing against a broken answer key. ``python -m core.audit``
     names the offending boxes; the fix is re-importing that Drawing from a corrected source.
+
+    ``include_objects`` asks the library for its per-box ``tp``/``fp``/``fn`` listing, whose
+    ``best_iou`` separates a box the model missed entirely from one it drew loosely. It is off
+    by default because nothing the Lab displays reads it and it grows with the box count; the
+    shared-store write turns it on, since that blob is what someone querying the store later
+    has instead of the Result. The rates are identical either way.
     """
     if not gt_by_page:
         return None
@@ -214,6 +228,7 @@ def score_location(
         _scorer_items(predicted_by_page),
         _scorer_items(gt_by_page),
         iou_threshold=iou_threshold,
+        include_objects=include_objects,
     )
 
     return LocationScore(
@@ -224,6 +239,7 @@ def score_location(
         # The library's echo, not the argument above — so the operating point travels with
         # the rates it produced and a Report can stamp it (ADR 0030).
         iou_threshold=scored["iou_threshold"],
+        scorer_output=scored,
     )
 
 
@@ -329,14 +345,14 @@ class ScoringService:
         if result is None:
             raise ValueError(f"no result with id {result_id}")
         run = self.session.get(Run, result.run_id)
-        gt = self._location_gt_boxes(run.drawing_id)
+        gt = self.location_gt_boxes(run.drawing_id)
         score = self._stage_location_score(result, gt)
         self.session.commit()
         if score is not None:
             self.session.refresh(score)
         return score
 
-    def _location_gt_boxes(self, drawing_id: int) -> dict[int, list[LocationBox]]:
+    def location_gt_boxes(self, drawing_id: int) -> dict[int, list[LocationBox]]:
         """This Drawing's location GT as ``LocationBox`` lists keyed by page id — the
         shape ``score_location`` matches predictions against. Empty when no GT."""
         rows_by_page = LocationGroundTruthService(self.session).boxes_by_page(
@@ -387,7 +403,7 @@ class ScoringService:
         rows: list[LocationLeaderboardRow] = []
         for result, run, prompt in self.session.exec(stmt).all():
             if run.drawing_id not in gt_by_drawing:
-                gt_by_drawing[run.drawing_id] = self._location_gt_boxes(run.drawing_id)
+                gt_by_drawing[run.drawing_id] = self.location_gt_boxes(run.drawing_id)
             score = self._stage_location_score(result, gt_by_drawing[run.drawing_id])
             rows.append(
                 LocationLeaderboardRow(

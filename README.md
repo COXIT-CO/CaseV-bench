@@ -69,6 +69,26 @@ OPENROUTER_API_KEY=sk-or-...
 or export it in your shell. A missing key fails only at the moment a run is launched, with a
 clear message — importing the app and running the tests never need it.
 
+**Shared results store** (optional): a completed Run can also append its per-model scores to
+the team's shared `experiments.run_results` table, so results produced by different tools can
+be compared. It is **off unless both** of these are set:
+
+```
+CASEV_EXPERIMENTS_DATABASE_URL=postgresql://experiments_rw:...@.../casev_bench
+CASEV_EXPERIMENTS_AUTHOR=achumak
+```
+
+The credential is `experiments_rw` from the team password manager — it holds `SELECT, INSERT`
+and nothing else, so a mistake here cannot damage anyone's results. `CASEV_EXPERIMENTS_AUTHOR`
+is who the rows record as their producer and the namespace every `config_label` this Lab
+writes is prefixed with; there is no default, because a wrong author is worse than no row.
+Note this is *not* `CASEV_DATABASE_URL`, which is the Lab's own database and stays SQLite.
+
+Publishing is best-effort and never fails a Run: an unreachable store costs the record of an
+experiment, never the experiment. The table's shape is declared on `main`
+(`src/results_store/models.py`), which this branch reads and never imports — see
+[ADR 0038](docs/adr/0038-shared-results-store.md).
+
 ## Running in dev
 
 Two processes. The Vite dev server proxies `/api/*` to uvicorn, so there is no CORS to
