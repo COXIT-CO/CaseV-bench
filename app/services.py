@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 
 from app.annotate import annotate_image
 from app.crop_prompts import CABINET_COUNTERTOP_SYSTEM_PROMPT, CABINET_COUNTERTOP_USER_PROMPT
+from app.tiling_prompts import TILE_SYSTEM_PROMPT, TILE_USER_PROMPT
 from app.crop_utils import crop_image_to_box, remap_crop_box_to_full
 from app.extensions import db
 from app.models import Prompt, PromptRun, PromptStatus
@@ -344,6 +345,7 @@ def _call_vision_model(
     glitch rather than a real problem with the prompt or image) so a single
     flaky request doesn't silently lose an entire crop's worth of detections.
     """
+    
     message_content = [
         {"type": "text", "text": user_text},
         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image_to_base64(image_path)}"}},
@@ -474,11 +476,20 @@ def _process_page_two_pass(run: PromptRun, page_index: int, image_path: str, roo
 
 def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: str) -> dict:
     """SAHI-style sliding-window tiling: cuts the ORIGINAL full-resolution page
-    image into a grid of overlapping tile_size x tile_size tiles (compute_tile_grid),
-    runs the full stored prompt on every tile independently — no viewport hierarchy,
-    every tile is checked for all four labels — remaps each tile's local 0..1000
-    boxes back into full-page coordinates, then fuses detections of the same object
-    that showed up in more than one overlapping tile, whether as a true duplicate
+    image into a grid of overlapping tile_size x tile_size tiles (compute_tile_grid).
+
+    Each tile is sent with the DEDICATED tile-aware prompt pair
+    (TILE_SYSTEM_PROMPT / TILE_USER_PROMPT from tiling_prompts.py) rather than
+    the Prompt row's own system_prompt/content — those assume the model is
+    looking at the whole sheet at once and build elevation/cabinet detection
+    around finding a title marker first, which routinely isn't visible in any
+    single tile. The tile prompt relaxes that assumption (geometry evidence is
+    enough without a visible title) while keeping the same object definitions.
+
+    Every tile is checked for all four labels — no viewport hierarchy across
+    tiles. Each tile's local 0..1000 boxes are remapped back into full-page
+    coordinates, then fused: detections of the same object that showed up in
+    more than one overlapping tile are merged, whether as a true duplicate
     (same object seen whole twice) or as a fragment cut off by a tile boundary
     (stitched back together via fuse_tiled_objects; see tiling_utils.py).
     """
@@ -501,7 +512,7 @@ def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: 
         crop_pixel_region(image_path, px_box, tile_path)
 
         raw_response, parsed, tile_error = _call_vision_model(
-            run, run.prompt.system_prompt or None, run.prompt.content, tile_path
+            run, TILE_SYSTEM_PROMPT, TILE_USER_PROMPT, tile_path
         )
         if tile_error:
             errors.append(f"Page {page_index + 1} tile {i}: {tile_error}")
