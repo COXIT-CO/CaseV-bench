@@ -29,7 +29,12 @@ from app.result_parser import (
     extract_objects,
     normalize_expected,
 )
-from app.tiling_utils import compute_tile_grid, crop_pixel_region, deduplicate_objects
+from app.tiling_utils import (
+    compute_tile_grid,
+    crop_pixel_region,
+    fuse_tiled_objects,
+    local_box_touches_edge,
+)
 
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
 # 'locate_2pass': pass 1 finds elevation/elevation_callout on the full sheet;
@@ -37,7 +42,8 @@ ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
 # cabinet/countertop inside that crop at much higher effective resolution.
 # 'locate_tiled': independent alternative to locate_2pass — no viewport hierarchy,
 # just cuts the full page into overlapping fixed-size tiles and runs the same
-# full prompt on every tile, then dedups detections found in more than one tile.
+# full prompt on every tile, then fuses detections that got duplicated or split
+# across tile boundaries (see fuse_tiled_objects in tiling_utils.py).
 WORKFLOWS = {'count', 'locate', 'locate_2pass', 'locate_tiled'}
 IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
@@ -46,9 +52,14 @@ IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 # constructed without going through it.
 TILE_SIZE_PX = 1400
 TILE_OVERLAP_FRAC = 0.2
-# Not yet configurable per run — next candidate to expose if tile-boundary
-# dedup quality turns out to matter in practice.
-TILE_DEDUP_IOU = 0.5
+# Fusion parameters for merging tiled detections (see fuse_tiled_objects in
+# tiling_utils.py): TILE_FUSE_IOU_DUP catches true duplicates (same object,
+# two overlapping tiles); TILE_FUSE_EDGE_GAP is the max full-page gap (in
+# 0..1000 units) allowed between two edge-touching fragments to still be
+# considered one object split by a tile boundary. Not yet configurable per
+# run — next candidates to expose if fusion quality turns out to matter.
+TILE_FUSE_IOU_DUP = 0.3
+TILE_FUSE_EDGE_GAP = 4.0
 
 
 def allowed_file(filename: str) -> bool:
@@ -466,9 +477,10 @@ def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: 
     image into a grid of overlapping tile_size x tile_size tiles (compute_tile_grid),
     runs the full stored prompt on every tile independently — no viewport hierarchy,
     every tile is checked for all four labels — remaps each tile's local 0..1000
-    boxes back into full-page coordinates, then deduplicates detections of the same
-    object that showed up in more than one overlapping tile (greedy IoU-based NMS,
-    since there are no confidence scores to rank duplicates by).
+    boxes back into full-page coordinates, then fuses detections of the same object
+    that showed up in more than one overlapping tile, whether as a true duplicate
+    (same object seen whole twice) or as a fragment cut off by a tile boundary
+    (stitched back together via fuse_tiled_objects; see tiling_utils.py).
     """
     tiles_dir = os.path.join(root, 'tiles')
     os.makedirs(tiles_dir, exist_ok=True)
@@ -496,10 +508,15 @@ def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: 
 
         tile_objects = extract_objects(parsed, page_index) if parsed is not None else []
         for obj in tile_objects:
+            # Flag this BEFORE remapping — "touches the edge" only means
+            # something relative to the tile the model actually saw, not
+            # relative to the full page.
+            touches_edge = local_box_touches_edge(obj["box"])
             full_box = remap_crop_box_to_full(obj["box"], px_box, full_px_size)
             remapped = dict(obj)
             remapped["box"] = full_box
             remapped["left"], remapped["top"], remapped["right"], remapped["bottom"] = full_box
+            remapped["touches_tile_edge"] = touches_edge
             raw_objects.append(remapped)
 
         tile_details.append({
@@ -511,16 +528,23 @@ def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: 
             "error": tile_error,
         })
 
-    deduped_objects = deduplicate_objects(raw_objects, TILE_DEDUP_IOU)
+    # fuse_tiled_objects handles both true duplicates (high-IoU boxes from
+    # overlapping tiles) and split fragments (low-IoU boxes that only
+    # touch/nearly-touch, where at least one was flagged as cut off by its
+    # own tile's edge) — see its docstring in tiling_utils.py.
+    fused_objects = fuse_tiled_objects(
+        raw_objects, iou_dup_threshold=TILE_FUSE_IOU_DUP, edge_gap_tolerance=TILE_FUSE_EDGE_GAP
+    )
 
     return {
-        "objects": deduped_objects,
+        "objects": fused_objects,
         "raw_response": "",
         "error": "; ".join(errors) if errors else None,
         "extra": {
             "tiles": tile_details,
             "tile_count": len(grid),
-            "objects_before_dedup": len(raw_objects),
+            "objects_before_fusion": len(raw_objects),
+            "objects_after_fusion": len(fused_objects),
         },
     }
 
@@ -657,7 +681,7 @@ def process_prompt_run(run_id: int) -> None:
     finally:
         run.finished_at = datetime.now(UTC)
         db.session.commit()
-        
+
 def recompute_run_metrics(run_id: int) -> PromptRun:
     """Re-score a completed run's already-stored predictions against the prompt's
     current expected_json, without calling the model again. Overwrites comparison/
