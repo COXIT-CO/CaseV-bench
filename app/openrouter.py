@@ -38,6 +38,7 @@ class OpenRouterClient:
             model=model,
             messages=messages,
             temperature=temperature,
+            max_tokens=16384
         )
 
         content = response.choices[0].message.content
