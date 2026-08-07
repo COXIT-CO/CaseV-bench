@@ -15,7 +15,9 @@ Full evaluation of the three detection approaches across four vision models.
 | Metrics | **overall** precision / recall / F1, micro-averaged (TP/FP/FN summed across documents, then divided) |
 | Cost | real per-request charge reported by OpenRouter, not an estimate from a price list |
 
-All numbers below are aggregate across all object types. Per-type and per-page
+All numbers below are aggregate across all object types. Every individual run —
+model × document, with metrics, cost and time — is listed in the
+[appendix](#appendix--full-run-data-all-36-runs). Per-type and per-page
 breakdowns are kept in each run's `meta.json` if needed later.
 
 Caveat worth stating up front: one run per cell, no repeats. Differences of a
@@ -423,3 +425,50 @@ with stage 2 crops rendered at a higher DPI. Stage 2 is the only place where DPI
 reliably converts into detail the model can use, because a crop is small enough
 to survive downsampling — and at 55% of the method's cost it is the part worth
 spending on.
+
+## Appendix — full run data (all 36 runs)
+
+One row per run. `IoU` is the mean IoU of that run's correct matches —
+blank where the run produced none. Ordered by method, then model, then
+document; `prj1` = 4 pages / 70 objects, `prj2` = 2 / 45, `prj3` = 9 / 32.
+
+| Method | Model | Doc | DPI | TP | FP | FN | P | R | F1 | IoU | Cost $ | Wall s | Req |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Two-Stage | claude-sonnet-5 | prj1 | 300 | 2 | 40 | 68 | 4.8% | 2.9% | **3.6%** | 0.601 | 0.3991 | 42.3 | 25 |
+|  |  | prj2 | 300 | 3 | 23 | 42 | 11.5% | 6.7% | **8.5%** | 0.724 | 0.1622 | 23.3 | 9 |
+|  |  | prj3 | 300 | 6 | 23 | 26 | 20.7% | 18.8% | **19.7%** | 0.581 | 0.3022 | 14.9 | 15 |
+| Two-Stage | gemini-3.1-pro-preview | prj1 | 300 | 47 | 43 | 23 | 52.2% | 67.1% | **58.8%** | 0.870 | 0.3012 | 55.0 | 30 |
+|  |  | prj2 | 300 | 36 | 15 | 9 | 70.6% | 80.0% | **75.0%** | 0.924 | 0.1081 | 19.6 | 9 |
+|  |  | prj3 | 300 | 24 | 5 | 8 | 82.8% | 75.0% | **78.7%** | 0.890 | 0.1511 | 14.0 | 15 |
+| Two-Stage | gemini-3.6-flash | prj1 | 300 | 39 | 62 | 31 | 38.6% | 55.7% | **45.6%** | 0.752 | 0.2771 | 52.5 | 30 |
+|  |  | prj2 | 300 | 35 | 13 | 10 | 72.9% | 77.8% | **75.3%** | 0.930 | 0.0841 | 17.4 | 9 |
+|  |  | prj3 | 300 | 23 | 6 | 9 | 79.3% | 71.9% | **75.4%** | 0.906 | 0.1313 | 13.5 | 15 |
+| Two-Stage | gpt-5.6-terra-pro | prj1 | 300 | 38 | 23 | 32 | 62.3% | 54.3% | **58.0%** | 0.838 | 0.7273 | 90.5 | 26 |
+|  |  | prj2 | 300 | 33 | 9 | 12 | 78.6% | 73.3% | **75.9%** | 0.864 | 0.3427 | 51.4 | 10 |
+|  |  | prj3 | 300 | 5 | 6 | 27 | 45.5% | 15.6% | **23.3%** | 0.796 | 0.4335 | 28.5 | 11 |
+| One-Stage | claude-sonnet-5 | prj1 | 180 | 1 | 97 | 69 | 1.0% | 1.4% | **1.2%** | 0.573 | 0.1340 | 41.2 | 4 |
+|  |  | prj2 | 180 | 5 | 31 | 40 | 13.9% | 11.1% | **12.3%** | 0.816 | 0.0664 | 34.3 | 2 |
+|  |  | prj3 | 180 | 0 | 27 | 32 | 0.0% | 0.0% | **0.0%** | — | 0.1498 | 7.7 | 9 |
+| One-Stage | gemini-3.1-pro-preview | prj1 | 400 | 22 | 16 | 48 | 57.9% | 31.4% | **40.7%** | 0.943 | 0.0554 | 13.9 | 4 |
+|  |  | prj2 | 400 | 10 | 29 | 35 | 25.6% | 22.2% | **23.8%** | 0.877 | 0.0430 | 20.2 | 2 |
+|  |  | prj3 | 400 | 21 | 10 | 11 | 67.7% | 65.6% | **66.7%** | 0.828 | 0.0830 | 8.7 | 9 |
+| One-Stage | gemini-3.6-flash | prj1 | 400 | 18 | 50 | 52 | 26.5% | 25.7% | **26.1%** | 0.755 | 0.0637 | 26.2 | 4 |
+|  |  | prj2 | 400 | 13 | 30 | 32 | 30.2% | 28.9% | **29.5%** | 0.758 | 0.0350 | 39.1 | 2 |
+|  |  | prj3 | 400 | 14 | 14 | 18 | 50.0% | 43.8% | **46.7%** | 0.859 | 0.0654 | 6.8 | 9 |
+| One-Stage | gpt-5.6-terra-pro | prj1 | 300 | 1 | 63 | 69 | 1.6% | 1.4% | **1.5%** | 0.590 | 0.2626 | 84.7 | 4 |
+|  |  | prj2 | 300 | 8 | 51 | 37 | 13.6% | 17.8% | **15.4%** | 0.714 | 0.1862 | 91.9 | 2 |
+|  |  | prj3 | 300 | 1 | 14 | 31 | 6.7% | 3.1% | **4.3%** | 0.518 | 0.3726 | 42.3 | 9 |
+| Grid | claude-sonnet-5 | prj1 | 300 | 11 | 47 | 59 | 19.0% | 15.7% | **17.2%** | 0.665 | 0.2136 | 43.7 | 4 |
+|  |  | prj2 | 300 | 5 | 26 | 40 | 16.1% | 11.1% | **13.2%** | 0.660 | 0.0901 | 46.3 | 2 |
+|  |  | prj3 | 300 | 10 | 21 | 22 | 32.3% | 31.2% | **31.7%** | 0.739 | 0.2468 | 47.5 | 9 |
+| Grid | gemini-3.1-pro-preview | prj1 | 300 | 5 | 58 | 65 | 7.9% | 7.1% | **7.5%** | 0.539 | 0.2772 | 48.6 | 4 |
+|  |  | prj2 | 300 | 6 | 71 | 39 | 7.8% | 13.3% | **9.8%** | 0.651 | 0.1650 | 66.7 | 2 |
+|  |  | prj3 | 300 | 4 | 17 | 28 | 19.0% | 12.5% | **15.1%** | 0.724 | 0.2351 | 39.2 | 9 |
+| Grid | gemini-3.6-flash | prj1 | 300 | 4 | 66 | 66 | 5.7% | 5.7% | **5.7%** | 0.626 | 0.1446 | 31.2 | 4 |
+|  |  | prj2 | 300 | 6 | 24 | 39 | 20.0% | 13.3% | **16.0%** | 0.778 | 0.0703 | 31.5 | 2 |
+|  |  | prj3 | 300 | 3 | 22 | 29 | 12.0% | 9.4% | **10.5%** | 0.656 | 0.2297 | 74.6 | 9 |
+| Grid | gpt-5.6-terra-pro | prj1 | 300 | 11 | 74 | 59 | 12.9% | 15.7% | **14.2%** | 0.629 | 0.4034 | 80.0 | 4 |
+|  |  | prj2 | 300 | 9 | 42 | 36 | 17.6% | 20.0% | **18.8%** | 0.613 | 0.1781 | 67.9 | 2 |
+|  |  | prj3 | 300 | 7 | 11 | 25 | 38.9% | 21.9% | **28.0%** | 0.765 | 0.4057 | 70.6 | 9 |
+
+Totals across all 36 runs: **$7.60**, **1488 s** of wall time, **324** model requests.
