@@ -555,6 +555,25 @@ button:active { transform: translateY(1px); }
     opacity: 1;
 }
 
+.inline-color {
+    width: 3rem !important;
+    height: 2.1rem;
+    padding: 0.2rem;
+    cursor: pointer;
+}
+
+input[type="range"] {
+    width: 9rem !important;
+    padding: 0;
+    accent-color: var(--accent);
+}
+
+.range-readout {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    min-width: 2.5rem;
+}
+
 .json-badge {
     background-color: var(--accent-soft);
     border: 1px solid rgba(0, 255, 157, 0.3);
@@ -566,7 +585,8 @@ button:active { transform: translateY(1px); }
     white-space: nowrap;
 }
 
-#global-prompt {
+#global-prompt,
+#gd-global-prompt {
     margin-top: 0.85rem;
     resize: vertical;
     min-height: 80px;
@@ -669,6 +689,82 @@ button:active { transform: translateY(1px); }
     text-align: center;
     color: var(--text-faint);
     font-style: italic;
+}
+
+.inline-text {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+.gd-object-types-group {
+    flex: 1;
+    min-width: 16rem;
+}
+
+.gd-object-types-group input {
+    width: 100%;
+}
+
+.gd-ground-truth-block {
+    margin: 0.5rem 0 1rem;
+}
+
+.gd-ground-truth-block > label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.35rem;
+}
+
+.gd-ground-truth-textarea {
+    min-height: 140px;
+    height: 140px;
+    font-size: 0.8rem;
+    resize: vertical;
+    width: 100%;
+}
+
+.gd-score-box {
+    margin-top: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.75rem;
+    display: none;
+    white-space: pre-wrap;
+}
+
+.gd-score-box.visible {
+    display: block;
+}
+
+.gd-score-box .gd-score-good { color: var(--accent); font-weight: 600; }
+.gd-score-box .gd-score-bad { color: #ff6b6b; font-weight: 600; }
+
+/* Cost/latency panel — same shape as the score box directly above it, but
+   visually quieter, since it reports what a run COST rather than how well
+   it did. Both sit under a model card and are hidden until filled. */
+.usage-box {
+    margin-top: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+    background: var(--bg-input);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.7rem;
+    display: none;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+.usage-box.visible {
+    display: block;
 }
 
 /* ---------- Action buttons ---------- */

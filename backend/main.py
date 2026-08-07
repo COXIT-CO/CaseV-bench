@@ -1,5 +1,7 @@
 import os
+import re
 import json
+import time
 import base64
 import asyncio
 import uuid
@@ -14,8 +16,9 @@ from dotenv import load_dotenv
 from pdf2image import convert_from_bytes
 from openai import AsyncOpenAI
 from json_repair import repair_json  # Library for repairing malformed JSON
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel
+from location_scorer import score as score_locations
 
 load_dotenv()
 
@@ -115,6 +118,490 @@ def resolve_box(obj: dict):
     return None
 
 
+def extract_ground_truth_items(gt_raw):
+    """Accepts either a bare list of ground-truth objects, or the project's
+    own export shape — {"project_id": ..., "objects": [...]} — and returns
+    the flat list of objects either way."""
+    if isinstance(gt_raw, dict):
+        items = gt_raw.get("objects", [])
+    elif isinstance(gt_raw, list):
+        items = gt_raw
+    else:
+        items = []
+    return items if isinstance(items, list) else []
+
+
+def extract_ground_truth_box(item: dict):
+    """Returns [x_min, y_min, x_max, y_max] from a ground-truth object's own
+    "box"/"bbox" field, in whichever of the two shapes it was given as: a
+    4-number [x_min,y_min,x_max,y_max] array, or the project's own
+    {"x","y","width","height"} (top-left + size) shape. Returns None if
+    neither is present or well-formed."""
+    box = item.get("box")
+    if box is None:
+        box = item.get("bbox")
+    if isinstance(box, dict):
+        x, y, w, h = box.get("x"), box.get("y"), box.get("width"), box.get("height")
+        if all(isinstance(v, (int, float)) for v in (x, y, w, h)):
+            return [x, y, x + w, y + h]
+        return None
+    if isinstance(box, list) and len(box) == 4 and all(isinstance(v, (int, float)) for v in box):
+        return box
+    return None
+
+
+def to_unit_box(box, width, height):
+    """0-1 analog of normalize_box() below: auto-detects whether a box is
+    already a 0-1 fraction or raw pixel coordinates, and returns it as a 0-1
+    fraction either way. Used for ground-truth boxes a person pastes in for
+    the grid-detection flow, which may be given in either form (see
+    /api/grid/detect)."""
+    if max(box) <= 1:
+        return [max(0.0, min(1.0, v)) for v in box]
+    if not width or not height:
+        return [max(0.0, min(1.0, v)) for v in box]
+    x0, y0, x1, y1 = box
+    return [
+        max(0.0, min(1.0, x0 / width)),
+        max(0.0, min(1.0, y0 / height)),
+        max(0.0, min(1.0, x1 / width)),
+        max(0.0, min(1.0, y1 / height)),
+    ]
+
+
+# ===========================================================================
+# Scoring against human ground truth (shared by all three detection flows)
+# ===========================================================================
+# location-scorer works in 0-1 xyxy fractions and buckets objects by
+# (page, object_type). Two things have to be reconciled before any flow here
+# can hand it data:
+#
+#   1. SCALE. The grid flow already produces 0-1 boxes, but /api/generate and
+#      the two-stage flow both work in 0-1000, so their predictions are
+#      divided down here rather than each flow growing its own conversion.
+#
+#   2. PAGE IDENTITY. The grid flow scores exactly ONE PDF, so a bare page
+#      number identifies a page uniquely. /api/generate and the two-stage
+#      flow accept SEVERAL files at once, where "page 1" exists once per
+#      file — scoring those with a bare page number would let a prediction on
+#      file A's page 1 match a ground-truth box on file B's page 1. So when
+#      more than one file is in play, the two are folded into one synthetic
+#      integer key (see score_page_key) that stays unique per (file, page).
+#      An integer is used rather than a "0:1" string purely so the value
+#      remains the same type location-scorer already receives today.
+
+PAGE_KEY_STRIDE = 100000
+
+
+def score_page_key(file_index, page_num: int, multi_file: bool) -> int:
+    """Page identifier handed to location-scorer. With a single file this is
+    just the page number (so scores and any returned objects stay readable);
+    with several, (file_index, page_num) is folded into one unique int."""
+    if not multi_file:
+        return page_num
+    return (file_index or 0) * PAGE_KEY_STRIDE + page_num
+
+
+def normalize_ground_truth(gt_items, page_dims_points: dict, multi_file: bool,
+                            file_index_by_name: Optional[dict] = None) -> list:
+    """Converts human-supplied ground-truth objects into the 0-1, one-key-per
+    -page shape location-scorer expects.
+
+    page_dims_points maps (file_index, page_num) -> that page's size in PDF
+    POINTS (1/72in). Points — not the render's pixels — are what the
+    project's own exports (drafts/expected/*/prj*-obj-location.json) measure
+    bboxes in, so normalizing against the pixel size of whatever DPI a run
+    happened to use would shrink every box by (dpi/72)x and score ~0 true
+    positives. See the same reasoning spelled out in /api/grid/detect.
+
+    Each item may name its file via "file_index" or "file"/"file_name"; with
+    a single uploaded file that's unnecessary and everything defaults to
+    file 0, which keeps the common single-PDF case free of boilerplate."""
+    file_index_by_name = file_index_by_name or {}
+    out = []
+    for g in gt_items:
+        if not isinstance(g, dict):
+            continue
+        obj_type = g.get("category") or g.get("object_type") or g.get("label")
+        page_num = g.get("page")
+        box = extract_ground_truth_box(g)
+        if not obj_type or not isinstance(page_num, int) or box is None:
+            continue
+
+        f_idx = g.get("file_index")
+        if not isinstance(f_idx, int):
+            name = g.get("file") or g.get("file_name")
+            f_idx = file_index_by_name.get(name, 0)
+
+        dims = page_dims_points.get((f_idx, page_num))
+        if dims is None:
+            # Ground truth points at a page this run doesn't actually have.
+            # Skipped rather than normalized against unknown dimensions,
+            # which would produce a degenerate box that location-scorer
+            # rejects outright and would crash scoring for every model.
+            continue
+
+        pts_w, pts_h = dims
+        unit_box = to_unit_box(box, pts_w, pts_h)
+        # A zero-area box makes location-scorer raise, so one malformed row
+        # (a typo, a genuinely zero-size annotation) would otherwise take
+        # down scoring for the whole run.
+        if unit_box[2] <= unit_box[0] or unit_box[3] <= unit_box[1]:
+            continue
+
+        out.append({
+            "object_type": obj_type,
+            "page": score_page_key(f_idx, page_num, multi_file),
+            "bbox": unit_box,
+        })
+    return out
+
+
+def predictions_from_objects(objects, multi_file: bool, scale: float = 1000.0) -> list:
+    """Converts this codebase's own detected-object shape ({label, box,
+    file_index, page_num}) into location-scorer's prediction shape, dividing
+    the box down from `scale` (0-1000 for every flow except grid, which
+    already works in 0-1 and passes scale=1)."""
+    preds = []
+    for obj in objects:
+        box = obj.get("box")
+        label = obj.get("label")
+        page_num = obj.get("page_num")
+        if not label or not isinstance(page_num, int):
+            continue
+        if not (isinstance(box, list) and len(box) == 4
+                and all(isinstance(v, (int, float)) for v in box)):
+            continue
+        unit = [max(0.0, min(1.0, v / scale)) for v in box]
+        # location-scorer rejects zero-area boxes; a model occasionally
+        # returns one and it should not abort the whole run's scoring.
+        if unit[2] <= unit[0] or unit[3] <= unit[1]:
+            continue
+        preds.append({
+            "object_type": label,
+            "page": score_page_key(obj.get("file_index"), page_num, multi_file),
+            "bbox": unit,
+        })
+    return preds
+
+
+def safe_score(predictions, ground_truth, iou_threshold: float):
+    """Runs location-scorer, returning None when there's no ground truth to
+    score against and an {"error": ...} record if scoring itself fails —
+    a scoring problem should never turn an otherwise-successful detection
+    run into a failed request."""
+    if not ground_truth:
+        return None
+    try:
+        return score_locations(predictions, ground_truth,
+                               iou_threshold=iou_threshold, include_objects=True)
+    except Exception as e:
+        print(f"[score] scoring failed: {e}")
+        return {"error": str(e)}
+
+
+# ===========================================================================
+# Grid-cell detection (labeled reference grid instead of raw coordinates)
+# ===========================================================================
+# An alternative single-pass detection strategy: rather than asking a model
+# to compute a numeric box directly (which every other flow in this file
+# does), a labeled grid is drawn on top of the full sheet page and the model
+# is asked only to name which cell(s) each object occupies — reading off a
+# label is a much easier task for a model than estimating a fraction, and
+# spreadsheet-style "A1" references are something every model has seen an
+# enormous amount of in training. The box is then derived in CODE from
+# whichever cell(s) were named, never trusted from the model's own numeric
+# estimate. See drafts/prompts/System Grid for the full detection prompt.
+#
+# Boxes produced by this flow are 0-1 xyxy (top-left origin) — the shared
+# contract location-scorer expects — NOT the 0-1000 scale every other flow
+# in this file uses. See save_grid_history()'s "coord_scale" field for how
+# the frontend tells the two scales apart when drawing history overlays.
+
+_ALPHA_LABEL_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
+_NUMERIC_LABEL_RE = re.compile(r"^[Rr](\d+)[Cc](\d+)$")
+LABEL_SCHEMES = ("alpha", "numeric", "banded")  # "banded" uses alpha labels + zebra row tint
+
+# Named positions within a cell, each a (x, y) fraction of that cell's own
+# width/height — the vocabulary a model picks from when box_precision is
+# "cell_anchor" to say where WITHIN a named cell its box actually starts/
+# ends, instead of always snapping to the cell's outer edges. Kept as a
+# small fixed set of labels (not a free 0-1 float) so the model is still
+# picking a category, the same robustness the grid approach is built on,
+# just a finer-grained one.
+ANCHOR_FRACTIONS = {
+    "topleft": (0.0, 0.0), "top": (0.5, 0.0), "topright": (1.0, 0.0),
+    "left": (0.0, 0.5), "center": (0.5, 0.5), "right": (1.0, 0.5),
+    "bottomleft": (0.0, 1.0), "bottom": (0.5, 1.0), "bottomright": (1.0, 1.0),
+}
+BOX_PRECISIONS = ("cell", "cell_anchor", "cell_fraction")
+
+
+def resolve_point_fraction(value):
+    """Resolves a model-reported "where in this cell" value into an (fx, fy)
+    0-1 pair, or None if it doesn't resolve to anything usable. Accepts
+    EITHER a named anchor (box_precision="cell_anchor", the robust/coarse
+    option — model picks a category, same as picking a grid cell) OR a raw
+    [fx, fy] two-number array (box_precision="cell_fraction", the flexible/
+    fine option — model estimates a continuous point, same estimation task
+    as a plain bounding box but scoped to ONE cell instead of the whole
+    sheet, so the error stays small even if the estimate is a little off).
+    Accepting either shape regardless of which mode was requested costs
+    nothing and is harmless if a model gives the "wrong" shape for the mode
+    it was asked for."""
+    if isinstance(value, str):
+        return ANCHOR_FRACTIONS.get(value)
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        fx, fy = value
+        if isinstance(fx, (int, float)) and isinstance(fy, (int, float)) and 0.0 <= fx <= 1.0 and 0.0 <= fy <= 1.0:
+            return (float(fx), float(fy))
+    return None
+
+
+def col_letters(col_idx: int) -> str:
+    """0-indexed column -> spreadsheet-style letters: 0->'A', 25->'Z', 26->'AA', ..."""
+    n = col_idx + 1
+    letters = ""
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        letters = chr(65 + rem) + letters
+    return letters
+
+
+def letters_to_col(letters: str) -> int:
+    """Inverse of col_letters() -> 0-indexed column."""
+    n = 0
+    for ch in letters:
+        n = n * 26 + (ord(ch) - 64)
+    return n - 1
+
+
+def cell_label(row_idx: int, col_idx: int, scheme: str = "alpha") -> str:
+    """0-indexed (row, col) -> a cell label in the given scheme. "alpha" and
+    "banded" both use spreadsheet-style labels, e.g. (0, 0) -> 'A1' — banded
+    only changes how the grid is DRAWN (zebra row tint), not how cells are
+    named. "numeric" avoids any letters at all, e.g. (0, 0) -> 'R1C1'."""
+    if scheme == "numeric":
+        return f"R{row_idx + 1}C{col_idx + 1}"
+    return f"{col_letters(col_idx)}{row_idx + 1}"
+
+
+def parse_cell_label(label, rows: int, cols: int, scheme: str = "alpha"):
+    """Parses a cell label in the given scheme ('C4' for alpha/banded,
+    'R4C3' for numeric) into a 0-indexed (row, col) pair, or None if
+    malformed or outside the grid this request actually used (guards
+    against a model inventing a cell beyond what was actually drawn)."""
+    if not isinstance(label, str):
+        return None
+    s = label.strip()
+    if scheme == "numeric":
+        m = _NUMERIC_LABEL_RE.match(s)
+        if not m:
+            return None
+        row_idx = int(m.group(1)) - 1
+        col_idx = int(m.group(2)) - 1
+    else:
+        m = _ALPHA_LABEL_RE.match(s)
+        if not m:
+            return None
+        col_idx = letters_to_col(m.group(1).upper())
+        row_idx = int(m.group(2)) - 1
+    if not (0 <= row_idx < rows and 0 <= col_idx < cols):
+        return None
+    return row_idx, col_idx
+
+
+def cells_to_unit_box(cell_labels, rows: int, cols: int, scheme: str = "alpha",
+                       start_anchor=None, end_anchor=None):
+    """Converts a list of grid cell labels into one [x_min, y_min, x_max,
+    y_max] box in 0-1 fractional space. One physical object spanning
+    several cells is reported as a single detection with all its cells
+    listed (see the System Grid prompt), not one detection per cell, so
+    this always produces exactly one box per object regardless of how many
+    cells it spans. Returns None if no cell label in the list was valid.
+
+    By default (start_anchor/end_anchor both None) the box is the smallest
+    rectangle enclosing every named cell's full outer edges — the original,
+    coarsest behavior. When box_precision is "cell_anchor" or
+    "cell_fraction", the caller passes the model's own reported position —
+    a named anchor OR a raw [fx, fy] pair, resolve_point_fraction() accepts
+    either regardless of mode — for where its box actually starts within
+    the top-left-most named cell and ends within the bottom-right-most
+    named cell, giving sub-cell precision without needing a finer grid. An
+    invalid/missing value falls back to that corner's outer cell edge (0,0
+    for start, 1,1 for end) — always a safe, valid box, never a hard
+    failure."""
+    parsed = [parse_cell_label(c, rows, cols, scheme) for c in (cell_labels or [])]
+    parsed = [p for p in parsed if p is not None]
+    if not parsed:
+        return None
+    row_indices = [p[0] for p in parsed]
+    col_indices = [p[1] for p in parsed]
+    row_min, row_max = min(row_indices), max(row_indices)
+    col_min, col_max = min(col_indices), max(col_indices)
+
+    start_fx, start_fy = resolve_point_fraction(start_anchor) or (0.0, 0.0)
+    end_fx, end_fy = resolve_point_fraction(end_anchor) or (1.0, 1.0)
+    x0, y0 = (col_min + start_fx) / cols, (row_min + start_fy) / rows
+    x1, y1 = (col_max + end_fx) / cols, (row_max + end_fy) / rows
+    if x1 <= x0 or y1 <= y0:
+        # A nonsensical point pair (e.g. start right of end, in the same
+        # cell) would otherwise collapse or invert the box — fall back to
+        # the full cell-union edges rather than emit a degenerate box.
+        return [col_min / cols, row_min / rows, (col_max + 1) / cols, (row_max + 1) / rows]
+    return [x0, y0, x1, y1]
+
+
+def resize_to_fit(img, max_dim: int):
+    """Downscales img (preserving aspect ratio) so its longer side is at
+    most max_dim, or returns it unchanged if already smaller. This MUST run
+    before draw_grid_overlay(), not after: a vision model downscales
+    whatever image it's actually given internally before its own encoder
+    ever sees it, and grid line/label sizing in draw_grid_overlay() is
+    computed relative to the image it's called on — draw the grid on a
+    native-DPI render (which can be 10000px+ on a large architectural
+    sheet) and the labels end up a tiny fraction of what the model's own
+    internal downscaling leaves behind, effectively illegible to it, even
+    though they'd look fine to a human opening the full-res file directly."""
+    width, height = img.size
+    longest = max(width, height)
+    if longest <= max_dim:
+        return img
+    scale = max_dim / longest
+    return img.resize((max(1, round(width * scale)), max(1, round(height * scale))), Image.LANCZOS)
+
+
+def hex_to_rgb(value: str, default=(220, 0, 0)):
+    """Parses a "#rrggbb" (or "rrggbb") string into an (r, g, b) tuple,
+    falling back to default on anything malformed rather than raising —
+    this is user-supplied styling, not something worth a 400 over."""
+    s = (value or "").strip().lstrip("#")
+    if len(s) != 6:
+        return default
+    try:
+        return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
+    except ValueError:
+        return default
+
+
+def draw_grid_overlay(img, rows: int, cols: int, line_color=(220, 0, 0), line_opacity: float = 0.59,
+                       line_width: int = 1, label_scheme: str = "alpha"):
+    """Returns (image, geom) — a NEW image with a labeled reference grid
+    drawn on top of img, and the geometry (margins + content/canvas size)
+    needed to map a cell-derived box back onto THIS specific image later.
+
+    Column letters are printed ONCE each, in a header strip added above the
+    image; row numbers ONCE each, in a strip added to its left — never
+    inside a cell itself. An earlier version put each cell's own label
+    inside it (e.g. "C4" in its top-left corner), which works fine at a
+    coarse grid but falls apart at a fine one: a label's legible size is
+    tied to how big ITS OWN cell is, so packing many rows/cols into the
+    same image (needed for real localization precision) shrinks every label
+    right along with its cell until they're all illegible and/or overlap
+    the drawing. Margin labels don't have that problem — legibility only
+    depends on how much margin LENGTH is available for however many labels
+    need to fit along it, independent of cell size, and they can never sit
+    on top of (or be crowded out by) anything actually drawn on the sheet.
+    Grid lines themselves are still drawn across the original image, thin
+    and translucent, so a model can trace a line from a header label to the
+    cell it bounds.
+
+    Because a header strip is added, the returned CANVAS is bigger than the
+    sheet content it wraps — cells_to_unit_box() computes fractions of the
+    CONTENT area alone (the only thing ground truth / ordinary page
+    fractions can mean), so those fractions are NOT directly usable as
+    fractions of the returned canvas. content_box_to_canvas_frac() below
+    does that remaining conversion, using the geom this function returns."""
+    base = img.convert("RGB")
+    width, height = base.size
+    cell_w = width / cols
+    cell_h = height / rows
+
+    # Margin sizing: legible against a LOT of crammed-in labels, but capped
+    # so it doesn't dominate a coarse, few-cell grid. "numeric" row headers
+    # read "R123" instead of a bare number, so they need a bit more width.
+    font_size = max(11, min(24, round(min(cell_w, cell_h) * 0.6)))
+    margin_top = font_size + 12
+    margin_left = round(font_size * (2.6 if label_scheme == "numeric" else 2)) + 12
+
+    canvas = Image.new("RGB", (width + margin_left, height + margin_top), (255, 255, 255))
+    canvas.paste(base, (margin_left, margin_top))
+
+    # Grid lines (and, for "banded", a zebra tint under every other row —
+    # purely a visual counting aid, no meaning of its own) drawn on a
+    # translucent overlay, composited only over the image region — legible
+    # over dense line-art without hiding it, same idea as the old design,
+    # just no longer sharing space with labels.
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    line_draw = ImageDraw.Draw(overlay)
+    if label_scheme == "banded":
+        band_color = (*line_color, 35)
+        for r in range(rows):
+            if r % 2 == 1:
+                y0 = margin_top + round(r * cell_h)
+                y1 = margin_top + round((r + 1) * cell_h)
+                line_draw.rectangle([margin_left, y0, margin_left + width, y1], fill=band_color)
+    rgba_line_color = (*line_color, round(max(0.0, min(1.0, line_opacity)) * 255))
+    for c in range(cols + 1):
+        x = margin_left + round(c * cell_w)
+        line_draw.line([(x, margin_top), (x, margin_top + height)], fill=rgba_line_color, width=line_width)
+    for r in range(rows + 1):
+        y = margin_top + round(r * cell_h)
+        line_draw.line([(margin_left, y), (margin_left + width, y)], fill=rgba_line_color, width=line_width)
+    canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
+
+    try:
+        font = ImageFont.load_default(size=font_size)
+    except TypeError:
+        # Older Pillow without the size= kwarg on load_default().
+        font = ImageFont.load_default()
+
+    draw = ImageDraw.Draw(canvas)
+    label_color = tuple(round(c * 0.82) for c in line_color)  # a bit darker than the lines, always fully opaque
+
+    for c in range(cols):
+        label = f"C{c + 1}" if label_scheme == "numeric" else col_letters(c)
+        cx = margin_left + (c + 0.5) * cell_w
+        tb = draw.textbbox((0, 0), label, font=font)
+        tw, th = tb[2] - tb[0], tb[3] - tb[1]
+        draw.text((cx - tw / 2 - tb[0], (margin_top - th) / 2 - tb[1]), label, fill=label_color, font=font)
+
+    for r in range(rows):
+        label = f"R{r + 1}" if label_scheme == "numeric" else str(r + 1)
+        cy = margin_top + (r + 0.5) * cell_h
+        tb = draw.textbbox((0, 0), label, font=font)
+        tw, th = tb[2] - tb[0], tb[3] - tb[1]
+        draw.text(((margin_left - tw) / 2 - tb[0], cy - th / 2 - tb[1]), label, fill=label_color, font=font)
+
+    geom = {
+        "margin_left": margin_left, "margin_top": margin_top,
+        "content_width": width, "content_height": height,
+        "canvas_width": canvas.width, "canvas_height": canvas.height,
+    }
+    return canvas, geom
+
+
+def content_box_to_canvas_frac(box, geom):
+    """Maps a [x0,y0,x1,y1] box in 0-1 fractions of the CONTENT area (what
+    cells_to_unit_box produces, and what scoring/ground truth both use) onto
+    0-1 fractions of the full CANVAS draw_grid_overlay() actually returned
+    (content + header margin). Only for DISPLAY: the saved/returned image
+    includes the margin, so a box meant to be drawn on top of it needs to
+    account for that offset, or it lands shifted and shrunk relative to the
+    grid lines it's supposed to line up with — never used for scoring,
+    which must stay in content-only fractions to match ground truth."""
+    ml, mt = geom["margin_left"], geom["margin_top"]
+    w, h = geom["content_width"], geom["content_height"]
+    cw, ch = geom["canvas_width"], geom["canvas_height"]
+    x0, y0, x1, y1 = box
+    return [
+        (ml + x0 * w) / cw,
+        (mt + y0 * h) / ch,
+        (ml + x1 * w) / cw,
+        (mt + y1 * h) / ch,
+    ]
+
+
 # ===========================================================================
 # Two-stage detection (elevation-first, then crop-and-detail)
 # ===========================================================================
@@ -162,9 +649,156 @@ def image_to_b64(img) -> str:
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
+# ===========================================================================
+# Per-request cost / latency accounting
+# ===========================================================================
+# Every flow in this file ultimately makes the same kind of call — one chat
+# completion with one or more images — but each one used to call the client
+# directly, so nothing measured how long a request took or what it cost.
+# timed_completion() is the single choke point all three flows now go
+# through, so latency and token/cost accounting are captured identically
+# everywhere, including for requests that FAIL (a model that times out or
+# errors still consumed wall-clock time, and that's exactly the number worth
+# seeing when comparing models).
+#
+# Cost comes from OpenRouter's own usage accounting rather than a local
+# price table: passing usage:{include:true} makes it return the real credit
+# amount it charged for that specific request, so this stays correct as
+# prices change and across every model/provider without this file having to
+# know anything about pricing. If a provider doesn't report cost, the token
+# counts are still recorded and cost is simply left None.
+
+def _usage_int(usage, *names):
+    """Reads the first present integer field from an OpenAI/OpenRouter usage
+    object, tolerating the naming differences between providers (e.g.
+    prompt_tokens vs input_tokens)."""
+    for name in names:
+        value = getattr(usage, name, None)
+        if isinstance(value, (int, float)):
+            return int(value)
+    return None
+
+
+def extract_usage(response, latency_ms: float, model_name: str) -> dict:
+    """Flattens whatever usage the provider reported into one flat record.
+    Every field is optional — a provider that reports nothing still yields a
+    usable record carrying the measured latency."""
+    record = {
+        "model": model_name,
+        "latency_ms": round(latency_ms),
+        "input_tokens": None,
+        "output_tokens": None,
+        "reasoning_tokens": None,
+        "cached_tokens": None,
+        "total_tokens": None,
+        "cost_usd": None,
+    }
+
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return record
+
+    record["input_tokens"] = _usage_int(usage, "prompt_tokens", "input_tokens")
+    record["output_tokens"] = _usage_int(usage, "completion_tokens", "output_tokens")
+    record["total_tokens"] = _usage_int(usage, "total_tokens")
+
+    # Reasoning/cached counts live in nested *_tokens_details objects and are
+    # worth separating out: reasoning tokens are billed as output but aren't
+    # part of the JSON the model actually returned, and cached input tokens
+    # are billed at a different rate than fresh ones.
+    details = getattr(usage, "completion_tokens_details", None)
+    if details is not None:
+        record["reasoning_tokens"] = _usage_int(details, "reasoning_tokens")
+    details = getattr(usage, "prompt_tokens_details", None)
+    if details is not None:
+        record["cached_tokens"] = _usage_int(details, "cached_tokens")
+
+    cost = getattr(usage, "cost", None)
+    if isinstance(cost, (int, float)):
+        record["cost_usd"] = float(cost)
+
+    if record["total_tokens"] is None and None not in (record["input_tokens"], record["output_tokens"]):
+        record["total_tokens"] = record["input_tokens"] + record["output_tokens"]
+
+    return record
+
+
+async def timed_completion(model_name: str, messages: list, max_tokens: int,
+                            extra_body: dict, usage_sink: Optional[list] = None,
+                            stage: Optional[str] = None):
+    """Makes one chat-completion request, appending a usage record (latency +
+    tokens + cost) to usage_sink whether the call succeeds or raises. `stage`
+    optionally tags the record so a multi-stage flow can tell which of its
+    passes a given request belonged to."""
+    body = dict(extra_body or {})
+    # OpenRouter-specific: ask for real cost accounting on the response.
+    body["usage"] = {"include": True}
+
+    started = time.perf_counter()
+    try:
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            temperature=0,
+            top_p=0.1,
+            max_tokens=max_tokens,
+            extra_body=body,
+        )
+    except Exception as e:
+        if usage_sink is not None:
+            failed = extract_usage(None, (time.perf_counter() - started) * 1000, model_name)
+            failed["error"] = str(e)
+            if stage:
+                failed["stage"] = stage
+            usage_sink.append(failed)
+        raise
+
+    if usage_sink is not None:
+        record = extract_usage(response, (time.perf_counter() - started) * 1000, model_name)
+        if stage:
+            record["stage"] = stage
+        usage_sink.append(record)
+    return response
+
+
+def summarize_usage(records: list) -> dict:
+    """Rolls a list of per-request usage records up into the totals shown per
+    model. Latency is reported BOTH as a sum and as per-request stats, since
+    the sum is only meaningful for sequential execution — under parallel
+    execution the requests overlap, so mean/max describe what actually
+    happened far better than a total that exceeds the wall clock."""
+    records = list(records or [])
+    latencies = [r["latency_ms"] for r in records if isinstance(r.get("latency_ms"), (int, float))]
+
+    def total_of(field):
+        values = [r[field] for r in records if isinstance(r.get(field), (int, float))]
+        return sum(values) if values else None
+
+    cost = total_of("cost_usd")
+    return {
+        "requests": len(records),
+        "failed_requests": sum(1 for r in records if r.get("error")),
+        "input_tokens": total_of("input_tokens"),
+        "output_tokens": total_of("output_tokens"),
+        "reasoning_tokens": total_of("reasoning_tokens"),
+        "cached_tokens": total_of("cached_tokens"),
+        "total_tokens": total_of("total_tokens"),
+        "cost_usd": round(cost, 6) if cost is not None else None,
+        "latency_ms": {
+            "sum": round(sum(latencies)) if latencies else None,
+            "mean": round(sum(latencies) / len(latencies)) if latencies else None,
+            "min": round(min(latencies)) if latencies else None,
+            "max": round(max(latencies)) if latencies else None,
+        },
+        "requests_detail": records,
+    }
+
+
 async def call_model_for_objects(model_name: str, system_prompt: str, user_prompt: str,
                                   image_b64: str, width: int, height: int,
-                                  allowed_labels: set, override_note: str) -> list:
+                                  allowed_labels: set, override_note: str,
+                                  usage_sink: Optional[list] = None,
+                                  stage: Optional[str] = None) -> list:
     """Sends ONE image to a model with a given system+user prompt, parses the
     {"objects":[...]} response, keeps only entries whose label is in
     allowed_labels, and normalizes every box to 0-1000 relative to
@@ -192,14 +826,8 @@ async def call_model_for_objects(model_name: str, system_prompt: str, user_promp
         ]}
     ]
 
-    response = await client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        temperature=0,
-        top_p=0.1,
-        max_tokens=max_response_tokens,
-        extra_body=extra_body,
-    )
+    response = await timed_completion(model_name, messages, max_response_tokens,
+                                       extra_body, usage_sink=usage_sink, stage=stage)
 
     if not response.choices:
         raise Exception("Model returned no choices")
@@ -391,9 +1019,17 @@ async def generate_responses(
         file_execution_mode: str = Form("sequential"),
         page_grouping_mode: str = Form("single"),
         page_execution_mode: str = Form("sequential"),
+        ground_truth: str = Form("[]"),   # JSON, same shape /api/grid/detect accepts
+        iou_threshold: float = Form(0.5),
         files: List[UploadFile] = File(...)
 ):
     models = json.loads(models_data)
+    iou_threshold = max(0.0, min(1.0, iou_threshold))
+
+    try:
+        gt_items = extract_ground_truth_items(json.loads(ground_truth) if ground_truth else [])
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid ground_truth payload")
 
     # Guard against absurd or malicious values while still respecting the
     # user's chosen resolution (matches the 72-600 range exposed in the UI).
@@ -474,15 +1110,30 @@ async def generate_responses(
             })
             page_pixel_dims[(f_idx, page_num)] = (px_w, px_h)
 
+    # Ground truth is measured in PDF points, so each page's render is
+    # converted back to its 72-DPI equivalent size rather than normalized
+    # against the pixel size of whatever DPI this run used — see
+    # normalize_ground_truth() for why that distinction matters.
+    multi_file = len(file_pages) > 1
+    page_points_dims = {
+        key: (px_w * 72 / dpi, px_h * 72 / dpi)
+        for key, (px_w, px_h) in page_pixel_dims.items()
+    }
+    file_index_by_name = {name: idx for idx, name in enumerate(file_names)}
+    ground_truth_norm = normalize_ground_truth(gt_items, page_points_dims, multi_file,
+                                                file_index_by_name)
+
     # Nothing to analyze — skip the model loop and say so clearly instead of
     # sending an empty request to every model.
     if total_images == 0:
         results = [
-            {"model": item["model"], "response": json.dumps({"error": "No pages were found in the uploaded PDF(s)."})}
+            {"model": item["model"], "response": json.dumps({"error": "No pages were found in the uploaded PDF(s)."}),
+             "score": None, "usage": None}
             for item in models
         ]
         save_history_meta(run_id, run_dir, system_prompt, dpi, execution_settings,
-                           file_names, pages_meta, models, results)
+                           file_names, pages_meta, models, results,
+                           ground_truth_norm, iou_threshold)
         prune_history()
         return {"results": results, "run_id": run_id}
 
@@ -519,7 +1170,7 @@ async def generate_responses(
     # ===============================
     # Run a single batch (one API call) for one model
     # ===============================
-    async def run_batch(model_name: str, user_prompt: str, entries: list):
+    async def run_batch(model_name: str, user_prompt: str, entries: list, usage_sink: list):
         n = len(entries)
         content = [{"type": "text", "text": user_prompt}]
         local_mapping = []
@@ -587,14 +1238,8 @@ async def generate_responses(
         ]
 
         try:
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                temperature=0,
-                top_p=0.1,
-                max_tokens=max_response_tokens,
-                extra_body=extra_body
-            )
+            response = await timed_completion(model_name, messages, max_response_tokens,
+                                               extra_body, usage_sink=usage_sink)
 
             if not response.choices:
                 raise Exception("Model returned no choices")
@@ -700,27 +1345,29 @@ async def generate_responses(
     # ===============================
     # Run every batch for one model, respecting file/page execution modes
     # ===============================
-    async def run_batches_in_group(model_name: str, user_prompt: str, batches: list):
+    async def run_batches_in_group(model_name: str, user_prompt: str, batches: list, usage_sink: list):
         if page_execution_mode == "parallel":
-            return await asyncio.gather(*[run_batch(model_name, user_prompt, b) for b in batches])
+            return await asyncio.gather(*[run_batch(model_name, user_prompt, b, usage_sink) for b in batches])
         results = []
         for b in batches:
-            results.append(await run_batch(model_name, user_prompt, b))
+            results.append(await run_batch(model_name, user_prompt, b, usage_sink))
         return results
 
     async def run_model(item: dict):
         model_name = item["model"]
         user_prompt = item["prompt"]
+        usage_sink = []
+        model_started = time.perf_counter()
 
         if file_execution_mode == "parallel":
             group_results = await asyncio.gather(*[
-                run_batches_in_group(model_name, user_prompt, batches)
+                run_batches_in_group(model_name, user_prompt, batches, usage_sink)
                 for batches in file_group_batches
             ])
         else:
             group_results = []
             for batches in file_group_batches:
-                group_results.append(await run_batches_in_group(model_name, user_prompt, batches))
+                group_results.append(await run_batches_in_group(model_name, user_prompt, batches, usage_sink))
 
         all_objects = []
         errors = []
@@ -731,10 +1378,21 @@ async def generate_responses(
                 else:
                     errors.append(r["error"])
 
+        usage = summarize_usage(usage_sink)
+        # Wall-clock for this model's whole run, which is what the sum of
+        # per-request latencies stops describing as soon as any axis is set
+        # to parallel and requests start overlapping.
+        usage["wall_ms"] = round((time.perf_counter() - model_started) * 1000)
+
         # If every single batch failed, surface that clearly instead of
         # returning an empty-but-successful-looking payload.
         if errors and not all_objects and len(errors) == total_requests_per_model:
-            return {"model": model_name, "response": json.dumps({"error": "; ".join(errors)}, ensure_ascii=False)}
+            return {
+                "model": model_name,
+                "response": json.dumps({"error": "; ".join(errors)}, ensure_ascii=False),
+                "score": None,
+                "usage": usage,
+            }
 
         # Counting is ALWAYS done here, from the actual objects list — never
         # trusted from the model's own output.
@@ -748,7 +1406,17 @@ async def generate_responses(
         if errors:
             final_json["errors"] = errors
 
-        return {"model": model_name, "response": json.dumps(final_json, ensure_ascii=False)}
+        score_result = safe_score(
+            predictions_from_objects(all_objects, multi_file),
+            ground_truth_norm, iou_threshold,
+        )
+
+        return {
+            "model": model_name,
+            "response": json.dumps(final_json, ensure_ascii=False),
+            "score": score_result,
+            "usage": usage,
+        }
 
     # ===============================
     # Run every model, respecting model_execution_mode
@@ -762,18 +1430,26 @@ async def generate_responses(
 
     results = list(results)
     save_history_meta(run_id, run_dir, system_prompt, dpi, execution_settings,
-                       file_names, pages_meta, models, results)
+                       file_names, pages_meta, models, results,
+                       ground_truth_norm, iou_threshold)
     prune_history()
 
     return {"results": results, "run_id": run_id}
 
 
 def save_history_meta(run_id, run_dir, system_prompt, dpi, execution_settings,
-                       file_names, pages_meta, models, results):
+                       file_names, pages_meta, models, results,
+                       ground_truth=None, iou_threshold=None):
     """Persist everything needed to fully reconstruct this run later: the
     prompts used (system + per-model), settings, file/page list, and every
-    model's raw response alongside code-computed counts."""
-    results_by_model = {r["model"]: r["response"] for r in results}
+    model's raw response alongside code-computed counts, its location score
+    against whatever ground truth was supplied, and what the run cost (per-
+    request latency and token/cost totals)."""
+    results_by_model = {r["model"]: r for r in results}
+
+    def response_of(model):
+        entry = results_by_model.get(model)
+        return entry["response"] if entry else ""
 
     meta = {
         "run_id": run_id,
@@ -781,14 +1457,18 @@ def save_history_meta(run_id, run_dir, system_prompt, dpi, execution_settings,
         "system_prompt": system_prompt,
         "dpi": dpi,
         "execution_settings": execution_settings,
+        "iou_threshold": iou_threshold,
+        "ground_truth": ground_truth or [],
         "files": file_names,
         "pages": pages_meta,
         "results": [
             {
                 "model": item["model"],
                 "prompt": item["prompt"],
-                "response": results_by_model.get(item["model"], ""),
-                "counts": compute_counts(results_by_model.get(item["model"], "")),
+                "response": response_of(item["model"]),
+                "counts": compute_counts(response_of(item["model"])),
+                "score": (results_by_model.get(item["model"]) or {}).get("score"),
+                "usage": (results_by_model.get(item["model"]) or {}).get("usage"),
                 # Filled in later via PUT /api/history/{run_id}/expected-summary,
                 # once a human pastes in the ground-truth counts for this run —
                 # kept here (not a separate file) so it travels with the run and
@@ -817,6 +1497,36 @@ async def get_history_image(run_id: str, filename: str, size: str = "display"):
     if not path:
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(path, media_type="image/jpeg")
+
+
+def compact_usage(usage):
+    """The few usage numbers worth showing in the run LIST, without the
+    per-request detail the full record carries."""
+    if not isinstance(usage, dict):
+        return None
+    latency = usage.get("latency_ms") or {}
+    return {
+        "requests": usage.get("requests"),
+        "input_tokens": usage.get("input_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "cost_usd": usage.get("cost_usd"),
+        "wall_ms": usage.get("wall_ms"),
+        "mean_latency_ms": latency.get("mean"),
+    }
+
+
+def compact_score(score):
+    """Headline precision/recall/F1 for the run list — per-type breakdown and
+    matched objects stay in the detail endpoint."""
+    if not isinstance(score, dict) or "metrics" not in score:
+        return None
+    metrics = score.get("metrics") or {}
+    return {
+        "precision": metrics.get("precision"),
+        "recall": metrics.get("recall"),
+        "f1": metrics.get("f1"),
+        "iou_threshold": score.get("iou_threshold"),
+    }
 
 
 @app.get("/api/history")
@@ -869,7 +1579,15 @@ async def list_history(run_type: Optional[str] = None):
             "page_count": len(meta.get("pages", [])),
             "thumbnail_url": thumbnail_url,
             "models": [
-                {"model": r["model"], "counts": r.get("counts")}
+                {
+                    "model": r["model"],
+                    "counts": r.get("counts"),
+                    # Compact rollup only — the full per-request breakdown
+                    # stays in the detail endpoint, since this list is
+                    # deliberately kept light enough to load many runs at once.
+                    "usage": compact_usage(r.get("usage")),
+                    "score": compact_score(r.get("score")),
+                }
                 for r in meta.get("results", [])
             ],
         })
@@ -1007,6 +1725,9 @@ async def two_stage_detect_elevations(
         'reviewed and confirmed by a human.'
     )
 
+    usage_sink = []
+    started = time.perf_counter()
+
     async def process_page(f_idx: int, file_name: str, page_num: int, img):
         width, height = img.size
         image_b64 = image_to_b64(img)
@@ -1014,6 +1735,7 @@ async def two_stage_detect_elevations(
             objects = await call_model_for_objects(
                 model, system_prompt_stage1, elevation_prompt, image_b64, width, height,
                 allowed_labels={"elevation", "elevation_callout"}, override_note=override_note,
+                usage_sink=usage_sink, stage="stage1",
             )
         except Exception as e:
             raise HTTPException(
@@ -1057,7 +1779,14 @@ async def two_stage_detect_elevations(
             per_file_results.append(await process_file(i, f))
 
     results = [page_result for file_results in per_file_results for page_result in file_results]
-    return {"results": results}
+
+    # Stage 1 is its own request, so its cost is reported here and carried
+    # back by the frontend into the stage 2 call — that's what lets the final
+    # result show what the two stages cost TOGETHER, which is the only number
+    # that compares fairly against the one-stage flow's single figure.
+    usage = summarize_usage(usage_sink)
+    usage["wall_ms"] = round((time.perf_counter() - started) * 1000)
+    return {"results": results, "usage": usage}
 
 
 @app.post("/api/two-stage/details")
@@ -1079,6 +1808,12 @@ async def two_stage_detect_details(
         targets: str = Form(...),
         file_execution_mode: str = Form("sequential"),
         page_execution_mode: str = Form("sequential"),
+        ground_truth: str = Form("[]"),   # JSON, same shape /api/grid/detect accepts
+        iou_threshold: float = Form(0.5),
+        # Whatever /api/two-stage/elevations reported for the stage 1 pass
+        # that produced `targets`, handed back so the totals stored and
+        # returned here cover BOTH stages rather than only the crops.
+        stage1_usage: str = Form(""),
 ):
     """Stage 2: for every reviewed (file, page), crop each APPROVED
     elevation out of that page — RE-RENDERED from the original PDF at
@@ -1095,8 +1830,27 @@ async def two_stage_detect_details(
     stage2_dpi = max(72, min(600, stage2_dpi))
     stage1_dpi = max(72, min(600, stage1_dpi))
     stage2_concurrency = max(1, min(20, stage2_concurrency))
+    iou_threshold = max(0.0, min(1.0, iou_threshold))
     file_execution_mode = normalize_exec_mode(file_execution_mode)
     page_execution_mode = normalize_exec_mode(page_execution_mode)
+
+    try:
+        gt_items = extract_ground_truth_items(json.loads(ground_truth) if ground_truth else [])
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid ground_truth payload")
+
+    # A malformed stage-1 usage blob should cost the run its combined totals,
+    # not the whole detection result.
+    stage1_records = []
+    if stage1_usage:
+        try:
+            parsed = json.loads(stage1_usage)
+            if isinstance(parsed, dict):
+                parsed = parsed.get("requests_detail", [])
+            if isinstance(parsed, list):
+                stage1_records = [r for r in parsed if isinstance(r, dict)]
+        except json.JSONDecodeError:
+            print("[two-stage] ignoring malformed stage1_usage payload")
 
     try:
         target_list = json.loads(targets)
@@ -1127,6 +1881,9 @@ async def two_stage_detect_details(
     # with many elevations across many pages shouldn't fire off dozens of
     # simultaneous requests just because it can.
     semaphore = asyncio.Semaphore(stage2_concurrency)
+
+    usage_sink = []
+    started = time.perf_counter()
 
     override_note = (
         'STAGE 2 OF 2 - DETAILS WITHIN ONE ELEVATION: this image is a '
@@ -1166,6 +1923,7 @@ async def two_stage_detect_details(
                         model, system_prompt_stage2, detail_prompt, crop_b64, crop_w, crop_h,
                         allowed_labels={"cabinet", "countertop"},
                         override_note=override_note,
+                        usage_sink=usage_sink, stage="stage2",
                     )
             except Exception as e:
                 print(f"[two-stage] details failed for {file_name} page {page_num} "
@@ -1252,6 +2010,33 @@ async def two_stage_detect_details(
     response_payload = {"summary": summary, "objects": final_objects}
     response_text = json.dumps(response_payload, ensure_ascii=False)
 
+    # Totals span BOTH stages: stage 1's records were measured in the earlier
+    # request and handed back in, stage 2's were measured just now.
+    stage2_wall_ms = round((time.perf_counter() - started) * 1000)
+    usage = summarize_usage(stage1_records + usage_sink)
+    usage["wall_ms"] = stage2_wall_ms
+    usage["by_stage"] = {
+        "stage1": summarize_usage(stage1_records),
+        "stage2": summarize_usage(usage_sink),
+    }
+
+    # page_records carries every page that was actually rendered in stage 2,
+    # which is exactly the set of pages predictions can exist on — the same
+    # points-based normalization the other flows use applies here too.
+    multi_file = len(files) > 1
+    page_points_dims = {}
+    for rec in page_records:
+        px_w, px_h = rec["page_img"].size
+        page_points_dims[(rec["file_index"], rec["page_num"])] = (px_w * 72 / stage2_dpi,
+                                                                  px_h * 72 / stage2_dpi)
+    file_index_by_name = {f.filename: i for i, f in enumerate(files)}
+    ground_truth_norm = normalize_ground_truth(gt_items, page_points_dims, multi_file,
+                                                file_index_by_name)
+    score_result = safe_score(
+        predictions_from_objects(final_objects, multi_file),
+        ground_truth_norm, iou_threshold,
+    )
+
     try:
         save_two_stage_history(
             page_records=page_records, file_names=[f.filename for f in files],
@@ -1259,6 +2044,8 @@ async def two_stage_detect_details(
             model=model, system_prompt_stage1=system_prompt_stage1, system_prompt_stage2=system_prompt_stage2,
             elevation_prompt=elevation_prompt, detail_prompt=detail_prompt,
             response_text=response_text,
+            score=score_result, usage=usage,
+            ground_truth=ground_truth_norm, iou_threshold=iou_threshold,
         )
         prune_history()
     except Exception as e:
@@ -1266,12 +2053,13 @@ async def two_stage_detect_details(
         # take down an otherwise-successful detection result.
         print(f"[two-stage] failed to save history: {e}")
 
-    return {"model": model, "response": response_text}
+    return {"model": model, "response": response_text, "score": score_result, "usage": usage}
 
 
 def save_two_stage_history(page_records, file_names, stage1_dpi, stage2_dpi, stage2_concurrency,
                             model, system_prompt_stage1, system_prompt_stage2,
-                            elevation_prompt, detail_prompt, response_text):
+                            elevation_prompt, detail_prompt, response_text,
+                            score=None, usage=None, ground_truth=None, iou_threshold=None):
     """Persists a completed two-stage run using the SAME history format and
     storage the regular /api/generate path uses (same meta.json shape, same
     images/ layout — including possibly-multiple pages/files), just tagged
@@ -1313,6 +2101,8 @@ def save_two_stage_history(page_records, file_names, stage1_dpi, stage2_dpi, sta
         "stage2_dpi": stage2_dpi,
         "stage2_concurrency": stage2_concurrency,
         "execution_settings": None,
+        "iou_threshold": iou_threshold,
+        "ground_truth": ground_truth or [],
         "files": file_names,
         "pages": pages_meta,
         "results": [{
@@ -1320,8 +2110,439 @@ def save_two_stage_history(page_records, file_names, stage1_dpi, stage2_dpi, sta
             "prompt": combined_prompt,
             "response": response_text,
             "counts": compute_counts(response_text),
+            "score": score,
+            "usage": usage,
             "expected_summary": None,
         }],
+    }
+
+    with open(os.path.join(run_dir, "meta.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# Grid-cell detection API
+# ===========================================================================
+# Single-PDF-only (unlike /api/generate, which accepts several): ground
+# truth is entered per run, scoped to the one document being scored, so
+# letting several unrelated PDFs share one run would make "which page is
+# which" ambiguous between the ground truth the person pasted in and the
+# pages actually sent. Every PAGE of that one PDF is still processed - in
+# parallel or one after another, per page_execution_mode - same as the
+# other flows' per-page axis.
+
+async def call_model_for_grid_objects(model_name: str, system_prompt: str, user_prompt: str,
+                                       image_b64: str, object_types: list,
+                                       grid_rows: int, grid_cols: int,
+                                       label_scheme: str = "alpha", box_precision: str = "cell",
+                                       usage_sink: Optional[list] = None) -> list:
+    """Sends ONE gridded page image to a model, asking it to name the grid
+    cell(s) each requested object type occupies (see drafts/prompts/System
+    Grid), then derives a 0-1 xyxy box for each one in code via
+    cells_to_unit_box() — the model never estimates a numeric box itself.
+
+    label_scheme controls how cells are named/drawn ("alpha" e.g. "C4",
+    "numeric" e.g. "R4C3", "banded" = alpha labels + a zebra row tint to
+    help count rows). box_precision="cell_anchor" additionally asks the
+    model to name WHERE within its start/end cell the object's own corner
+    actually sits (see ANCHOR_FRACTIONS) — sub-cell precision without a
+    finer grid. Both are request-scoped instructions layered onto whatever
+    system_prompt was configured, so the stored default prompt text never
+    has to change to support them."""
+    sample_row = min(1, grid_rows - 1)
+    sample_col = min(1, grid_cols - 1)
+    if label_scheme == "numeric":
+        naming_note = (
+            f'columns numbered C1 to C{grid_cols} left-to-right, rows numbered R1 to R{grid_rows} '
+            f'top-to-bottom — name a cell by combining both, e.g. "{cell_label(sample_row, sample_col, label_scheme)}" '
+            f'is row {sample_row + 1}, column {sample_col + 1}'
+        )
+    else:
+        naming_note = (
+            f'columns lettered A to {col_letters(grid_cols - 1)} left-to-right, rows numbered 1 to {grid_rows} '
+            f'top-to-bottom (e.g. cell "{cell_label(sample_row, sample_col, label_scheme)}" is row {sample_row + 1}, '
+            f'column {col_letters(sample_col)})'
+        )
+        if label_scheme == "banded":
+            naming_note += ('. Every other row has a faint background tint purely to help you count rows '
+                             'accurately — it has no meaning of its own')
+    override_note = (
+        f'This request uses a {grid_rows}x{grid_cols} reference grid — {naming_note}. Report ONLY these '
+        f'object type(s) for this request: {", ".join(object_types)}. For each object found, report every '
+        f'cell it occupies under "cells" — never a pixel, 0-1000, or 0-1 box.'
+    )
+    if box_precision == "cell_anchor":
+        anchor_names = ", ".join(sorted(ANCHOR_FRACTIONS))
+        override_note += (
+            f' "cells" alone is NOT enough for this request. You are REQUIRED to also report "start_point" '
+            f'and "end_point" on every object — this is a normal, required part of reporting each object, not '
+            f'an optional extra. "start_point" is where the object\'s own top-left corner sits WITHIN its '
+            f'top-left-most named cell; "end_point" is where its own bottom-right corner sits WITHIN its '
+            f'bottom-right-most named cell. Each is one of these named positions: {anchor_names}. Most real '
+            f'objects do NOT line up exactly with a grid line — before answering, look at how far across each '
+            f'of those two cells the object\'s own edge actually falls, rather than defaulting to "topleft"/'
+            f'"bottomright" out of habit; use those two ONLY when the object\'s own edge visibly touches that '
+            f'exact cell edge. Reporting the same "topleft"/"bottomright" pair for every object is almost '
+            f'certainly wrong and defeats the purpose of this request. Example object: '
+            f'{{"object_type":"cabinet","cells":["C4"],"start_point":"left","end_point":"center"}}'
+        )
+    elif box_precision == "cell_fraction":
+        override_note += (
+            f' "cells" alone is NOT enough for this request. You are REQUIRED to also report "start_point" '
+            f'and "end_point" on every object — this is a normal, required part of reporting each object, not '
+            f'an optional extra. Each is a [fx, fy] array of two numbers from 0 to 1, giving a point\'s '
+            f'position inside ONE cell (NOT the whole sheet): fx=0 is that cell\'s own left edge, fx=1 its own '
+            f'right edge; fy=0 its own top edge, fy=1 its own bottom edge. "start_point" locates the object\'s '
+            f'own top-left corner WITHIN its top-left-most named cell; "end_point" locates its own '
+            f'bottom-right corner WITHIN its bottom-right-most named cell. This is the SAME kind of estimate '
+            f'as placing a point on a 0-1 image, just rescaled to one small cell instead of the whole sheet, '
+            f'so make an actual visual estimate — most real objects do NOT line up exactly with a grid line, '
+            f'so [0,0]/[1,1] should be rare, only when the object\'s own edge visibly touches that exact cell '
+            f'edge. Reporting [0,0]/[1,1] for every object is almost certainly wrong and defeats the purpose '
+            f'of this request. Example object: '
+            f'{{"object_type":"cabinet","cells":["C4"],"start_point":[0.1,0.4],"end_point":[0.9,0.7]}}'
+        )
+    final_system_instruction = system_prompt + f"""
+
+    [SYSTEM OVERRIDE - CRITICAL]
+    You have been provided with EXACTLY 1 image.
+    {override_note}
+    """
+
+    reasoning_kind = model_reasoning_kind(model_name)
+    extra_body = {}
+    if reasoning_kind in ("mandatory", "optional"):
+        extra_body["reasoning"] = {"effort": "low"}
+    max_response_tokens = 16000 if reasoning_kind in ("mandatory", "optional") else 10000
+
+    messages = [
+        {"role": "system", "content": final_system_instruction},
+        {"role": "user", "content": [
+            {"type": "text", "text": user_prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+        ]}
+    ]
+
+    response = await timed_completion(model_name, messages, max_response_tokens,
+                                       extra_body, usage_sink=usage_sink)
+
+    if not response.choices:
+        raise Exception("Model returned no choices")
+    message = response.choices[0].message
+    if message is None:
+        raise Exception("Model returned empty message")
+    response_text = message.content
+    if not response_text:
+        raise Exception(f"Model returned empty content. Finish reason: {response.choices[0].finish_reason}")
+
+    response_text = response_text.replace("```json", "").replace("```", "").strip()
+    try:
+        parsed_json = json.loads(response_text)
+    except json.JSONDecodeError:
+        parsed_json = json.loads(repair_json(response_text))
+
+    if isinstance(parsed_json, list):
+        parsed_json = {"objects": parsed_json}
+    elif not isinstance(parsed_json, dict):
+        raise Exception(f"Unexpected top-level JSON type from model: {type(parsed_json).__name__}")
+
+    raw_objects = parsed_json.get("objects", [])
+    if not isinstance(raw_objects, list):
+        raw_objects = []
+
+    allowed = set(object_types)
+    valid_objects = []
+    for obj in raw_objects:
+        if not isinstance(obj, dict):
+            continue
+        obj_type = obj.get("object_type") or obj.get("label")
+        if obj_type not in allowed:
+            continue
+        cells = obj.get("cells")
+        if isinstance(cells, str):
+            cells = [cells]
+        # "start_point"/"end_point" hold a named anchor string (cell_anchor
+        # mode) or a raw [fx, fy] pair (cell_fraction mode) — resolve_point_
+        # fraction() in cells_to_unit_box() accepts either shape regardless
+        # of which mode was actually requested.
+        start_point = obj.get("start_point") if box_precision != "cell" else None
+        end_point = obj.get("end_point") if box_precision != "cell" else None
+        box = cells_to_unit_box(cells, grid_rows, grid_cols, scheme=label_scheme,
+                                 start_anchor=start_point, end_anchor=end_point)
+        if box is None:
+            continue
+        valid_objects.append({"object_type": obj_type, "bbox": box})
+
+    return valid_objects
+
+
+@app.post("/api/grid/detect")
+async def grid_detect(
+        file: UploadFile = File(...),
+        dpi: int = Form(200),
+        max_dim: int = Form(1568),
+        grid_rows: int = Form(6),
+        grid_cols: int = Form(6),
+        grid_color: str = Form("#dc0000"),   # hex, e.g. "#dc0000" — grid line (and label) color
+        grid_opacity: float = Form(0.6),     # 0-1, grid line opacity
+        grid_thickness: int = Form(1),       # px, grid line width
+        label_scheme: str = Form("alpha"),   # "alpha" ("C4"), "numeric" ("R4C3"), or "banded" (alpha + zebra rows)
+        box_precision: str = Form("cell"),   # "cell" (full cell edges), "cell_anchor" (9-point) or "cell_fraction" (0-1 point)
+        iou_threshold: float = Form(0.5),
+        object_types: str = Form(...),      # JSON list of strings, e.g. ["cabinet","elevation"]
+        models_data: str = Form(...),        # JSON list of {"model":..., "prompt":...} — same shape /api/generate uses
+        system_prompt: str = Form(...),
+        ground_truth: str = Form("[]"),      # JSON list of {"object_type":..., "page":..., "box":[...]}
+        model_execution_mode: str = Form("sequential"),
+        page_execution_mode: str = Form("sequential"),
+):
+    """Flow contract: input = (one sheet PDF, target object types) -> output
+    = a list of {object_type, bbox} per page, scored against person-supplied
+    ground truth with location-scorer. Renders every page of the ONE
+    uploaded PDF, downscales each to fit the model, draws a labeled
+    reference grid on top, and asks each configured model to name grid
+    cells rather than compute coordinates directly (see
+    call_model_for_grid_objects). Every model runs over every page of the
+    same PDF; model_execution_mode/page_execution_mode control concurrency
+    the same way they do for /api/generate."""
+    dpi = max(72, min(600, dpi))
+    max_dim = max(256, min(4096, max_dim))
+    grid_rows = max(1, min(200, grid_rows))
+    grid_cols = max(1, min(200, grid_cols))
+    grid_rgb = hex_to_rgb(grid_color)
+    grid_opacity = max(0.05, min(1.0, grid_opacity))
+    grid_thickness = max(1, min(10, grid_thickness))
+    label_scheme = label_scheme if label_scheme in LABEL_SCHEMES else "alpha"
+    box_precision = box_precision if box_precision in BOX_PRECISIONS else "cell"
+    iou_threshold = max(0.0, min(1.0, iou_threshold))
+    model_execution_mode = normalize_exec_mode(model_execution_mode)
+    page_execution_mode = normalize_exec_mode(page_execution_mode)
+
+    try:
+        target_types = json.loads(object_types)
+        if not isinstance(target_types, list) or not target_types:
+            raise ValueError
+        target_types = [str(t) for t in target_types]
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid object_types payload")
+
+    try:
+        models = json.loads(models_data)
+        if not isinstance(models, list) or not models:
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid models_data payload")
+
+    try:
+        gt_raw = json.loads(ground_truth) if ground_truth else []
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid ground_truth payload")
+    gt_items = extract_ground_truth_items(gt_raw)
+
+    pdf_bytes = await file.read()
+    file_name = file.filename
+    images = convert_from_bytes(pdf_bytes, dpi=dpi, fmt="png")
+    if not images:
+        raise HTTPException(status_code=400, detail="No pages were found in the uploaded PDF.")
+
+    run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    run_dir = os.path.join(HISTORY_DIR, run_id)
+    images_dir = os.path.join(run_dir, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    # Render + downscale-to-fit + draw the grid ONCE per page, shared across
+    # every model — and save that exact gridded image, so history shows
+    # precisely what each model was shown, same as every other flow here.
+    pages_meta = []
+    page_payloads = []  # (page_num, image_b64, px_w, px_h) — px_w/px_h are the ORIGINAL render's pixel size
+    page_grid_geom = {}  # page_num -> geom, for mapping display boxes onto the saved (margin-included) image
+    for idx, img in enumerate(images):
+        page_num = idx + 1
+        px_w, px_h = img.size
+        gridded, geom = draw_grid_overlay(resize_to_fit(img, max_dim), grid_rows, grid_cols,
+                                           line_color=grid_rgb, line_opacity=grid_opacity,
+                                           line_width=grid_thickness, label_scheme=label_scheme)
+        page_grid_geom[page_num] = geom
+        image_filename = f"0_{page_num}.png"
+        gridded.save(os.path.join(images_dir, image_filename), format="PNG", optimize=True)
+        pages_meta.append({
+            "file_index": 0, "file_name": file_name, "page_num": page_num,
+            "image_url": f"/history-files/{run_id}/images/{image_filename}",
+        })
+        page_payloads.append((page_num, image_to_b64(gridded), px_w, px_h))
+
+    # Ground truth: normalized to 0-1 against each page's size in PDF POINTS
+    # rather than its rendered pixels — see normalize_ground_truth(), which
+    # every flow here shares. This endpoint always scores exactly one PDF, so
+    # every page belongs to file 0 and plain page numbers stay unique.
+    page_points_dims = {
+        (0, p_num): (px_w * 72 / dpi, px_h * 72 / dpi)
+        for (p_num, _b64, px_w, px_h) in page_payloads
+    }
+    ground_truth_norm = normalize_ground_truth(gt_items, page_points_dims, multi_file=False)
+
+    async def run_page(model_name: str, user_prompt: str, page_num: int, image_b64: str,
+                       usage_sink: list):
+        try:
+            objects = await call_model_for_grid_objects(
+                model_name, system_prompt, user_prompt, image_b64,
+                target_types, grid_rows, grid_cols,
+                label_scheme=label_scheme, box_precision=box_precision,
+                usage_sink=usage_sink,
+            )
+            return {"ok": True, "page": page_num, "objects": objects}
+        except Exception as e:
+            print(f"[grid] Error from model {model_name} on page {page_num}: {e}")
+            return {"ok": False, "page": page_num, "error": str(e)}
+
+    async def run_model(item: dict):
+        model_name = item["model"]
+        user_prompt = item["prompt"]
+        usage_sink = []
+        model_started = time.perf_counter()
+
+        if page_execution_mode == "parallel":
+            page_results = await asyncio.gather(*[
+                run_page(model_name, user_prompt, p_num, b64, usage_sink)
+                for (p_num, b64, _w, _h) in page_payloads
+            ])
+        else:
+            page_results = []
+            for (p_num, b64, _w, _h) in page_payloads:
+                page_results.append(await run_page(model_name, user_prompt, p_num, b64, usage_sink))
+
+        predictions = []
+        errors = []
+        for r in page_results:
+            if r["ok"]:
+                for obj in r["objects"]:
+                    predictions.append({"object_type": obj["object_type"], "bbox": obj["bbox"], "page": r["page"]})
+            else:
+                errors.append(f"page {r['page']}: {r['error']}")
+
+        usage = summarize_usage(usage_sink)
+        usage["wall_ms"] = round((time.perf_counter() - model_started) * 1000)
+
+        if errors and not predictions and len(errors) == len(page_results):
+            return {
+                "model": model_name,
+                "response": json.dumps({"error": "; ".join(errors)}, ensure_ascii=False),
+                "score": None,
+                "usage": usage,
+            }
+
+        score_result = safe_score(predictions, ground_truth_norm, iou_threshold)
+
+        summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0}
+        objects_out = []
+        for p in predictions:
+            key = LABEL_TO_SUMMARY_KEY.get(p["object_type"])
+            if key:
+                summary[key] += 1
+            # p["bbox"] is content-only fractions (what scoring against
+            # ground truth needs) — the saved/displayed image includes the
+            # header margin, so the DISPLAYED box needs the extra mapping
+            # or it lands shifted/shrunk relative to the grid lines it's
+            # supposed to align with (see content_box_to_canvas_frac()).
+            geom = page_grid_geom.get(p["page"])
+            display_box = content_box_to_canvas_frac(p["bbox"], geom) if geom else p["bbox"]
+            objects_out.append({
+                "label": p["object_type"],
+                "box": display_box,
+                "file_index": 0,
+                "page_num": p["page"],
+            })
+
+        final_json = {"summary": summary, "objects": objects_out}
+        if errors:
+            final_json["errors"] = errors
+
+        return {
+            "model": model_name,
+            "response": json.dumps(final_json, ensure_ascii=False),
+            "score": score_result,
+            "usage": usage,
+        }
+
+    if model_execution_mode == "parallel":
+        results = await asyncio.gather(*[run_model(item) for item in models])
+    else:
+        results = []
+        for item in models:
+            results.append(await run_model(item))
+
+    results = list(results)
+
+    save_grid_history(
+        run_id=run_id, run_dir=run_dir, system_prompt=system_prompt,
+        dpi=dpi, max_dim=max_dim, grid_rows=grid_rows, grid_cols=grid_cols,
+        grid_color="#%02x%02x%02x" % grid_rgb, grid_opacity=grid_opacity, grid_thickness=grid_thickness,
+        label_scheme=label_scheme, box_precision=box_precision,
+        iou_threshold=iou_threshold, object_types=target_types,
+        file_name=file_name, pages_meta=pages_meta, models=models, results=results,
+        ground_truth=ground_truth_norm,
+        model_execution_mode=model_execution_mode, page_execution_mode=page_execution_mode,
+    )
+    prune_history()
+
+    return {
+        "results": [
+            {"model": r["model"], "response": r["response"], "score": r["score"], "usage": r.get("usage")}
+            for r in results
+        ],
+        "run_id": run_id,
+    }
+
+
+def save_grid_history(run_id, run_dir, system_prompt, dpi, max_dim, grid_rows, grid_cols,
+                       grid_color, grid_opacity, grid_thickness, label_scheme, box_precision, iou_threshold,
+                       object_types, file_name, pages_meta, models, results, ground_truth,
+                       model_execution_mode, page_execution_mode):
+    """Persists a completed grid-detection run using the same history shape
+    every other flow uses (meta.json + images/), tagged run_type="grid" and
+    coord_scale="unit" — every box saved here is a 0-1 fraction (the
+    location-scorer shared contract), not the 0-1000 scale every other flow
+    in this file uses. The frontend's shared history-detail drawing code
+    checks that field and converts on load rather than this flow having to
+    fake a 0-1000 value just to reuse that drawing path."""
+    results_by_model = {r["model"]: r for r in results}
+
+    meta = {
+        "run_id": run_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "run_type": "grid",
+        "coord_scale": "unit",
+        "system_prompt": system_prompt,
+        "dpi": dpi,
+        "max_dim": max_dim,
+        "grid_rows": grid_rows,
+        "grid_cols": grid_cols,
+        "grid_color": grid_color,
+        "grid_opacity": grid_opacity,
+        "grid_thickness": grid_thickness,
+        "label_scheme": label_scheme,
+        "box_precision": box_precision,
+        "iou_threshold": iou_threshold,
+        "object_types": object_types,
+        "execution_settings": {
+            "model_execution_mode": model_execution_mode,
+            "page_execution_mode": page_execution_mode,
+        },
+        "files": [file_name],
+        "pages": pages_meta,
+        "ground_truth": ground_truth,
+        "results": [
+            {
+                "model": item["model"],
+                "prompt": item["prompt"],
+                "response": results_by_model.get(item["model"], {}).get("response", ""),
+                "counts": compute_counts(results_by_model.get(item["model"], {}).get("response", "")),
+                "score": results_by_model.get(item["model"], {}).get("score"),
+                "usage": results_by_model.get(item["model"], {}).get("usage"),
+                "expected_summary": None,
+            }
+            for item in models
+        ],
     }
 
     with open(os.path.join(run_dir, "meta.json"), "w", encoding="utf-8") as f:

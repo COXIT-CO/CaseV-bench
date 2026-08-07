@@ -20,6 +20,7 @@
         <nav class="tab-switcher" aria-label="Mode">
             <button type="button" class="tab-btn active" id="tab-btn-benchmark" data-tab="benchmark">Benchmark</button>
             <button type="button" class="tab-btn" id="tab-btn-twostage" data-tab="twostage">Two-Stage Detection</button>
+            <button type="button" class="tab-btn" id="tab-btn-grid" data-tab="grid">Grid Detection</button>
         </nav>
     </header>
 
@@ -115,6 +116,11 @@
                         <input type="number" id="dpi-input" class="inline-number" value="200" min="72" max="600" step="50" title="Resolution PDF pages are rendered at before being sent to the models. Higher = sharper detail on small text/labels, but a larger request.">
                     </div>
 
+                    <div class="control-group">
+                        <label for="iou-threshold">IoU threshold</label>
+                        <input type="number" id="iou-threshold" class="inline-number" value="0.5" min="0" max="1" step="0.05" title="Passed to location-scorer as-is — record it alongside any score you keep, since the same run scores differently at a different threshold.">
+                    </div>
+
                     <label class="toggle">
                         <input type="checkbox" id="use-global-prompt">
                         <span>Use one shared prompt for all models</span>
@@ -132,6 +138,8 @@
                     </div>
                     <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
                     <div class="response-box" data-empty="true">Waiting to run…</div>
+                    <div class="usage-box" id="usage-1"></div>
+                    <div class="gd-score-box" id="score-1"></div>
                 </div>
                 <div class="model-card" id="model-2">
                     <div class="model-card-head">
@@ -140,6 +148,8 @@
                     </div>
                     <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
                     <div class="response-box" data-empty="true">Waiting to run…</div>
+                    <div class="usage-box" id="usage-2"></div>
+                    <div class="gd-score-box" id="score-2"></div>
                 </div>
                 <div class="model-card" id="model-3">
                     <div class="model-card-head">
@@ -148,7 +158,30 @@
                     </div>
                     <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
                     <div class="response-box" data-empty="true">Waiting to run…</div>
+                    <div class="usage-box" id="usage-3"></div>
+                    <div class="gd-score-box" id="score-3"></div>
                 </div>
+            </div>
+
+            <div class="gd-ground-truth-block">
+                <label for="ground-truth">Ground truth (optional)</label>
+                <p class="settings-block-desc">
+                    Leave empty to run without scoring. Same shape the Grid Detection tab accepts:
+                    <code>{"project_id":"...","objects":[{"id":"...","category":"cabinet","page":1,"bbox":{"x":..,"y":..,"width":..,"height":..}}, ...]}</code>
+                    (a bare list works too). <code>bbox</code> x/y/width/height is given in PDF points — the
+                    same units the project's own <code>prj*-obj-location.json</code> exports use — or as 0-1
+                    fractions; which one you pasted is auto-detected, and either way the score is unaffected by
+                    the Render DPI above. When several PDFs are uploaded at once, add
+                    <code>"file"</code> (the file's name) or <code>"file_index"</code> to each object so page 1
+                    of one file is never matched against page 1 of another.
+                </p>
+                <textarea id="ground-truth" class="system-prompt-textarea gd-ground-truth-textarea" placeholder='{
+  "project_id": "prj2",
+  "objects": [
+    {"id": "elv-001", "category": "elevation", "page": 1, "bbox": {"x": 120, "y": 90, "width": 520, "height": 390}},
+    {"id": "cab-001", "category": "cabinet", "page": 1, "bbox": {"x": 150, "y": 200, "width": 150, "height": 220}}
+  ]
+}'></textarea>
             </div>
 
             <div class="action-buttons">
@@ -278,6 +311,10 @@
                         <label for="ts-stage2-concurrency">Max concurrent requests</label>
                         <input type="number" id="ts-stage2-concurrency" class="inline-number" value="3" min="1" max="20" step="1" title="Every approved elevation is always sent as its own separate request — none are skipped. This only limits how many of those requests run at the same time (e.g. 3 = 3 at once, the rest queue and start as earlier ones finish).">
                     </div>
+                    <div class="control-group">
+                        <label for="ts-iou-threshold">IoU threshold</label>
+                        <input type="number" id="ts-iou-threshold" class="inline-number" value="0.5" min="0" max="1" step="0.05" title="Passed to location-scorer as-is — record it alongside any score you keep, since the same run scores differently at a different threshold.">
+                    </div>
                 </div>
                 <div class="ts-stage-actions">
                     <button type="button" id="ts-run-stage2" class="run-button" disabled>② Looks good — Detect Details</button>
@@ -285,9 +322,215 @@
                 </div>
             </div>
 
+            <div class="gd-ground-truth-block">
+                <label for="ts-ground-truth">Ground truth (optional)</label>
+                <p class="settings-block-desc">
+                    Leave empty to run without scoring. Same shape and units as the Benchmark and Grid Detection
+                    tabs, so one ground-truth file can be pasted into any of them to compare the three approaches
+                    on equal terms. Scored against the merged final result — elevations from Stage 1 plus the
+                    cabinets and countertops Stage 2 found inside them.
+                </p>
+                <textarea id="ts-ground-truth" class="system-prompt-textarea gd-ground-truth-textarea" placeholder='{
+  "project_id": "prj2",
+  "objects": [
+    {"id": "elv-001", "category": "elevation", "page": 1, "bbox": {"x": 120, "y": 90, "width": 520, "height": 390}},
+    {"id": "cab-001", "category": "cabinet", "page": 1, "bbox": {"x": 150, "y": 200, "width": 150, "height": 220}}
+  ]
+}'></textarea>
+            </div>
+
             <div class="ts-result-block" id="ts-result-block" style="display: none;">
                 <h3>Final result</h3>
                 <div class="response-box" id="ts-response-box" data-empty="false"></div>
+                <div class="usage-box" id="ts-usage-box"></div>
+                <div class="gd-score-box" id="ts-score-box"></div>
+            </div>
+        </section>
+    </main>
+
+    <main class="container tab-panel" id="tab-grid">
+        <section class="pdf-section panel">
+            <h2>PDF Document</h2>
+
+            <div class="drop-zone" id="gd-drop-zone">
+                <input type="file" id="gd-pdf-upload" accept="application/pdf" hidden>
+                <div class="drop-zone-content">
+                    <svg viewBox="0 0 24 24" width="40" height="40">
+                        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM12 11.5L8.5 15H11V18H13V15H15.5L12 11.5Z"/>
+                    </svg>
+                    <p>Drag &amp; drop ONE PDF file here, or <span>browse files</span></p>
+                </div>
+            </div>
+
+            <div class="pdf-navigation" id="gd-pdf-nav" style="display: none;">
+                <select id="gd-file-selector"></select>
+                <div class="page-controls">
+                    <button id="gd-zoom-out" title="Zoom out" class="icon-button">&minus;</button>
+                    <span id="gd-zoom-level" class="zoom-readout">150%</span>
+                    <button id="gd-zoom-in" title="Zoom in" class="icon-button">&plus;</button>
+
+                    <span class="divider"></span>
+
+                    <button id="gd-prev-page">&larr; Prev</button>
+                    <span class="page-readout"><span id="gd-page-num">0</span> / <span id="gd-page-count">0</span></span>
+                    <button id="gd-next-page">Next &rarr;</button>
+
+                    <span class="divider"></span>
+
+                    <button id="gd-open-fullview" class="icon-button" title="Open full page view">&#9974;</button>
+                </div>
+            </div>
+
+            <div class="canvas-container">
+                <div class="canvas-wrapper">
+                    <canvas id="gd-pdf-canvas"></canvas>
+                </div>
+            </div>
+
+            <div class="visualization-controls" id="gd-vis-controls" style="display: none;">
+                <label for="gd-bbox-selector">Show detections from:</label>
+                <select id="gd-bbox-selector">
+                    <option value="none">Hide overlays</option>
+                </select>
+
+                <label class="toggle outline-toggle">
+                    <input type="checkbox" id="gd-outline-only-toggle">
+                    <span>Outline only</span>
+                </label>
+
+                <div class="bbox-legend" aria-label="Bounding box color legend">
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #4da3ff;"></i>elevation</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #00ff9d;"></i>cabinet</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #ffb347;"></i>countertop</span>
+                    <span class="legend-item"><i class="legend-swatch" style="--swatch: #ff5fa2;"></i>elevation_callout</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="models-section panel">
+            <div class="section-toolbar">
+                <h2>Grid Detection</h2>
+                <div class="toolbar-actions">
+                    <span class="json-badge">Grid cells, not coordinates</span>
+                    <button type="button" id="gd-open-history" class="ghost-button">
+                        <span class="gear-icon" aria-hidden="true">🕘</span> History
+                    </button>
+                    <button type="button" id="gd-open-execution-settings" class="ghost-button">
+                        <span class="gear-icon" aria-hidden="true">⚡</span> Execution Settings
+                    </button>
+                    <button type="button" id="gd-open-grid-settings" class="ghost-button">
+                        <span class="gear-icon" aria-hidden="true">▦</span> Grid Settings
+                    </button>
+                    <button type="button" id="gd-open-system-prompt" class="ghost-button">
+                        <span class="gear-icon" aria-hidden="true">⚙</span> System Prompt
+                    </button>
+                </div>
+            </div>
+
+            <p class="ts-explainer">
+                A labeled reference grid (columns lettered "A", "B", ... left-to-right, rows numbered "1", "2", ...
+                top-to-bottom) is drawn on the page before it's sent — each model reports which cell(s) an object
+                occupies (e.g. <code>"cells":["B2","B3"]</code>) instead of estimating a numeric box, and the box is
+                derived from those cells in code. Exactly ONE PDF at a time — ground truth is entered below for
+                this specific document, so results are scored per page with <code>location-scorer</code> as soon as
+                the run finishes.
+            </p>
+
+            <div class="global-controls">
+                <div class="settings-row">
+                    <div class="control-group">
+                        <label for="gd-model-count">Active models</label>
+                        <select id="gd-model-count" class="inline-select">
+                            <option value="1" selected>1 model</option>
+                            <option value="2">2 models</option>
+                            <option value="3">3 models</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="gd-dpi-input">Render DPI</label>
+                        <input type="number" id="gd-dpi-input" class="inline-number" value="200" min="72" max="600" step="50" title="Resolution the PDF page is rendered at before downscaling and drawing the grid.">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="gd-max-dim-input">Max image dimension (px)</label>
+                        <input type="number" id="gd-max-dim-input" class="inline-number" value="1568" min="256" max="4096" step="64" title="The render is downscaled so its longest side is at most this, THEN the grid is drawn — keeps grid labels a legible fraction of what the model actually sees, even on a huge native-DPI render.">
+                    </div>
+
+                    <label class="toggle">
+                        <input type="checkbox" id="gd-use-global-prompt">
+                        <span>Use one shared prompt for all models</span>
+                    </label>
+                </div>
+
+                <div class="settings-row">
+                    <div class="control-group">
+                        <label for="gd-iou-threshold">IoU threshold</label>
+                        <input type="number" id="gd-iou-threshold" class="inline-number" value="0.5" min="0" max="1" step="0.05" title="Passed to location-scorer as-is — record it alongside any score you keep, since the same run scores differently at a different threshold.">
+                    </div>
+                    <div class="control-group gd-object-types-group">
+                        <label for="gd-object-types">Object types (comma-separated)</label>
+                        <input type="text" id="gd-object-types" class="inline-text" value="cabinet,countertop,elevation,elevation_callout">
+                    </div>
+                </div>
+
+                <textarea id="gd-global-prompt" placeholder="Enter a shared prompt here..."></textarea>
+            </div>
+
+            <div class="models-grid cols-3" id="gd-models-grid">
+                <div class="model-card" id="gd-model-1">
+                    <div class="model-card-head">
+                        <span class="model-index">1</span>
+                        <input type="text" class="model-name" value="openai/gpt-4o-mini" placeholder="Model ID">
+                    </div>
+                    <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
+                    <div class="response-box" data-empty="true">Waiting to run…</div>
+                    <div class="usage-box" id="gd-usage-1"></div>
+                    <div class="gd-score-box" id="gd-score-1"></div>
+                </div>
+                <div class="model-card" id="gd-model-2">
+                    <div class="model-card-head">
+                        <span class="model-index">2</span>
+                        <input type="text" class="model-name" value="anthropic/claude-3-haiku" placeholder="Model ID">
+                    </div>
+                    <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
+                    <div class="response-box" data-empty="true">Waiting to run…</div>
+                    <div class="usage-box" id="gd-usage-2"></div>
+                    <div class="gd-score-box" id="gd-score-2"></div>
+                </div>
+                <div class="model-card" id="gd-model-3">
+                    <div class="model-card-head">
+                        <span class="model-index">3</span>
+                        <input type="text" class="model-name" value="google/gemini-flash-1.5" placeholder="Model ID">
+                    </div>
+                    <textarea class="model-prompt" placeholder="Individual prompt..."></textarea>
+                    <div class="response-box" data-empty="true">Waiting to run…</div>
+                    <div class="usage-box" id="gd-usage-3"></div>
+                    <div class="gd-score-box" id="gd-score-3"></div>
+                </div>
+            </div>
+
+            <div class="gd-ground-truth-block">
+                <label for="gd-ground-truth">Ground truth for this PDF</label>
+                <p class="settings-block-desc">
+                    One JSON object, entered once per run: <code>{"project_id":"...","objects":[{"id":"...","category":"cabinet","page":1,"bbox":{"x":..,"y":..,"width":..,"height":..}}, ...]}</code>
+                    (a bare list of the same object shape is also accepted). <code>bbox</code> x/y/width/height can be
+                    given as PIXELS measured against the Render DPI above, OR as 0-1 fractions — whichever you paste
+                    in is auto-detected and converted; <code>page</code> is 1-indexed and must match the uploaded
+                    PDF's own page numbers.
+                </p>
+                <textarea id="gd-ground-truth" class="system-prompt-textarea gd-ground-truth-textarea" placeholder='{
+  "project_id": "prj2",
+  "objects": [
+    {"id": "elv-001", "category": "elevation", "page": 1, "bbox": {"x": 120, "y": 90, "width": 520, "height": 390}},
+    {"id": "cab-001", "category": "cabinet", "page": 1, "bbox": {"x": 150, "y": 200, "width": 150, "height": 220}}
+  ]
+}'></textarea>
+            </div>
+
+            <div class="action-buttons">
+                <button id="gd-run-btn" class="run-button">▶ Run Grid Detection</button>
+                <button id="gd-export-btn" class="export-button" style="display: none;">⬇ Export Results (JSON)</button>
             </div>
         </section>
     </main>
@@ -456,6 +699,151 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="gd-system-prompt-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="gd-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 id="gd-modal-title">Grid Detection System Prompt</h3>
+                    <p class="modal-subtitle">Rules and cell-reporting schema sent with every model request</p>
+                </div>
+                <button type="button" id="gd-close-system-prompt" class="icon-button close-button" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="gd-system-prompt" class="system-prompt-textarea"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="gd-reset-system-prompt" class="ghost-button">Reset to default</button>
+                <button type="button" id="gd-save-system-prompt" class="run-button modal-save">Save &amp; Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="gd-execution-settings-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="gd-execution-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 id="gd-execution-modal-title">Execution Settings</h3>
+                    <p class="modal-subtitle">Control the order/concurrency of per-model and per-page requests</p>
+                </div>
+                <button type="button" id="gd-close-execution-settings" class="icon-button close-button" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Models</div>
+                    <p class="settings-block-desc">When more than one model is configured, should they be queried one after another, or all at once?</p>
+                    <div class="control-group">
+                        <label for="gd-model-execution-mode">Model requests</label>
+                        <select id="gd-model-execution-mode" class="inline-select">
+                            <option value="sequential" selected>Sequential</option>
+                            <option value="parallel">Parallel</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Pages</div>
+                    <p class="settings-block-desc">Every page of the uploaded PDF is always its own separate request — this only controls whether those requests (per model) run one after another or all at once.</p>
+                    <div class="control-group">
+                        <label for="gd-page-execution-mode">Page request order</label>
+                        <select id="gd-page-execution-mode" class="inline-select">
+                            <option value="sequential" selected>Sequential</option>
+                            <option value="parallel">Parallel</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="gd-reset-execution-settings" class="ghost-button">Reset to default</button>
+                <button type="button" id="gd-save-execution-settings" class="run-button modal-save">Save &amp; Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="gd-grid-settings-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="gd-grid-settings-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h3 id="gd-grid-settings-modal-title">Grid Settings</h3>
+                    <p class="modal-subtitle">Controls the reference grid drawn on the page before it's sent to each model</p>
+                </div>
+                <button type="button" id="gd-close-grid-settings" class="icon-button close-button" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Size</div>
+                    <div class="settings-row">
+                        <div class="control-group">
+                            <label for="gd-modal-grid-rows">Grid rows</label>
+                            <input type="number" id="gd-modal-grid-rows" class="inline-number" value="6" min="1" max="200" step="1">
+                        </div>
+                        <div class="control-group">
+                            <label for="gd-modal-grid-cols">Grid columns</label>
+                            <input type="number" id="gd-modal-grid-cols" class="inline-number" value="6" min="1" max="200" step="1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Appearance</div>
+                    <p class="settings-block-desc">Applies to both the grid lines and their row/column labels — the labels are drawn a bit darker than the lines for legibility, at full opacity.</p>
+                    <div class="settings-row">
+                        <div class="control-group">
+                            <label for="gd-modal-grid-color">Line color</label>
+                            <input type="color" id="gd-modal-grid-color" class="inline-color" value="#dc0000">
+                        </div>
+                        <div class="control-group">
+                            <label for="gd-modal-grid-opacity">Line opacity</label>
+                            <input type="range" id="gd-modal-grid-opacity" min="0.05" max="1" step="0.05" value="0.6">
+                            <span id="gd-modal-grid-opacity-readout" class="range-readout">60%</span>
+                        </div>
+                        <div class="control-group">
+                            <label for="gd-modal-grid-thickness">Line thickness (px)</label>
+                            <input type="number" id="gd-modal-grid-thickness" class="inline-number" value="1" min="1" max="10" step="1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Cell labeling</div>
+                    <p class="settings-block-desc">How cells are named — and what the model is told to name them — without touching the System Prompt: this is layered onto whichever prompt is configured, per request.</p>
+                    <div class="settings-row">
+                        <div class="control-group">
+                            <label for="gd-modal-label-scheme">Label scheme</label>
+                            <select id="gd-modal-label-scheme" class="inline-select">
+                                <option value="alpha" selected>A1 (letters + numbers)</option>
+                                <option value="numeric">R1C1 (numbers only)</option>
+                                <option value="banded">A1 + zebra rows</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-block">
+                    <div class="settings-block-title">Box precision</div>
+                    <p class="settings-block-desc">By default a detection's box is the full outer edges of every cell it named. "Cell + anchor" tells the model it MUST also say where WITHIN its start/end cell the object's own corner sits, picked from 9 fixed positions (a corner, an edge midpoint, or the center). "Cell + 0-1 point" instead requires a free [fx, fy] coordinate inside that cell — more flexible, but a harder estimate for the model to make. Both modes are phrased as required, not optional, since models otherwise default to the cell's outer edges out of habit; if the model still omits it, the full cell edges are used as a safety net, same as today.</p>
+                    <div class="settings-row">
+                        <div class="control-group">
+                            <label for="gd-modal-box-precision">Box precision</label>
+                            <select id="gd-modal-box-precision" class="inline-select">
+                                <option value="cell" selected>Cell edges (current)</option>
+                                <option value="cell_anchor">Cell + anchor point (9 positions)</option>
+                                <option value="cell_fraction">Cell + 0-1 point</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="gd-reset-grid-settings" class="ghost-button">Reset to default</button>
+                <button type="button" id="gd-save-grid-settings" class="run-button modal-save">Save &amp; Close</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="history-overlay">
         <div class="modal history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
             <div class="modal-header">
@@ -528,6 +916,6 @@
         </div>
     </div>
 
-    <script src="/static/script.js?v=5"></script>
+    <script src="/static/script.js?v=7"></script>
 </body>
 </html>

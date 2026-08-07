@@ -54,6 +54,8 @@ const visControls = document.getElementById('vis-controls');
 const bboxSelector = document.getElementById('bbox-selector');
 const exportBtn = document.getElementById('export-btn');
 const runBtn = document.getElementById('run-btn');
+const iouThresholdInput = document.getElementById('iou-threshold');
+const groundTruthEl = document.getElementById('ground-truth');
 
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
@@ -548,6 +550,107 @@ if (useGlobalPrompt && globalPrompt) {
     });
 }
 
+// ===================================================================
+// Score + cost formatting (shared by all three tabs and by History)
+// ===================================================================
+// All three detection flows now return the same two extra fields next to
+// their response: "score" (location-scorer's output, or null when no ground
+// truth was entered) and "usage" (latency + token/cost totals). These
+// formatters are deliberately shared so a number means exactly the same
+// thing whichever tab it's read on — that comparability is the entire point
+// of measuring them.
+
+function formatScore(score) {
+    if (!score) return '';
+    if (score.error) return `Scoring failed: ${score.error}`;
+    const m = score.metrics;
+    const pct = (v) => `${Math.round(v * 100)}%`;
+    const lines = [
+        `location-scorer @ IoU ${score.iou_threshold}  —  P ${pct(m.precision)}  R ${pct(m.recall)}  F1 ${pct(m.f1)}  (tp ${score.counts.tp} / fp ${score.counts.fp} / fn ${score.counts.fn})`,
+    ];
+    Object.entries(score.per_type || {}).forEach(([type, v]) => {
+        lines.push(`  ${type}: P ${pct(v.metrics.precision)}  R ${pct(v.metrics.recall)}  F1 ${pct(v.metrics.f1)}  (tp ${v.counts.tp} / fp ${v.counts.fp} / fn ${v.counts.fn})`);
+    });
+    return lines.join('\n');
+}
+
+function formatDuration(ms) {
+    if (typeof ms !== 'number') return '—';
+    return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatTokens(n) {
+    return typeof n === 'number' ? n.toLocaleString('en-US') : '—';
+}
+
+function formatCost(usd) {
+    if (typeof usd !== 'number') return null;
+    // Per-request costs here are routinely well under a cent, so a plain
+    // 2-decimal currency format would render almost every real run as
+    // "$0.00" and hide exactly the differences worth comparing.
+    if (usd === 0) return '$0';
+    if (usd < 0.01) return `$${usd.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
+    return `$${usd.toFixed(4)}`;
+}
+
+function formatUsage(usage) {
+    if (!usage) return '';
+    const lat = usage.latency_ms || {};
+    const lines = [];
+
+    const cost = formatCost(usage.cost_usd);
+    const head = [
+        `${usage.requests} request${usage.requests === 1 ? '' : 's'}`,
+        `in ${formatTokens(usage.input_tokens)} tok`,
+        `out ${formatTokens(usage.output_tokens)} tok`,
+    ];
+    // OpenRouter reports cost per request; a provider that doesn't leaves it
+    // null, in which case the token counts above are the fallback measure.
+    head.push(cost ? `cost ${cost}` : 'cost n/a');
+    lines.push(head.join('  •  '));
+
+    const timing = [`wall ${formatDuration(usage.wall_ms)}`];
+    if (typeof lat.mean === 'number') {
+        timing.push(`per-request mean ${formatDuration(lat.mean)}`);
+        timing.push(`min ${formatDuration(lat.min)}`);
+        timing.push(`max ${formatDuration(lat.max)}`);
+        // Only meaningful when requests ran one after another; under parallel
+        // execution the sum exceeds the wall clock, which is why both are shown.
+        timing.push(`sum ${formatDuration(lat.sum)}`);
+    }
+    lines.push(timing.join('  •  '));
+
+    const extras = [];
+    if (typeof usage.reasoning_tokens === 'number' && usage.reasoning_tokens > 0) {
+        extras.push(`reasoning ${formatTokens(usage.reasoning_tokens)} tok (billed as output)`);
+    }
+    if (typeof usage.cached_tokens === 'number' && usage.cached_tokens > 0) {
+        extras.push(`cached input ${formatTokens(usage.cached_tokens)} tok`);
+    }
+    if (usage.failed_requests) extras.push(`${usage.failed_requests} failed`);
+    if (extras.length) lines.push(extras.join('  •  '));
+
+    if (usage.by_stage) {
+        const stageLine = ['stage 1', 'stage 2'].map((label, i) => {
+            const s = usage.by_stage[i === 0 ? 'stage1' : 'stage2'] || {};
+            const c = formatCost(s.cost_usd);
+            return `${label}: ${s.requests || 0} req, ${formatTokens(s.input_tokens)}/${formatTokens(s.output_tokens)} tok${c ? `, ${c}` : ''}`;
+        });
+        lines.push(stageLine.join('  •  '));
+    }
+
+    return lines.join('\n');
+}
+
+/** Writes text into one of the small score/usage panels under a model card,
+ *  hiding the panel entirely when there's nothing to show. */
+function setInfoBox(id, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('visible', Boolean(text));
+}
+
 if (runBtn) {
     runBtn.addEventListener('click', async () => {
         runBtn.textContent = '⏳ Running…';
@@ -573,6 +676,8 @@ if (runBtn) {
                 responseBox.style.color = 'var(--text-main)';
                 responseBox.dataset.empty = 'false';
             }
+            setInfoBox(`score-${i}`, '');
+            setInfoBox(`usage-${i}`, '');
             if (modelName && prompt) modelsData.push({ model: modelName, prompt: prompt });
         }
 
@@ -581,6 +686,23 @@ if (runBtn) {
             runBtn.textContent = '▶ Run Benchmark';
             runBtn.disabled = false;
             return;
+        }
+
+        // Optional — an empty box simply means "run without scoring".
+        let groundTruth = [];
+        const gtRaw = groundTruthEl ? groundTruthEl.value.trim() : '';
+        if (gtRaw) {
+            try {
+                // Either {"project_id":..., "objects":[...]} (the project's own
+                // export shape) or a bare list of the same object shape — the
+                // backend accepts both, so just check it parses.
+                groundTruth = JSON.parse(gtRaw);
+            } catch (e) {
+                alert('Ground truth must be valid JSON — see the description above the box for the expected shape.');
+                runBtn.textContent = '▶ Run Benchmark';
+                runBtn.disabled = false;
+                return;
+            }
         }
 
         const formData = new FormData();
@@ -607,6 +729,11 @@ if (runBtn) {
         formData.append('page_grouping_mode', executionSettings.pageGroupingMode);
         formData.append('page_execution_mode', executionSettings.pageExecutionMode);
 
+        let iouValue = iouThresholdInput ? parseFloat(iouThresholdInput.value) : 0.5;
+        if (!Number.isFinite(iouValue)) iouValue = 0.5;
+        formData.append('iou_threshold', iouValue);
+        formData.append('ground_truth', JSON.stringify(groundTruth));
+
         pdfFiles.forEach((fileObj) => formData.append('files', fileObj.rawFile));
 
         try {
@@ -616,7 +743,10 @@ if (runBtn) {
             if (data.results) {
                 llmResultsData = data.results.map(r => {
                     const req = modelsData.find(m => m.model === r.model);
-                    return { model: r.model, prompt: req ? req.prompt : '', response: r.response };
+                    return {
+                        model: r.model, prompt: req ? req.prompt : '', response: r.response,
+                        score: r.score, usage: r.usage,
+                    };
                 });
 
                 if (visControls && bboxSelector) {
@@ -632,16 +762,20 @@ if (runBtn) {
                 if (exportBtn) exportBtn.style.display = 'block';
 
                 data.results.forEach(result => {
-                    const cards = document.querySelectorAll('.model-card');
-                    cards.forEach(card => {
+                    for (let i = 1; i <= activeCount; i++) {
+                        const card = document.getElementById(`model-${i}`);
+                        if (!card) continue;
                         const mNameEl = card.querySelector('.model-name');
                         const rBox = card.querySelector('.response-box');
-                        if (mNameEl && rBox && mNameEl.value === result.model) {
-                            rBox.textContent = result.response;
-                            rBox.style.color = 'var(--accent)';
-                            rBox.dataset.empty = 'false';
-                        }
-                    });
+                        if (!mNameEl || rBox === null || mNameEl.value !== result.model) continue;
+                        rBox.textContent = result.response;
+                        rBox.style.color = 'var(--accent)';
+                        rBox.dataset.empty = 'false';
+                        setInfoBox(`usage-${i}`, formatUsage(result.usage));
+                        setInfoBox(`score-${i}`, result.score
+                            ? formatScore(result.score)
+                            : (gtRaw ? 'Ground truth matched no page in these files — nothing to score.' : ''));
+                    }
                 });
                 renderPage(pageNum);
                 if (isFullViewOpen()) {
@@ -777,6 +911,10 @@ async function replayRun(runId) {
             applyTwoStageRunToForm(run);
             tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === 'twostage'));
             tabPanels.forEach((p) => p.classList.toggle('active', p.id === 'tab-twostage'));
+        } else if (run.run_type === 'grid') {
+            applyGridRunToForm(run);
+            tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === 'grid'));
+            tabPanels.forEach((p) => p.classList.toggle('active', p.id === 'tab-grid'));
         } else {
             applyRunToForm(run);
             tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === 'benchmark'));
@@ -830,7 +968,96 @@ function applyTwoStageRunToForm(run) {
     if (tsModalSystemPrompt1) tsModalSystemPrompt1.value = sys1;
     if (tsModalSystemPrompt2) tsModalSystemPrompt2.value = sys2;
 
+    restoreScoringInputs(run, 'ts-iou-threshold', 'ts-ground-truth');
+
     tsResetStageUI();
+}
+
+/** Puts a saved run's IoU threshold and ground truth back into whichever
+ *  tab is being replayed. Ground truth is stored already normalized (0-1
+ *  boxes), which round-trips fine — the backend auto-detects that form. */
+function restoreScoringInputs(run, iouElId, gtElId) {
+    const iouEl = document.getElementById(iouElId);
+    if (iouEl && run.iou_threshold !== undefined && run.iou_threshold !== null) {
+        iouEl.value = run.iou_threshold;
+    }
+    const gtEl = document.getElementById(gtElId);
+    if (gtEl) {
+        gtEl.value = (Array.isArray(run.ground_truth) && run.ground_truth.length)
+            ? JSON.stringify(run.ground_truth, null, 2)
+            : '';
+    }
+}
+
+// Repopulates the Grid Detection tab's config (system prompt, DPI, max
+// image dimension, grid rows/cols, IoU threshold, object types, ground
+// truth, model cards, execution settings) from a saved grid run — the
+// source PDF is re-uploaded by the person, same as the other tabs.
+function applyGridRunToForm(run) {
+    const gdSystemPromptEl = document.getElementById('gd-system-prompt');
+    if (gdSystemPromptEl) gdSystemPromptEl.value = run.system_prompt || '';
+
+    const dpiEl = document.getElementById('gd-dpi-input');
+    if (dpiEl && run.dpi) dpiEl.value = run.dpi;
+    const maxDimEl = document.getElementById('gd-max-dim-input');
+    if (maxDimEl && run.max_dim) maxDimEl.value = run.max_dim;
+    const iouEl = document.getElementById('gd-iou-threshold');
+    if (iouEl && run.iou_threshold !== undefined && run.iou_threshold !== null) iouEl.value = run.iou_threshold;
+    const typesEl = document.getElementById('gd-object-types');
+    if (typesEl && Array.isArray(run.object_types)) typesEl.value = run.object_types.join(',');
+    const gtEl = document.getElementById('gd-ground-truth');
+    if (gtEl) {
+        gtEl.value = (Array.isArray(run.ground_truth) && run.ground_truth.length)
+            ? JSON.stringify(run.ground_truth, null, 2)
+            : '';
+    }
+
+    const results = run.results || [];
+    const count = Math.min(3, Math.max(1, results.length || 1));
+    const modelCountEl = document.getElementById('gd-model-count');
+    if (modelCountEl) { modelCountEl.value = String(count); updateGdActiveModels(); }
+
+    if (gdUseGlobalPrompt) {
+        gdUseGlobalPrompt.checked = false;
+        if (gdGlobalPrompt) gdGlobalPrompt.style.display = 'none';
+        gdModelPrompts.forEach((p) => { p.disabled = false; });
+    }
+
+    for (let i = 1; i <= 3; i++) {
+        const card = document.getElementById(`gd-model-${i}`);
+        if (!card) continue;
+        const nameEl = card.querySelector('.model-name');
+        const promptEl = card.querySelector('.model-prompt');
+        const r = results[i - 1];
+        if (r) {
+            if (nameEl) nameEl.value = r.model || '';
+            if (promptEl) promptEl.value = r.prompt || '';
+        }
+        setInfoBox(`gd-score-${i}`, '');
+        setInfoBox(`gd-usage-${i}`, '');
+    }
+
+    const es = run.execution_settings || {};
+    gdExecutionSettings = {
+        modelExecutionMode: es.model_execution_mode || gdDefaultExecutionSettings.modelExecutionMode,
+        pageExecutionMode: es.page_execution_mode || gdDefaultExecutionSettings.pageExecutionMode,
+    };
+    gdApplyExecutionSettingsToForm(gdExecutionSettings);
+
+    gdGridSettings = {
+        rows: run.grid_rows || gdDefaultGridSettings.rows,
+        cols: run.grid_cols || gdDefaultGridSettings.cols,
+        color: run.grid_color || gdDefaultGridSettings.color,
+        opacity: (run.grid_opacity !== undefined && run.grid_opacity !== null) ? run.grid_opacity : gdDefaultGridSettings.opacity,
+        thickness: run.grid_thickness || gdDefaultGridSettings.thickness,
+        labelScheme: run.label_scheme || gdDefaultGridSettings.labelScheme,
+        boxPrecision: run.box_precision || gdDefaultGridSettings.boxPrecision,
+    };
+    gdApplyGridSettingsToForm(gdGridSettings);
+
+    if (results.length > 3) {
+        alert(`This run used ${results.length} models — only the first 3 could be restored, since the form supports up to 3 at once.`);
+    }
 }
 
 // Repopulates the main run form (system prompt, DPI, model cards, execution
@@ -844,6 +1071,8 @@ function applyRunToForm(run) {
     if (dpiInput && run.dpi) {
         dpiInput.value = run.dpi;
     }
+
+    restoreScoringInputs(run, 'iou-threshold', 'ground-truth');
 
     const results = run.results || [];
 
@@ -874,6 +1103,11 @@ function applyRunToForm(run) {
             if (nameEl) nameEl.value = r.model || '';
             if (promptEl) promptEl.value = r.prompt || '';
         }
+        // A replay restores the SETUP, not the results — leaving the previous
+        // run's score/cost panels on screen would attribute them to a run
+        // that hasn't happened yet.
+        setInfoBox(`score-${i}`, '');
+        setInfoBox(`usage-${i}`, '');
     }
 
     const es = run.execution_settings || {};
@@ -930,7 +1164,7 @@ function renderHistoryList() {
         card.innerHTML = `
             ${run.thumbnail_url ? `<img class="history-run-thumb" src="${escapeHtml(run.thumbnail_url)}" alt="" loading="lazy">` : '<div class="history-run-thumb"></div>'}
             <div class="history-run-info">
-                <div class="history-run-date">${escapeHtml(formatHistoryDate(run.created_at))}${run.run_type === 'two_stage' ? ' <span class="history-run-badge">Two-Stage</span>' : ''}</div>
+                <div class="history-run-date">${escapeHtml(formatHistoryDate(run.created_at))}${run.run_type === 'two_stage' ? ' <span class="history-run-badge">Two-Stage</span>' : ''}${run.run_type === 'grid' ? ' <span class="history-run-badge">Grid</span>' : ''}</div>
                 <div class="history-run-meta" title="${escapeHtml(fileNames)}">${escapeHtml(fileNames)} · ${run.page_count} pg · ${escapeHtml(run.dpi)} DPI</div>
                 <div class="history-run-chips">${chips}</div>
             </div>
@@ -1001,6 +1235,21 @@ function renderHistoryDetail() {
             <div><b>System prompt:</b> ${run.system_prompt_stage1 && run.system_prompt_stage2 && run.system_prompt_stage1.trim() !== run.system_prompt_stage2.trim() ? 'separate per stage' : 'shared'}</div>
         </div>
         <button type="button" class="run-button history-replay-btn" id="history-detail-replay">↻ Replay this run's setup</button>
+    ` : run.run_type === 'grid' ? `
+        <div class="history-settings-grid">
+            <div><b>DPI:</b> ${escapeHtml(run.dpi)}</div>
+            <div><b>Max image dimension:</b> ${escapeHtml(run.max_dim)}px</div>
+            <div><b>Grid:</b> ${escapeHtml(run.grid_rows)} rows x ${escapeHtml(run.grid_cols)} cols</div>
+            ${run.grid_color ? `<div><b>Grid style:</b> ${escapeHtml(run.grid_color)}, ${escapeHtml(Math.round((run.grid_opacity ?? 0.6) * 100))}% opacity, ${escapeHtml(run.grid_thickness ?? 1)}px</div>` : ''}
+            ${run.label_scheme ? `<div><b>Label scheme:</b> ${escapeHtml(run.label_scheme)}</div>` : ''}
+            ${run.box_precision ? `<div><b>Box precision:</b> ${escapeHtml(run.box_precision)}</div>` : ''}
+            <div><b>IoU threshold:</b> ${escapeHtml(run.iou_threshold)}</div>
+            <div><b>Object types:</b> ${escapeHtml((run.object_types || []).join(', '))}</div>
+            <div><b>Models:</b> ${escapeHtml((run.results || []).map(r => r.model).join(', '))}</div>
+            <div><b>Model order:</b> ${escapeHtml(settings.model_execution_mode)}</div>
+            <div><b>Page order:</b> ${escapeHtml(settings.page_execution_mode)}</div>
+        </div>
+        <button type="button" class="run-button history-replay-btn" id="history-detail-replay">↻ Replay this run's setup</button>
     ` : `
         <div class="history-settings-grid">
             <div><b>DPI:</b> ${escapeHtml(run.dpi)}</div>
@@ -1022,6 +1271,15 @@ function renderHistoryDetail() {
             <div class="history-section-body">${escapeHtml(r.response)}</div>
         </details>
         <details class="history-section" open>
+            <summary>Location score — ${escapeHtml(r.model)}</summary>
+            <div class="history-section-body">${r.score ? escapeHtml(formatScore(r.score)) : 'No ground truth was entered for this run.'}</div>
+        </details>
+        <details class="history-section" open>
+            <summary>Cost &amp; latency — ${escapeHtml(r.model)}</summary>
+            <div class="history-section-body">${r.usage ? escapeHtml(formatUsage(r.usage)) : 'This run predates cost tracking.'}</div>
+        </details>
+        ${run.run_type === 'grid' ? '' : `
+        <details class="history-section" open>
             <summary>Expected vs actual — ${escapeHtml(r.model)}</summary>
             <div class="history-section-body">
                 <div class="history-eval-block">
@@ -1041,6 +1299,7 @@ function renderHistoryDetail() {
                 </div>
             </div>
         </details>
+        `}
     `).join('');
 
     const modelOptions = (run.results || [])
@@ -1067,6 +1326,12 @@ function renderHistoryDetail() {
             <div class="history-section-body">${escapeHtml(run.system_prompt)}</div>
         </details>
         `}
+        ${(run.ground_truth || []).length ? `
+        <details class="history-section">
+            <summary>Ground truth (${(run.ground_truth || []).length} object(s))</summary>
+            <div class="history-section-body">${escapeHtml(JSON.stringify(run.ground_truth, null, 2))}</div>
+        </details>
+        ` : ''}
         ${promptsHtml}
 
         <div class="history-page-nav">
@@ -1201,14 +1466,22 @@ async function drawHistoryPage() {
         const data = JSON.parse(resultEntry.response);
         if (!data.objects || !Array.isArray(data.objects)) return;
 
+        // Every OTHER run type stores boxes 0-1000; the grid-detection flow
+        // stores true 0-1 fractions (the location-scorer shared contract —
+        // see save_grid_history() in the backend). Rather than rescale
+        // every box back to 0-1000 at write time just to match everyone
+        // else, a run tags its own scale once via "coord_scale" and this
+        // shared drawing path divides by the right denominator for it.
+        const coordDenom = run.coord_scale === 'unit' ? 1 : 1000;
+
         const objects = sortObjectsForDrawing(data.objects);
         objects.forEach(obj => {
             if (obj.file_index === pageMeta.file_index && obj.page_num === pageMeta.page_num) {
                 const [xMin, yMin, xMax, yMax] = obj.box;
-                const x = (xMin / 1000) * canvas.width;
-                const y = (yMin / 1000) * canvas.height;
-                const w = ((xMax - xMin) / 1000) * canvas.width;
-                const h = ((yMax - yMin) / 1000) * canvas.height;
+                const x = (xMin / coordDenom) * canvas.width;
+                const y = (yMin / coordDenom) * canvas.height;
+                const w = ((xMax - xMin) / coordDenom) * canvas.width;
+                const h = ((yMax - yMin) / coordDenom) * canvas.height;
 
                 const style = styleForLabel(obj.label);
                 ctx.lineWidth = style.lineWidth * 1.5;
@@ -1238,7 +1511,11 @@ function openHistoryModal(filterType) {
     if (!historyOverlay) return;
     historyFilterType = filterType || 'single';
     const titleEl = document.getElementById('history-modal-title');
-    if (titleEl) titleEl.textContent = historyFilterType === 'two_stage' ? 'Two-Stage Run History' : 'Run History';
+    if (titleEl) {
+        titleEl.textContent = historyFilterType === 'two_stage' ? 'Two-Stage Run History'
+            : historyFilterType === 'grid' ? 'Grid Detection Run History'
+            : 'Run History';
+    }
     historyOverlay.classList.add('open');
     historyOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -1308,7 +1585,12 @@ function isTwoStageTabActive() {
     return !!(panel && panel.classList.contains('active'));
 }
 
-// Full Page View is shared between both tabs — this is the one place that
+function isGridTabActive() {
+    const panel = document.getElementById('tab-grid');
+    return !!(panel && panel.classList.contains('active'));
+}
+
+// Full Page View is shared between every tab — this is the one place that
 // decides which document/page/overlay boxes it should be looking at,
 // depending on which tab was active when it was opened.
 function getActiveViewerContext() {
@@ -1331,10 +1613,38 @@ function getActiveViewerContext() {
             },
         };
     }
+    if (isGridTabActive()) {
+        return {
+            doc: gdFile && gdFile.pdf,
+            page: gdPageNum,
+            hasModelSelector: true,
+            selectorEl: gdBboxSelector,
+            getOverlayBoxes: () => {
+                const selectedModel = fvBboxSelector ? fvBboxSelector.value : 'none';
+                if (selectedModel === 'none' || gdResultsData.length === 0) return [];
+                const resultData = gdResultsData.find((r) => r.model === selectedModel);
+                if (!resultData) return [];
+                try {
+                    const data = JSON.parse(resultData.response);
+                    if (!data.objects || !Array.isArray(data.objects)) return [];
+                    // gdResultsData boxes are true 0-1 fractions (see the
+                    // "Grid Detection" section) — drawFullViewBoundingBoxes()
+                    // below divides by 1000 like every other tab, so scale up
+                    // here rather than special-casing that shared function.
+                    return data.objects
+                        .filter((o) => o.page_num === gdPageNum)
+                        .map((o) => ({ ...o, box: o.box.map((v) => v * 1000) }));
+                } catch (e) {
+                    return [];
+                }
+            },
+        };
+    }
     return {
         doc: currentDoc,
         page: pageNum,
         hasModelSelector: true,
+        selectorEl: bboxSelector,
         getOverlayBoxes: () => {
             const selectedModel = fvBboxSelector ? fvBboxSelector.value : 'none';
             if (selectedModel === 'none' || llmResultsData.length === 0) return [];
@@ -1406,11 +1716,12 @@ function drawFullViewBoundingBoxes() {
 }
 
 function syncFullViewBboxOptions() {
-    if (!fvBboxSelector || !bboxSelector) return;
-    const previousValue = fvBboxSelector.value || bboxSelector.value || 'none';
-    fvBboxSelector.innerHTML = bboxSelector.innerHTML;
+    const sourceSelector = getActiveViewerContext().selectorEl;
+    if (!fvBboxSelector || !sourceSelector) return;
+    const previousValue = fvBboxSelector.value || sourceSelector.value || 'none';
+    fvBboxSelector.innerHTML = sourceSelector.innerHTML;
     const hasOption = Array.from(fvBboxSelector.options).some(o => o.value === previousValue);
-    fvBboxSelector.value = hasOption ? previousValue : (bboxSelector.value || 'none');
+    fvBboxSelector.value = hasOption ? previousValue : (sourceSelector.value || 'none');
 }
 
 function openFullViewModal() {
@@ -1453,6 +1764,9 @@ if (closeFullviewBtn) closeFullviewBtn.addEventListener('click', closeFullViewMo
 
 const tsOpenFullviewBtn = document.getElementById('ts-open-fullview');
 if (tsOpenFullviewBtn) tsOpenFullviewBtn.addEventListener('click', openFullViewModal);
+
+const gdOpenFullviewBtn = document.getElementById('gd-open-fullview');
+if (gdOpenFullviewBtn) gdOpenFullviewBtn.addEventListener('click', openFullViewModal);
 
 if (fullviewOverlay) {
     fullviewOverlay.addEventListener('click', (e) => {
@@ -1641,10 +1955,14 @@ if (exportBtn) {
             system_prompt: systemPromptValue,
             dpi: dpiValue,
             execution_settings: { ...executionSettings },
+            iou_threshold: iouThresholdInput ? parseFloat(iouThresholdInput.value) : null,
             results: llmResultsData.map(data => {
                 let parsedResponse = data.response;
                 try { parsedResponse = JSON.parse(data.response); } catch (e) {}
-                return { model: data.model, prompt: data.prompt, response: parsedResponse };
+                return {
+                    model: data.model, prompt: data.prompt, response: parsedResponse,
+                    score: data.score ?? null, usage: data.usage ?? null,
+                };
             })
         };
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -1715,6 +2033,11 @@ let tsElevationsMap = new Map();
 // Flat list of every final object (label, box, file_index, page_num) across
 // every processed page, set once Stage 2 completes; null before that.
 let tsFinalObjects = null;
+// Stage 1 runs as its own request, so what it cost is carried here and
+// handed back to Stage 2, which reports the two stages' totals together.
+let tsStage1Usage = null;
+let tsLastUsage = null;
+let tsLastScore = null;
 
 function tsPageKey(fileIdx, pageNum) { return `${fileIdx}:${pageNum}`; }
 function tsCurrentPageEntry() { return tsElevationsMap.get(tsPageKey(tsFileIdx, tsPageNum)); }
@@ -1738,6 +2061,10 @@ const tsElevationList = document.getElementById('ts-elevation-list');
 const tsElevationSummary = document.getElementById('ts-elevation-summary');
 const tsResultBlock = document.getElementById('ts-result-block');
 const tsResponseBox = document.getElementById('ts-response-box');
+const tsUsageBox = document.getElementById('ts-usage-box');
+const tsScoreBox = document.getElementById('ts-score-box');
+const tsIouThresholdInput = document.getElementById('ts-iou-threshold');
+const tsGroundTruthEl = document.getElementById('ts-ground-truth');
 
 if (tsDropZone && tsUploadInput) {
     tsDropZone.addEventListener('click', (e) => { if (e.target !== tsUploadInput) tsUploadInput.click(); });
@@ -1899,11 +2226,16 @@ function tsDrawOverlay() {
 function tsResetStageUI() {
     tsElevationsMap = new Map();
     tsFinalObjects = null;
+    tsStage1Usage = null;
+    tsLastUsage = null;
+    tsLastScore = null;
     if (tsElevationReview) tsElevationReview.style.display = 'none';
     if (tsElevationList) tsElevationList.innerHTML = '';
     if (tsElevationSummary) tsElevationSummary.textContent = '';
     if (tsResultBlock) tsResultBlock.style.display = 'none';
     if (tsResponseBox) tsResponseBox.textContent = '';
+    setInfoBox('ts-usage-box', '');
+    setInfoBox('ts-score-box', '');
     if (tsRunStage2Btn) tsRunStage2Btn.disabled = true;
     tsDrawOverlay();
 }
@@ -2148,6 +2480,15 @@ if (tsRunStage1Btn) {
                 });
             });
 
+            // Kept so the Stage 2 request can hand it back to the backend —
+            // that's what lets the final totals cover both stages instead of
+            // only the crops (see /api/two-stage/details).
+            tsStage1Usage = data.usage || null;
+            if (tsUsageBox && tsStage1Usage) {
+                setInfoBox('ts-usage-box', `Stage 1 only —\n${formatUsage(tsStage1Usage)}`);
+                if (tsResultBlock) tsResultBlock.style.display = 'block';
+            }
+
             if (totalElevations === 0 && totalCallouts === 0) {
                 alert('Nothing was detected on any page.');
             } else {
@@ -2180,6 +2521,20 @@ if (tsRunStage2Btn) {
         const stage2Dpi = parseInt(document.getElementById('ts-dpi-stage2').value, 10) || 300;
         const concurrency = parseInt(document.getElementById('ts-stage2-concurrency').value, 10) || 3;
 
+        // Optional — an empty box simply means "run without scoring".
+        let groundTruth = [];
+        const gtRaw = tsGroundTruthEl ? tsGroundTruthEl.value.trim() : '';
+        if (gtRaw) {
+            try {
+                groundTruth = JSON.parse(gtRaw);
+            } catch (e) {
+                alert('Ground truth must be valid JSON — see the description above the box for the expected shape.');
+                tsRunStage2Btn.disabled = false;
+                tsRunStage2Btn.textContent = '② Looks good — Detect Details';
+                return;
+            }
+        }
+
         // Every page Stage 1 touched gets its own target: whatever
         // elevations were approved (get cropped and re-detected), plus
         // whatever elevation_callouts Stage 1 already found there — those
@@ -2210,6 +2565,12 @@ if (tsRunStage2Btn) {
             formData.append('file_execution_mode', tsExecutionSettings.fileExecutionMode);
             formData.append('page_execution_mode', tsExecutionSettings.pageExecutionMode);
 
+            let iouValue = tsIouThresholdInput ? parseFloat(tsIouThresholdInput.value) : 0.5;
+            if (!Number.isFinite(iouValue)) iouValue = 0.5;
+            formData.append('iou_threshold', iouValue);
+            formData.append('ground_truth', JSON.stringify(groundTruth));
+            if (tsStage1Usage) formData.append('stage1_usage', JSON.stringify(tsStage1Usage));
+
             const res = await fetch('/api/two-stage/details', { method: 'POST', body: formData });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
@@ -2223,6 +2584,13 @@ if (tsRunStage2Btn) {
             if (tsResultBlock) tsResultBlock.style.display = 'block';
             if (tsElevationReview) tsElevationReview.style.display = 'none';
 
+            tsLastScore = data.score || null;
+            tsLastUsage = data.usage || null;
+            setInfoBox('ts-usage-box', formatUsage(tsLastUsage));
+            setInfoBox('ts-score-box', tsLastScore
+                ? formatScore(tsLastScore)
+                : (gtRaw ? 'Ground truth matched no page in these files — nothing to score.' : ''));
+
             await tsRenderPage(tsPageNum);
         } catch (err) {
             console.error(err);
@@ -2233,3 +2601,682 @@ if (tsRunStage2Btn) {
         }
     });
 }
+
+// ============================================================
+// Grid Detection (labeled reference grid instead of raw coordinates)
+// ============================================================
+// One PDF at a time — ground truth is entered per run, scoped to that one
+// document, so every page of it is sent (per gdExecutionSettings), never
+// more than one file. Boxes returned by /api/grid/detect are 0-1 xyxy (the
+// location-scorer shared contract), NOT the 0-1000 scale every other tab
+// uses — gdDrawBox() below works directly in 0-1 fractions since it's a
+// standalone function, not reused from the 0-1000-based tabs. The shared
+// History modal (used by every tab) is patched separately, at
+// drawHistoryPage(), to upscale by 1000 only when a run's own
+// "coord_scale" is "unit" — see that function.
+
+const defaultGridSystemPrompt = `You are a senior construction-documents specialist — an expert reviewer of architectural millwork and casework drawing sets (cabinet/casework elevations, floor plans, and reflected ceiling plans). You are looking at ONE single sheet page per request. A labeled reference grid has been drawn on top of the sheet image — this is a tool for you to report positions with, not part of the architectural drawing itself.
+
+═══════════════════════════════════════
+THE GRID
+═══════════════════════════════════════
+
+The sheet has been divided into a grid of rows and columns (the exact count for THIS request — e.g. "6 rows x 6 columns" — is stated again in the accompanying message, along with which object type(s) to report). Columns are lettered left-to-right starting at "A"; rows are numbered top-to-bottom starting at "1". A cell's label (e.g. "C4" = column C, row 4) is NEVER printed inside the cell itself — column letters run once each along a header strip added ABOVE the sheet, and row numbers once each along a strip added to its LEFT, like a spreadsheet's own row/column headers. To name a cell, trace the grid line down from its column letter and across from its row number to where they meet.
+
+The grid lines are a translucent reference overlay on top of the sheet image; the header strips are outside the sheet image itself, added above and to its left. Read through the lines to the drawing underneath — never mistake a grid line for a wall, a divider, or a dimension line.
+
+═══════════════════════════════════════
+YOUR JOB
+═══════════════════════════════════════
+
+For every object of the requested type(s), report which grid cell(s) its own visible extent occupies — nothing else. Do NOT report pixel coordinates, a 0-1000 box, or a 0-1 box for this request; the cell label(s) are the only location format that matters here.
+
+Detect only object types explicitly requested for this call (told to you in the accompanying message), drawn from this set:
+- cabinet — one individual cabinet/locker/shelving unit box inside an elevation drawing (upper cabinets, base cabinets, lockers, open shelving), identified by its own door/drawer/shelf marks (dashed door-swing diagonals, drawer-pull ticks) and bounded by its own solid vertical carcass lines. Never the whole elevation.
+- countertop — the counter surface band/backsplash line inside an elevation drawing, directly above a base-cabinet run. This band is usually THIN (often just 1 row tall) but can run across MANY columns — trace it end-to-end along the full width of the cabinet run it sits above and list every column cell it visibly passes through. Stopping after the first cell or two, instead of tracing all the way to both ends of its own visible run, is a common mistake.
+- elevation — the entire framed casework elevation drawing (the whole rectangle containing the view: floor line, side boundaries, the cabinet run(s) standing on it, usually captioned with a view name + scale below or beside it). Never just the cabinets inside it.
+- elevation_callout — a small circular or pentagonal reference symbol on a floor plan or reflected ceiling plan (never inside an elevation frame itself), with one or more solid black filled arrowheads pointing at a wall, referencing an elevation drawn elsewhere in the set. Report the cell(s) the SYMBOL'S OWN SHAPE occupies — never the cell(s) that only contain its reference number/sheet text (e.g. "4", "AE401"), which often sits in the cell right next to it. Find the shape itself first, then read off its cell; don't let the nearby text pull your answer toward itself.
+
+Ignore everything else: schedules, partition types, general notes, title blocks, north arrows, dimension strings, room name tags without cabinetry, finish schedules, site maps, and freestanding furniture (lockers, benches) that isn't built-in casework.
+
+═══════════════════════════════════════
+CELL REPORTING RULES
+═══════════════════════════════════════
+
+- If an object's visible extent sits entirely within one cell, report "cells":["C4"] — a single-element list.
+- If an object's own extent spans more than one cell (it visibly crosses a grid line), report EVERY cell its extent touches — e.g. "cells":["C4","C5","D4","D5"] for an object spanning a 2x2 block. List exactly the cells the object's own drawing actually occupies, not a looser or tighter block.
+- One physical object is ONE entry in "objects", with ALL of its occupied cells listed together under "cells" — never split one object into several entries just because it spans multiple cells, and never merge two separate objects into one entry because they happen to share a cell.
+- Only count a cell as occupied because the object's own drawn extent (the frame/panel/symbol itself) is visibly there — a dimension line, leader arrow, or text label passing through a cell does NOT make that cell part of the object. This cuts both ways: don't add a cell just because a label sits in it, and don't let a label in an ADJACENT cell pull you away from the cell the object itself is actually drawn in either.
+- Every cell label you report MUST be one actually drawn on this grid (within the stated rows x columns) and MUST be copied exactly as printed (a letter run, then a number — e.g. "C4", "AA12") — never invent, round, or guess a cell outside the grid.
+- On a fine grid (many rows/columns), don't guess a cell from a quick glance — deliberately COUNT gridlines from the nearest labeled header (top for columns, left for rows) out to the object's own edges before naming a cell. A one-line miscount is the most common mistake on a dense grid.
+
+Once you have listed all objects, do ONE final pass over the whole list checking: did I scan every region of the sheet, not just the most obvious drawing? Does every "cells" list contain only cells the object's own extent actually touches? Fix anything that fails before finalizing.
+
+═══════════════════════════════════════
+
+Return ONLY JSON. No markdown, no code fences, no commentary. Top-level output MUST be a single JSON object with exactly one key: "objects" — a list of every requested object found. Never a bare array at the top level. Every entry in "objects" is itself a JSON object.
+
+{
+ "objects":[
+   {"object_type":"elevation","cells":["B2","B3"]},
+   {"object_type":"cabinet","cells":["B3"]}
+ ]
+}
+
+Rules:
+- This request contains exactly ONE image (the full sheet page with its reference grid).
+- Only report the object type(s) requested for this call — never a type not asked for.
+- "object_type" is the label key — use exactly the type names given to you, nothing else.
+- "cells" is always a non-empty list of cell labels, never a box, never pixel or 0-1/0-1000 coordinates.
+- Never create duplicate JSON keys.`;
+
+const defaultGridUserPrompt = `This is one full sheet page with a labeled reference grid drawn on top (columns lettered left-to-right starting at "A", rows numbered top-to-bottom starting at "1" — the exact grid size and requested object type(s) for this call are restated in the system message above). Scan the ENTIRE sheet thoroughly, left to right, top to bottom, before answering — do not stop after finding the first few objects.
+
+For every object of the requested type(s), report every grid cell its own visible extent occupies, exactly as defined in your instructions — never a pixel, 0-1000, or 0-1 box. Watch for two specific mistakes: a countertop band that you stop tracing too early instead of following to both ends of its full run, and an elevation_callout cell picked from its nearby reference text instead of from the symbol's own shape. Before answering, double-check that every "cells" entry lists only cells actually drawn on the grid and only cells the object itself touches. Respond with the JSON object only — no explanation, no markdown.`;
+
+let gdFile = null;       // { name, pdf, rawFile } — exactly one PDF, unlike the other tabs
+let gdPageNum = 1;
+let gdScale = 1.5;
+let gdRenderTask = null;
+let gdResultsData = [];  // [{ model, prompt, response, score }] — response objects are 0-1 xyxy
+
+const gdDropZone = document.getElementById('gd-drop-zone');
+const gdUploadInput = document.getElementById('gd-pdf-upload');
+const gdCanvas = document.getElementById('gd-pdf-canvas');
+const gdCtx = gdCanvas ? gdCanvas.getContext('2d') : null;
+const gdPdfNav = document.getElementById('gd-pdf-nav');
+const gdFileSelector = document.getElementById('gd-file-selector');
+const gdZoomInBtn = document.getElementById('gd-zoom-in');
+const gdZoomOutBtn = document.getElementById('gd-zoom-out');
+const gdZoomLevelEl = document.getElementById('gd-zoom-level');
+const gdPrevBtn = document.getElementById('gd-prev-page');
+const gdNextBtn = document.getElementById('gd-next-page');
+
+const gdVisControls = document.getElementById('gd-vis-controls');
+const gdBboxSelector = document.getElementById('gd-bbox-selector');
+const gdOutlineOnlyToggle = document.getElementById('gd-outline-only-toggle');
+let gdOutlineOnlyMode = false;
+
+const gdModelCountSelect = document.getElementById('gd-model-count');
+const gdModelsGrid = document.getElementById('gd-models-grid');
+const gdUseGlobalPrompt = document.getElementById('gd-use-global-prompt');
+const gdGlobalPrompt = document.getElementById('gd-global-prompt');
+const gdModelPrompts = document.querySelectorAll('#gd-models-grid .model-prompt');
+
+const gdDpiInput = document.getElementById('gd-dpi-input');
+const gdMaxDimInput = document.getElementById('gd-max-dim-input');
+const gdIouThresholdInput = document.getElementById('gd-iou-threshold');
+const gdObjectTypesInput = document.getElementById('gd-object-types');
+const gdGroundTruthEl = document.getElementById('gd-ground-truth');
+
+const gdRunBtn = document.getElementById('gd-run-btn');
+const gdExportBtn = document.getElementById('gd-export-btn');
+
+document.addEventListener('DOMContentLoaded', () => {
+    const gdSystemPromptEl = document.getElementById('gd-system-prompt');
+    if (gdSystemPromptEl) gdSystemPromptEl.value = defaultGridSystemPrompt;
+    gdModelPrompts.forEach((p) => { p.value = defaultGridUserPrompt; });
+    if (gdGlobalPrompt) gdGlobalPrompt.value = defaultGridUserPrompt;
+    updateGdActiveModels();
+});
+
+function updateGdActiveModels() {
+    if (!gdModelCountSelect || !gdModelsGrid) return;
+    const count = parseInt(gdModelCountSelect.value, 10);
+    gdModelsGrid.className = `models-grid cols-${count}`;
+    for (let i = 1; i <= 3; i++) {
+        const card = document.getElementById(`gd-model-${i}`);
+        if (card) i <= count ? card.classList.remove('hidden') : card.classList.add('hidden');
+    }
+}
+if (gdModelCountSelect) gdModelCountSelect.addEventListener('change', updateGdActiveModels);
+
+if (gdUseGlobalPrompt && gdGlobalPrompt) {
+    gdUseGlobalPrompt.addEventListener('change', (e) => {
+        const isGlobal = e.target.checked;
+        gdGlobalPrompt.style.display = isGlobal ? 'block' : 'none';
+        gdModelPrompts.forEach((p) => { p.disabled = isGlobal; });
+    });
+}
+
+// ---------------- Single-PDF upload ----------------
+
+if (gdDropZone && gdUploadInput) {
+    gdDropZone.addEventListener('click', (e) => { if (e.target !== gdUploadInput) gdUploadInput.click(); });
+    gdDropZone.addEventListener('dragover', (e) => { e.preventDefault(); gdDropZone.classList.add('dragover'); });
+    gdDropZone.addEventListener('dragleave', () => gdDropZone.classList.remove('dragover'));
+    gdDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        gdDropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) gdHandleFiles(e.dataTransfer.files);
+    });
+    gdUploadInput.addEventListener('change', (e) => {
+        if (e.target.files.length) gdHandleFiles(e.target.files);
+    });
+}
+
+async function gdHandleFiles(fileList) {
+    // Exactly one PDF for this tab (ground truth is scoped to a single
+    // document) — take the first PDF found and ignore/replace the rest,
+    // rather than silently combining them like the other tabs do.
+    const pdfFile = Array.from(fileList).find((f) => f.type === 'application/pdf');
+    if (!pdfFile) { alert('Please upload a PDF file.'); return; }
+    if (fileList.length > 1) {
+        alert('Grid Detection scores ground truth against ONE PDF — only the first PDF file found was loaded.');
+    }
+    try {
+        const arrayBuffer = await pdfFile.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        gdFile = { name: pdfFile.name, pdf, rawFile: pdfFile };
+    } catch (err) {
+        console.error(err);
+        alert('Failed to load this PDF.');
+        return;
+    }
+    gdResultsData = [];
+    if (gdVisControls) gdVisControls.style.display = 'none';
+    if (gdExportBtn) gdExportBtn.style.display = 'none';
+    for (let i = 1; i <= 3; i++) {
+        const box = document.getElementById(`gd-score-${i}`);
+        if (box) { box.textContent = ''; box.classList.remove('visible'); }
+        const card = document.getElementById(`gd-model-${i}`);
+        const rBox = card ? card.querySelector('.response-box') : null;
+        if (rBox) { rBox.textContent = 'Waiting to run…'; rBox.dataset.empty = 'true'; }
+    }
+    if (gdFileSelector) {
+        gdFileSelector.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = '0';
+        opt.textContent = gdFile.name;
+        gdFileSelector.appendChild(opt);
+    }
+    if (gdPdfNav) gdPdfNav.style.display = 'flex';
+    gdPageNum = 1;
+    const pageCountEl = document.getElementById('gd-page-count');
+    if (pageCountEl) pageCountEl.textContent = gdFile.pdf.numPages;
+    await gdRenderPage(gdPageNum);
+}
+
+// ---------------- Viewer ----------------
+
+async function gdRenderPage(num) {
+    if (!gdFile || !gdCtx) return;
+    const page = await gdFile.pdf.getPage(num);
+    const viewport = page.getViewport({ scale: gdScale });
+
+    gdCanvas.height = viewport.height;
+    gdCanvas.width = viewport.width;
+    gdCanvas.style.width = `${viewport.width}px`;
+    gdCanvas.style.height = `${viewport.height}px`;
+
+    if (gdRenderTask) gdRenderTask.cancel();
+
+    try {
+        gdRenderTask = page.render({ canvasContext: gdCtx, viewport });
+        await gdRenderTask.promise;
+        gdRenderTask = null;
+        const pageNumEl = document.getElementById('gd-page-num');
+        if (pageNumEl) pageNumEl.textContent = num;
+        gdDrawBoundingBoxes();
+    } catch (err) {
+        if (err.name !== 'RenderingCancelledException') console.error('grid render error:', err);
+    }
+}
+
+if (gdZoomInBtn) gdZoomInBtn.addEventListener('click', () => {
+    gdScale += 0.25;
+    if (gdZoomLevelEl) gdZoomLevelEl.textContent = `${Math.round(gdScale * 100)}%`;
+    gdRenderPage(gdPageNum);
+    if (isFullViewOpen()) renderFullView();
+});
+if (gdZoomOutBtn) gdZoomOutBtn.addEventListener('click', () => {
+    if (gdScale <= 0.5) return;
+    gdScale -= 0.25;
+    if (gdZoomLevelEl) gdZoomLevelEl.textContent = `${Math.round(gdScale * 100)}%`;
+    gdRenderPage(gdPageNum);
+    if (isFullViewOpen()) renderFullView();
+});
+if (gdPrevBtn) gdPrevBtn.addEventListener('click', () => {
+    if (gdPageNum > 1) {
+        gdPageNum--;
+        gdRenderPage(gdPageNum);
+        if (isFullViewOpen()) renderFullView();
+    }
+});
+if (gdNextBtn) gdNextBtn.addEventListener('click', () => {
+    if (gdFile && gdPageNum < gdFile.pdf.numPages) {
+        gdPageNum++;
+        gdRenderPage(gdPageNum);
+        if (isFullViewOpen()) renderFullView();
+    }
+});
+if (gdBboxSelector) gdBboxSelector.addEventListener('change', () => gdRenderPage(gdPageNum));
+if (gdOutlineOnlyToggle) {
+    gdOutlineOnlyToggle.addEventListener('change', (e) => {
+        gdOutlineOnlyMode = e.target.checked;
+        gdRenderPage(gdPageNum);
+    });
+}
+
+// Boxes here are 0-1 xyxy fractions straight from /api/grid/detect's
+// response — NOT the 0-1000 scale drawBoundingBoxes()/tsDrawBox() use, so
+// this multiplies by canvas width/height directly rather than dividing by
+// 1000 first.
+function gdDrawBoundingBoxes() {
+    const selectedModel = gdBboxSelector ? gdBboxSelector.value : 'none';
+    if (selectedModel === 'none' || gdResultsData.length === 0 || !gdCtx) return;
+
+    const resultData = gdResultsData.find((r) => r.model === selectedModel);
+    if (!resultData) return;
+
+    try {
+        const data = JSON.parse(resultData.response);
+        if (!data.objects || !Array.isArray(data.objects)) return;
+
+        const objects = sortObjectsForDrawing(data.objects);
+        objects.forEach((obj) => {
+            if (obj.page_num !== gdPageNum) return;
+            const [xMin, yMin, xMax, yMax] = obj.box;
+
+            const x = xMin * gdCanvas.width;
+            const y = yMin * gdCanvas.height;
+            const w = (xMax - xMin) * gdCanvas.width;
+            const h = (yMax - yMin) * gdCanvas.height;
+
+            const style = styleForLabel(obj.label);
+            gdCtx.lineWidth = style.lineWidth;
+            gdCtx.strokeStyle = style.stroke;
+            if (style.fill && !gdOutlineOnlyMode) {
+                gdCtx.fillStyle = style.fill;
+                gdCtx.fillRect(x, y, w, h);
+            }
+            gdCtx.strokeRect(x, y, w, h);
+
+            const textY = y > 20 ? y - 8 : y + 20;
+            gdCtx.font = 'bold 16px Arial';
+            gdCtx.fillStyle = '#0f111a';
+            gdCtx.fillRect(x, textY - 14, gdCtx.measureText(obj.label).width + 10, 18);
+            gdCtx.fillStyle = style.stroke;
+            gdCtx.fillText(obj.label, x + 5, textY);
+        });
+    } catch (e) {
+        console.error('Failed to parse grid response JSON', e);
+    }
+}
+
+// ---------------- System prompt modal ----------------
+
+const gdSystemPromptOverlay = document.getElementById('gd-system-prompt-overlay');
+const gdOpenSystemPromptBtn = document.getElementById('gd-open-system-prompt');
+const gdCloseSystemPromptBtn = document.getElementById('gd-close-system-prompt');
+const gdSaveSystemPromptBtn = document.getElementById('gd-save-system-prompt');
+const gdResetSystemPromptBtn = document.getElementById('gd-reset-system-prompt');
+
+function gdOpenSystemPromptModal() {
+    if (!gdSystemPromptOverlay) return;
+    gdSystemPromptOverlay.classList.add('open');
+    gdSystemPromptOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    const el = document.getElementById('gd-system-prompt');
+    if (el) el.focus();
+}
+function gdCloseSystemPromptModal() {
+    if (!gdSystemPromptOverlay) return;
+    gdSystemPromptOverlay.classList.remove('open');
+    gdSystemPromptOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+if (gdOpenSystemPromptBtn) gdOpenSystemPromptBtn.addEventListener('click', gdOpenSystemPromptModal);
+if (gdCloseSystemPromptBtn) gdCloseSystemPromptBtn.addEventListener('click', gdCloseSystemPromptModal);
+if (gdSaveSystemPromptBtn) gdSaveSystemPromptBtn.addEventListener('click', gdCloseSystemPromptModal);
+if (gdResetSystemPromptBtn) {
+    gdResetSystemPromptBtn.addEventListener('click', () => {
+        const el = document.getElementById('gd-system-prompt');
+        if (el) el.value = defaultGridSystemPrompt;
+    });
+}
+if (gdSystemPromptOverlay) {
+    gdSystemPromptOverlay.addEventListener('click', (e) => {
+        if (e.target === gdSystemPromptOverlay) gdCloseSystemPromptModal();
+    });
+}
+
+// ---------------- Execution settings modal ----------------
+
+const gdExecutionSettingsOverlay = document.getElementById('gd-execution-settings-overlay');
+const gdOpenExecutionSettingsBtn = document.getElementById('gd-open-execution-settings');
+const gdCloseExecutionSettingsBtn = document.getElementById('gd-close-execution-settings');
+const gdSaveExecutionSettingsBtn = document.getElementById('gd-save-execution-settings');
+const gdResetExecutionSettingsBtn = document.getElementById('gd-reset-execution-settings');
+const gdModelExecutionModeSelect = document.getElementById('gd-model-execution-mode');
+const gdPageExecutionModeSelect = document.getElementById('gd-page-execution-mode');
+
+const gdDefaultExecutionSettings = { modelExecutionMode: 'sequential', pageExecutionMode: 'sequential' };
+let gdExecutionSettings = { ...gdDefaultExecutionSettings };
+
+function gdApplyExecutionSettingsToForm(settings) {
+    if (gdModelExecutionModeSelect) gdModelExecutionModeSelect.value = settings.modelExecutionMode;
+    if (gdPageExecutionModeSelect) gdPageExecutionModeSelect.value = settings.pageExecutionMode;
+}
+function gdOpenExecutionSettingsModal() {
+    if (!gdExecutionSettingsOverlay) return;
+    gdApplyExecutionSettingsToForm(gdExecutionSettings);
+    gdExecutionSettingsOverlay.classList.add('open');
+    gdExecutionSettingsOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+function gdCloseExecutionSettingsModal() {
+    if (!gdExecutionSettingsOverlay) return;
+    gdExecutionSettingsOverlay.classList.remove('open');
+    gdExecutionSettingsOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+if (gdOpenExecutionSettingsBtn) gdOpenExecutionSettingsBtn.addEventListener('click', gdOpenExecutionSettingsModal);
+if (gdCloseExecutionSettingsBtn) gdCloseExecutionSettingsBtn.addEventListener('click', gdCloseExecutionSettingsModal);
+if (gdResetExecutionSettingsBtn) {
+    gdResetExecutionSettingsBtn.addEventListener('click', () => gdApplyExecutionSettingsToForm(gdDefaultExecutionSettings));
+}
+if (gdSaveExecutionSettingsBtn) {
+    gdSaveExecutionSettingsBtn.addEventListener('click', () => {
+        gdExecutionSettings = {
+            modelExecutionMode: gdModelExecutionModeSelect ? gdModelExecutionModeSelect.value : gdDefaultExecutionSettings.modelExecutionMode,
+            pageExecutionMode: gdPageExecutionModeSelect ? gdPageExecutionModeSelect.value : gdDefaultExecutionSettings.pageExecutionMode,
+        };
+        gdCloseExecutionSettingsModal();
+    });
+}
+if (gdExecutionSettingsOverlay) {
+    gdExecutionSettingsOverlay.addEventListener('click', (e) => {
+        if (e.target === gdExecutionSettingsOverlay) gdCloseExecutionSettingsModal();
+    });
+}
+
+// ---------------- Grid settings modal ----------------
+// Rows/cols plus the overlay's visual styling (color/opacity/thickness) —
+// all forwarded to draw_grid_overlay() on the backend, which draws this
+// exact grid on the page image before any model ever sees it.
+
+const gdGridSettingsOverlay = document.getElementById('gd-grid-settings-overlay');
+const gdOpenGridSettingsBtn = document.getElementById('gd-open-grid-settings');
+const gdCloseGridSettingsBtn = document.getElementById('gd-close-grid-settings');
+const gdSaveGridSettingsBtn = document.getElementById('gd-save-grid-settings');
+const gdResetGridSettingsBtn = document.getElementById('gd-reset-grid-settings');
+const gdModalGridRowsInput = document.getElementById('gd-modal-grid-rows');
+const gdModalGridColsInput = document.getElementById('gd-modal-grid-cols');
+const gdModalGridColorInput = document.getElementById('gd-modal-grid-color');
+const gdModalGridOpacityInput = document.getElementById('gd-modal-grid-opacity');
+const gdModalGridOpacityReadout = document.getElementById('gd-modal-grid-opacity-readout');
+const gdModalGridThicknessInput = document.getElementById('gd-modal-grid-thickness');
+const gdModalLabelSchemeSelect = document.getElementById('gd-modal-label-scheme');
+const gdModalBoxPrecisionSelect = document.getElementById('gd-modal-box-precision');
+
+const gdDefaultGridSettings = {
+    rows: 6, cols: 6, color: '#dc0000', opacity: 0.6, thickness: 1,
+    labelScheme: 'alpha', boxPrecision: 'cell',
+};
+let gdGridSettings = { ...gdDefaultGridSettings };
+
+function gdApplyGridSettingsToForm(settings) {
+    if (gdModalGridRowsInput) gdModalGridRowsInput.value = settings.rows;
+    if (gdModalGridColsInput) gdModalGridColsInput.value = settings.cols;
+    if (gdModalGridColorInput) gdModalGridColorInput.value = settings.color;
+    if (gdModalGridOpacityInput) gdModalGridOpacityInput.value = settings.opacity;
+    if (gdModalGridOpacityReadout) gdModalGridOpacityReadout.textContent = `${Math.round(settings.opacity * 100)}%`;
+    if (gdModalGridThicknessInput) gdModalGridThicknessInput.value = settings.thickness;
+    if (gdModalLabelSchemeSelect) gdModalLabelSchemeSelect.value = settings.labelScheme;
+    if (gdModalBoxPrecisionSelect) gdModalBoxPrecisionSelect.value = settings.boxPrecision;
+}
+function gdOpenGridSettingsModal() {
+    if (!gdGridSettingsOverlay) return;
+    gdApplyGridSettingsToForm(gdGridSettings);
+    gdGridSettingsOverlay.classList.add('open');
+    gdGridSettingsOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+function gdCloseGridSettingsModal() {
+    if (!gdGridSettingsOverlay) return;
+    gdGridSettingsOverlay.classList.remove('open');
+    gdGridSettingsOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+if (gdOpenGridSettingsBtn) gdOpenGridSettingsBtn.addEventListener('click', gdOpenGridSettingsModal);
+if (gdCloseGridSettingsBtn) gdCloseGridSettingsBtn.addEventListener('click', gdCloseGridSettingsModal);
+if (gdResetGridSettingsBtn) {
+    gdResetGridSettingsBtn.addEventListener('click', () => gdApplyGridSettingsToForm(gdDefaultGridSettings));
+}
+if (gdModalGridOpacityInput && gdModalGridOpacityReadout) {
+    gdModalGridOpacityInput.addEventListener('input', () => {
+        gdModalGridOpacityReadout.textContent = `${Math.round(parseFloat(gdModalGridOpacityInput.value) * 100)}%`;
+    });
+}
+if (gdSaveGridSettingsBtn) {
+    gdSaveGridSettingsBtn.addEventListener('click', () => {
+        let rows = gdModalGridRowsInput ? parseInt(gdModalGridRowsInput.value, 10) : gdDefaultGridSettings.rows;
+        if (!Number.isFinite(rows) || rows <= 0) rows = gdDefaultGridSettings.rows;
+        let cols = gdModalGridColsInput ? parseInt(gdModalGridColsInput.value, 10) : gdDefaultGridSettings.cols;
+        if (!Number.isFinite(cols) || cols <= 0) cols = gdDefaultGridSettings.cols;
+        let opacity = gdModalGridOpacityInput ? parseFloat(gdModalGridOpacityInput.value) : gdDefaultGridSettings.opacity;
+        if (!Number.isFinite(opacity)) opacity = gdDefaultGridSettings.opacity;
+        let thickness = gdModalGridThicknessInput ? parseInt(gdModalGridThicknessInput.value, 10) : gdDefaultGridSettings.thickness;
+        if (!Number.isFinite(thickness) || thickness <= 0) thickness = gdDefaultGridSettings.thickness;
+        gdGridSettings = {
+            rows, cols, opacity, thickness,
+            color: gdModalGridColorInput ? gdModalGridColorInput.value : gdDefaultGridSettings.color,
+            labelScheme: gdModalLabelSchemeSelect ? gdModalLabelSchemeSelect.value : gdDefaultGridSettings.labelScheme,
+            boxPrecision: gdModalBoxPrecisionSelect ? gdModalBoxPrecisionSelect.value : gdDefaultGridSettings.boxPrecision,
+        };
+        gdCloseGridSettingsModal();
+    });
+}
+if (gdGridSettingsOverlay) {
+    gdGridSettingsOverlay.addEventListener('click', (e) => {
+        if (e.target === gdGridSettingsOverlay) gdCloseGridSettingsModal();
+    });
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (gdSystemPromptOverlay && gdSystemPromptOverlay.classList.contains('open')) gdCloseSystemPromptModal();
+    if (gdExecutionSettingsOverlay && gdExecutionSettingsOverlay.classList.contains('open')) gdCloseExecutionSettingsModal();
+    if (gdGridSettingsOverlay && gdGridSettingsOverlay.classList.contains('open')) gdCloseGridSettingsModal();
+});
+
+// ---------------- Run ----------------
+
+if (gdRunBtn) {
+    gdRunBtn.addEventListener('click', async () => {
+        if (!gdFile) { alert('Upload one PDF file first.'); return; }
+
+        const modelsData = [];
+        const activeCount = gdModelCountSelect ? parseInt(gdModelCountSelect.value, 10) : 3;
+        for (let i = 1; i <= activeCount; i++) {
+            const card = document.getElementById(`gd-model-${i}`);
+            if (!card) continue;
+            const modelNameEl = card.querySelector('.model-name');
+            const promptEl = card.querySelector('.model-prompt');
+            const responseBox = card.querySelector('.response-box');
+            const modelName = modelNameEl ? modelNameEl.value.trim() : '';
+            const prompt = (gdUseGlobalPrompt && gdUseGlobalPrompt.checked)
+                ? (gdGlobalPrompt ? gdGlobalPrompt.value.trim() : '')
+                : (promptEl ? promptEl.value.trim() : '');
+            if (responseBox) {
+                responseBox.textContent = 'Waiting for response…';
+                responseBox.dataset.empty = 'false';
+            }
+            setInfoBox(`gd-score-${i}`, '');
+            setInfoBox(`gd-usage-${i}`, '');
+            if (modelName && prompt) modelsData.push({ model: modelName, prompt });
+        }
+
+        if (modelsData.length === 0) {
+            alert('Configure at least one model with a prompt.');
+            return;
+        }
+
+        let objectTypes;
+        try {
+            const raw = (gdObjectTypesInput ? gdObjectTypesInput.value : '').trim();
+            objectTypes = raw.split(',').map((s) => s.trim()).filter(Boolean);
+            if (objectTypes.length === 0) throw new Error();
+        } catch (e) {
+            alert('Enter at least one object type (comma-separated).');
+            return;
+        }
+
+        let groundTruth = [];
+        const gtRaw = gdGroundTruthEl ? gdGroundTruthEl.value.trim() : '';
+        if (gtRaw) {
+            try {
+                // Either {"project_id":..., "objects":[...]} (the project's
+                // own export shape) or a bare list of the same object shape
+                // — the backend accepts both, so just check it parses.
+                groundTruth = JSON.parse(gtRaw);
+            } catch (e) {
+                alert('Ground truth must be valid JSON — see the placeholder for the expected shape.');
+                return;
+            }
+        }
+
+        gdRunBtn.textContent = '⏳ Running…';
+        gdRunBtn.disabled = true;
+        if (gdExportBtn) gdExportBtn.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', gdFile.rawFile);
+
+        let dpiValue = gdDpiInput ? parseInt(gdDpiInput.value, 10) : 200;
+        if (!Number.isFinite(dpiValue) || dpiValue <= 0) dpiValue = 200;
+        formData.append('dpi', dpiValue);
+
+        let maxDimValue = gdMaxDimInput ? parseInt(gdMaxDimInput.value, 10) : 1568;
+        if (!Number.isFinite(maxDimValue) || maxDimValue <= 0) maxDimValue = 1568;
+        formData.append('max_dim', maxDimValue);
+
+        formData.append('grid_rows', gdGridSettings.rows);
+        formData.append('grid_cols', gdGridSettings.cols);
+        formData.append('grid_color', gdGridSettings.color);
+        formData.append('grid_opacity', gdGridSettings.opacity);
+        formData.append('grid_thickness', gdGridSettings.thickness);
+        formData.append('label_scheme', gdGridSettings.labelScheme);
+        formData.append('box_precision', gdGridSettings.boxPrecision);
+
+        let iouValue = gdIouThresholdInput ? parseFloat(gdIouThresholdInput.value) : 0.5;
+        if (!Number.isFinite(iouValue)) iouValue = 0.5;
+        formData.append('iou_threshold', iouValue);
+
+        formData.append('object_types', JSON.stringify(objectTypes));
+        formData.append('models_data', JSON.stringify(modelsData));
+
+        const gdSystemPromptEl = document.getElementById('gd-system-prompt');
+        formData.append('system_prompt', (gdSystemPromptEl && gdSystemPromptEl.value.trim() !== '') ? gdSystemPromptEl.value.trim() : defaultGridSystemPrompt);
+
+        formData.append('ground_truth', JSON.stringify(groundTruth));
+        formData.append('model_execution_mode', gdExecutionSettings.modelExecutionMode);
+        formData.append('page_execution_mode', gdExecutionSettings.pageExecutionMode);
+
+        try {
+            const res = await fetch('/api/grid/detect', { method: 'POST', body: formData });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `Request failed (${res.status})`);
+            }
+            const data = await res.json();
+
+            if (data.results) {
+                gdResultsData = data.results.map((r) => {
+                    const req = modelsData.find((m) => m.model === r.model);
+                    return {
+                        model: r.model, prompt: req ? req.prompt : '', response: r.response,
+                        score: r.score, usage: r.usage,
+                    };
+                });
+
+                if (gdVisControls && gdBboxSelector) {
+                    gdBboxSelector.innerHTML = '<option value="none">Hide overlays</option>';
+                    gdResultsData.forEach((result) => {
+                        const opt = document.createElement('option');
+                        opt.value = result.model;
+                        opt.textContent = result.model;
+                        gdBboxSelector.appendChild(opt);
+                    });
+                    gdVisControls.style.display = 'flex';
+                }
+                if (gdExportBtn) gdExportBtn.style.display = 'block';
+
+                data.results.forEach((result) => {
+                    for (let i = 1; i <= 3; i++) {
+                        const card = document.getElementById(`gd-model-${i}`);
+                        if (!card) continue;
+                        const mNameEl = card.querySelector('.model-name');
+                        if (!mNameEl || mNameEl.value !== result.model) continue;
+                        const rBox = card.querySelector('.response-box');
+                        if (rBox) { rBox.textContent = result.response; rBox.dataset.empty = 'false'; }
+                        setInfoBox(`gd-usage-${i}`, formatUsage(result.usage));
+                        setInfoBox(`gd-score-${i}`, result.score ? formatScore(result.score) : '');
+                    }
+                });
+
+                await gdRenderPage(gdPageNum);
+                if (isFullViewOpen()) {
+                    syncFullViewBboxOptions();
+                    renderFullView();
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            alert(`Grid detection failed: ${err.message}`);
+        } finally {
+            gdRunBtn.textContent = '▶ Run Grid Detection';
+            gdRunBtn.disabled = false;
+        }
+    });
+}
+
+// ---------------- Export ----------------
+
+if (gdExportBtn) {
+    gdExportBtn.addEventListener('click', () => {
+        if (!gdResultsData || gdResultsData.length === 0) return;
+        const gdSystemPromptEl = document.getElementById('gd-system-prompt');
+        const systemPromptValue = (gdSystemPromptEl && gdSystemPromptEl.value.trim() !== '')
+            ? gdSystemPromptEl.value.trim()
+            : defaultGridSystemPrompt;
+
+        const exportData = {
+            timestamp: new Date().toISOString(),
+            file: gdFile ? { name: gdFile.name, pages: gdFile.pdf.numPages } : null,
+            system_prompt: systemPromptValue,
+            grid_rows: gdGridSettings.rows,
+            grid_cols: gdGridSettings.cols,
+            grid_color: gdGridSettings.color,
+            grid_opacity: gdGridSettings.opacity,
+            grid_thickness: gdGridSettings.thickness,
+            label_scheme: gdGridSettings.labelScheme,
+            box_precision: gdGridSettings.boxPrecision,
+            iou_threshold: gdIouThresholdInput ? parseFloat(gdIouThresholdInput.value) : null,
+            execution_settings: { ...gdExecutionSettings },
+            results: gdResultsData.map((data) => {
+                let parsedResponse = data.response;
+                try { parsedResponse = JSON.parse(data.response); } catch (e) {}
+                return {
+                    model: data.model, prompt: data.prompt, response: parsedResponse,
+                    score: data.score, usage: data.usage ?? null,
+                };
+            }),
+        };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `grid_detection_results_${new Date().getTime()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+}
+
+// ---------------- History ----------------
+
+const gdOpenHistoryBtn = document.getElementById('gd-open-history');
+if (gdOpenHistoryBtn) gdOpenHistoryBtn.addEventListener('click', () => openHistoryModal('grid'));
