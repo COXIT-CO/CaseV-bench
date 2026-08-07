@@ -336,41 +336,54 @@ def _call_vision_model(
     user_text: str,
     image_path: str,
     max_attempts: int = 3,
-) -> tuple[str, Any, str | None]:
+) -> tuple[str, Any, str | None, dict]:
     """Sends one image plus a text prompt to the model.
-    Returns (raw_response_text, parsed_json_or_None, error_message_or_None).
+
+    Returns (raw_response_text, parsed_json_or_None, error_message_or_None,
+    request_meta).
+
+    `request_meta` is always a dict (never None) so callers can accumulate
+    it unconditionally: {"latency_sec": ..., "prompt_tokens": ...,
+    "completion_tokens": ..., "reasoning_tokens": ..., "cost": ...,
+    "finish_reason": ...} on success, or {"latency_sec": ..., "error": ...}
+    if every attempt failed. `latency_sec` covers the full call including
+    any retries/backoff, so it reflects the real time this one logical
+    request cost the run.
 
     Retries a couple of times on failure (including the "model returned an
     empty response" case, which is usually a transient provider/rate-limit
     glitch rather than a real problem with the prompt or image) so a single
     flaky request doesn't silently lose an entire crop's worth of detections.
     """
-    
     message_content = [
         {"type": "text", "text": user_text},
         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image_to_base64(image_path)}"}},
     ]
     last_error = None
+    started = time.perf_counter()
     for attempt in range(1, max_attempts + 1):
         try:
-            raw_response = current_app.extensions["openrouter_client"].generate_response(
+            raw_response, usage = current_app.extensions["openrouter_client"].generate_response(
                 model=run.model,
                 message_content=message_content,
                 system_instruction=system_prompt,
                 temperature=0,
             )
-            return raw_response, extract_json(raw_response), None
+            elapsed = round(time.perf_counter() - started, 3)
+            request_meta = {"latency_sec": elapsed, **usage}
+            return raw_response, extract_json(raw_response), None, request_meta
         except Exception as exc:
             last_error = str(exc)
             if attempt < max_attempts:
                 time.sleep(1.5 * attempt)  # brief backoff before retrying
-    return "", None, last_error
+    elapsed = round(time.perf_counter() - started, 3)
+    return "", None, last_error, {"latency_sec": elapsed, "error": last_error}
 
 
 def _process_page_single_pass(run: PromptRun, page_index: int, image_path: str) -> dict:
     """Original single-request behavior: one call, whatever labels the
     stored prompt asks for, all at full-sheet resolution."""
-    raw_response, parsed, page_error = _call_vision_model(
+    raw_response, parsed, page_error, request_meta = _call_vision_model(
         run, run.prompt.system_prompt or None, run.prompt.content, image_path
     )
     page_objects = extract_objects(parsed, page_index) if parsed is not None else []
@@ -378,7 +391,7 @@ def _process_page_single_pass(run: PromptRun, page_index: int, image_path: str) 
         "objects": page_objects,
         "raw_response": raw_response,
         "error": page_error,
-        "extra": {},
+        "extra": {"requests": [dict(request_meta, stage="single_pass")]},
     }
 
 
@@ -398,10 +411,12 @@ def _process_page_two_pass(run: PromptRun, page_index: int, image_path: str, roo
     os.makedirs(crops_dir, exist_ok=True)
 
     errors: list[str] = []
+    requests_meta: list[dict] = []
 
-    raw_pass1, parsed_pass1, err1 = _call_vision_model(
+    raw_pass1, parsed_pass1, err1, meta1 = _call_vision_model(
         run, run.prompt.system_prompt or None, run.prompt.content, image_path
     )
+    requests_meta.append(dict(meta1, stage="pass1"))
     if err1:
         errors.append(f"Page {page_index + 1} pass 1: {err1}")
 
@@ -425,9 +440,10 @@ def _process_page_two_pass(run: PromptRun, page_index: int, image_path: str, roo
             errors.append(f"Page {page_index + 1} elevation {i} crop failed: {exc}")
             continue
 
-        raw_pass2, parsed_pass2, err2 = _call_vision_model(
+        raw_pass2, parsed_pass2, err2, meta2 = _call_vision_model(
             run, CABINET_COUNTERTOP_SYSTEM_PROMPT, CABINET_COUNTERTOP_USER_PROMPT, crop_path
         )
+        requests_meta.append(dict(meta2, stage=f"pass2_elevation_{i}"))
         if err2:
             errors.append(f"Page {page_index + 1} elevation {i} pass 2: {err2}")
 
@@ -470,7 +486,7 @@ def _process_page_two_pass(run: PromptRun, page_index: int, image_path: str, roo
         "objects": full_page_objects,
         "raw_response": raw_pass1,
         "error": "; ".join(errors) if errors else None,
-        "extra": {"pass2": pass2_details},
+        "extra": {"pass2": pass2_details, "requests": requests_meta},
     }
 
 
@@ -505,15 +521,17 @@ def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: 
     errors: list[str] = []
     raw_objects: list[dict] = []
     tile_details = []
+    requests_meta: list[dict] = []
 
     for i, px_box in enumerate(grid, start=1):
         tile_filename = f"page_{page_index + 1:04d}_tile_{i:03d}.png"
         tile_path = os.path.join(tiles_dir, tile_filename)
         crop_pixel_region(image_path, px_box, tile_path)
 
-        raw_response, parsed, tile_error = _call_vision_model(
+        raw_response, parsed, tile_error, tile_meta = _call_vision_model(
             run, TILE_SYSTEM_PROMPT, TILE_USER_PROMPT, tile_path
         )
+        requests_meta.append(dict(tile_meta, stage=f"tile_{i}"))
         if tile_error:
             errors.append(f"Page {page_index + 1} tile {i}: {tile_error}")
 
@@ -556,8 +574,51 @@ def _process_page_tiled(run: PromptRun, page_index: int, image_path: str, root: 
             "tile_count": len(grid),
             "objects_before_fusion": len(raw_objects),
             "objects_after_fusion": len(fused_objects),
+            "requests": requests_meta,
         },
     }
+
+
+def _summarize_requests(all_requests: list[dict]) -> dict:
+    """Aggregate per-request cost/token/latency metadata (as returned by
+    _call_vision_model, accumulated across every page's "requests" list)
+    into a single run-level summary — ready to read straight out of
+    result.json for a cost/latency comparison between workflows, no log
+    scraping needed.
+    """
+    def _sum(key: str) -> float:
+        return sum((r.get(key) or 0) for r in all_requests)
+
+    request_count = len(all_requests)
+    total_latency = _sum("latency_sec")
+    return {
+        "request_count": request_count,
+        "total_cost_usd": round(_sum("cost"), 6),
+        "total_prompt_tokens": int(_sum("prompt_tokens")),
+        "total_completion_tokens": int(_sum("completion_tokens")),
+        "total_reasoning_tokens": int(_sum("reasoning_tokens")),
+        "total_request_latency_sec": round(total_latency, 3),
+        "avg_request_latency_sec": round(total_latency / request_count, 3) if request_count else None,
+    }
+
+
+def _seconds_since(started_at: datetime) -> float:
+    """(datetime.now(UTC) - started_at).total_seconds(), tolerant of
+    `started_at` coming back timezone-naive from the DB.
+
+    `run.started_at` is written as `datetime.now(UTC)` (timezone-aware),
+    but a SQLAlchemy DateTime column without `timezone=True` silently
+    strips the tzinfo on round-trip through the DB, so what comes back on
+    read can be naive even though what was written was aware. Python
+    refuses to subtract a naive and an aware datetime ("can't subtract
+    offset-naive and offset-aware datetimes"), so normalize first: a
+    naive value here always means "this is UTC without the label" (that's
+    what we wrote), never local time.
+    """
+    now = datetime.now(UTC)
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    return (now - started_at).total_seconds()
 
 
 def process_prompt_run(run_id: int) -> None:
@@ -584,6 +645,7 @@ def process_prompt_run(run_id: int) -> None:
         merged_objects = []
         total_counts = {key: 0 for key in CANONICAL_LABELS}
         errors = []
+        all_requests: list[dict] = []
 
         if not image_paths:
             raise ValueError("No PDF or image files are available for this run.")
@@ -601,6 +663,9 @@ def process_prompt_run(run_id: int) -> None:
             page_error = page_result["error"]
             if page_error:
                 errors.append(f"Page {page_index + 1}: {page_error}")
+
+            page_requests = page_result.get("extra", {}).get("requests", [])
+            all_requests.extend(page_requests)
 
             annotated_path = None
             if run.workflow in ('locate', 'locate_2pass', 'locate_tiled'):
@@ -662,6 +727,10 @@ def process_prompt_run(run_id: int) -> None:
                             "coordinates are normalized 0..1000 (not 0..1)."
                         )
 
+        wall_clock_latency_sec = _seconds_since(run.started_at)
+        cost_summary = _summarize_requests(all_requests)
+        cost_summary["wall_clock_latency_sec"] = round(wall_clock_latency_sec, 3)
+
         result = {
             "run_id": run.id,
             "created_at": datetime.now(UTC).isoformat(),
@@ -677,6 +746,7 @@ def process_prompt_run(run_id: int) -> None:
             "expected_summary": expected,
             "comparison": comparison,
             "location_score": location_score,
+            "cost_summary": cost_summary,
             "errors": errors,
         }
         result_path = os.path.join(root, 'result.json')
@@ -696,7 +766,12 @@ def process_prompt_run(run_id: int) -> None:
 def recompute_run_metrics(run_id: int) -> PromptRun:
     """Re-score a completed run's already-stored predictions against the prompt's
     current expected_json, without calling the model again. Overwrites comparison/
-    location_score/errors in both result.json and PromptRun.result_json."""
+    location_score/errors in both result.json and PromptRun.result_json.
+
+    cost_summary is left untouched here — it reflects actual API usage from
+    the original run and re-scoring against a different expected_json
+    doesn't change what was actually spent/called.
+    """
     run = PromptRun.query.get_or_404(run_id)
     if run.status != PromptStatus.COMPLETED:
         raise ValueError("Can only recompute metrics for a completed run.")
