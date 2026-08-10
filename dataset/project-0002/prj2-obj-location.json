@@ -288,6 +288,17 @@
       }
     },
     {
+      "id": "flp-001",
+      "category": "floor plan",
+      "page": 1,
+      "bbox": {
+        "x": 1378,
+        "y": 1300,
+        "width": 1109,
+        "height": 584
+      }
+    },
+    {
       "id": "elv-007",
       "category": "elevation",
       "page": 1,
@@ -376,6 +387,17 @@
       }
     },
     {
+      "id": "cal-001",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1409,
+        "y": 1623,
+        "width": 50,
+        "height": 43
+      }
+    },
+    {
       "id": "ctp-007",
       "category": "countertop",
       "page": 1,
@@ -453,8 +475,8 @@
       }
     },
     {
-      "id": "eca-001",
-      "category": "elevation_callout",
+      "id": "cal-002",
+      "category": "callout",
       "page": 1,
       "bbox": {
         "x": 1652,
@@ -464,8 +486,19 @@
       }
     },
     {
-      "id": "eca-002",
-      "category": "elevation_callout",
+      "id": "cal-003",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1985,
+        "y": 1661,
+        "width": 50,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-004",
+      "category": "callout",
       "page": 1,
       "bbox": {
         "x": 1479,
@@ -475,8 +508,8 @@
       }
     },
     {
-      "id": "elv-008",
-      "category": "elevation",
+      "id": "flp-002",
+      "category": "floor plan",
       "page": 2,
       "bbox": {
         "x": 1344,
@@ -486,8 +519,8 @@
       }
     },
     {
-      "id": "elv-009",
-      "category": "elevation",
+      "id": "flp-003",
+      "category": "floor plan",
       "page": 2,
       "bbox": {
         "x": 1224,

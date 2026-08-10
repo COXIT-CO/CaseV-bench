@@ -1,6 +1,7 @@
 {
-  "cabinets": 27,
-  "countertops": 7,
-  "elevations": 9,
-  "elevation callout": 2
+  "cabinet": 27,
+  "countertop": 7,
+  "elevation": 7,
+  "callout": 4,
+  "floor plan": 3
 }
