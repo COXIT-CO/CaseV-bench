@@ -6,9 +6,9 @@ class Box(TypedDict):
     bbox: Sequence[float]
     page: int
 
+
 class ParseResult(TypedDict):
     boxes: list[Box]
     dropped: int
     complete: bool
     error: str | None
-    

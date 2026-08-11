@@ -521,4 +521,3 @@ def test_container_key_aliases_boxes_detections_predictions_results():
         text = json.dumps({key: [{"label": "cabinet", "box": [0, 0, 1, 1]}]})
         result = parse(text)
         assert len(result["boxes"]) == 1, f"container key {key!r} was not recognized"
-        
