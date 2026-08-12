@@ -1,42 +1,50 @@
-from sqlalchemy import (
-    Column,
-    DateTime,
-    Integer,
-    MetaData,
-    Numeric,
-    Table,
-    Text,
-    func,
-)
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import DateTime, Integer, MetaData, Numeric, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Every table here belongs to `experiments`, the shared research schema. The service's own
 # tables live in `service`, are owned by a different role, and are migrated by a different
 # Alembic project — see `alembic/env.py`, which refuses to look outside this schema.
 SCHEMA = "experiments"
 
-metadata = MetaData(schema=SCHEMA)
 
-run_results = Table(
-    "run_results",
-    metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True),
-    Column("model", Text, nullable=False),
-    Column("document_id", Text, nullable=False),
+class Base(DeclarativeBase):
+    metadata = MetaData(schema=SCHEMA)
+
+
+class RunResult(Base):
+    __tablename__ = "run_results"
+    __table_args__ = {
+        "comment": "One scored (model, document) measurement per row. The shared research store.",
+    }
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    model: Mapped[str] = mapped_column(Text)
+    document_id: Mapped[str] = mapped_column(Text)
     # Free text, author-namespaced: `author/sliding_window`.
-    Column("config_label", Text, nullable=False),
-    Column("iou_threshold", Numeric(4, 3), nullable=False),
-    Column("scorer_version", Text, nullable=False),
-    Column("author", Text, nullable=False),
-    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
-    Column("tp", Integer, nullable=False),
-    Column("fp", Integer, nullable=False),
-    Column("fn", Integer, nullable=False),
-    Column("precision", Numeric(6, 5), nullable=False),
-    Column("recall", Numeric(6, 5), nullable=False),
-    Column("f1", Numeric(6, 5), nullable=False),
+    config_label: Mapped[str] = mapped_column(Text)
+    iou_threshold: Mapped[Decimal] = mapped_column(Numeric(4, 3))
+    scorer_version: Mapped[str] = mapped_column(Text)
+    author: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    tp: Mapped[int] = mapped_column(Integer)
+    fp: Mapped[int] = mapped_column(Integer)
+    fn: Mapped[int] = mapped_column(Integer)
+    precision: Mapped[Decimal] = mapped_column(Numeric(6, 5))
+    recall: Mapped[Decimal] = mapped_column(Numeric(6, 5))
+    f1: Mapped[Decimal] = mapped_column(Numeric(6, 5))
     # `location-scorer`'s return value, whole. It carries `per_type`, `per_page` and `best_iou`.
     #  A summary cannot be un-summarized later, so the blob is stored rather than reduced.
-    Column("scorer_output", JSONB, nullable=False),
-    comment="One scored (model, document) measurement per row. The shared research store.",
-)
+    scorer_output: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+# Alembic's env.py targets `metadata`. Exposing `Base.metadata` under the old name keeps that
+# contract — and the schema binding — unchanged after the move to declarative mapping.
+metadata = Base.metadata
