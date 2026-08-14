@@ -816,8 +816,8 @@
       }
     },
     {
-      "id": "flp-004",
-      "category": "floor plan",
+      "id": "elv-022",
+      "category": "elevation",
       "page": 4,
       "bbox": {
         "x": 1856,
@@ -827,7 +827,7 @@
       }
     },
     {
-      "id": "elv-022",
+      "id": "elv-023",
       "category": "elevation",
       "page": 4,
       "bbox": {
@@ -838,7 +838,7 @@
       }
     },
     {
-      "id": "elv-023",
+      "id": "elv-024",
       "category": "elevation",
       "page": 4,
       "bbox": {
@@ -849,7 +849,7 @@
       }
     },
     {
-      "id": "elv-024",
+      "id": "elv-025",
       "category": "elevation",
       "page": 4,
       "bbox": {
@@ -860,7 +860,7 @@
       }
     },
     {
-      "id": "elv-025",
+      "id": "elv-026",
       "category": "elevation",
       "page": 4,
       "bbox": {
