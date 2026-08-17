@@ -1,0 +1,25 @@
+{
+    "page_number": "Page 1",
+    "cabinets": [
+        {
+            "identifying_properties": {
+                "subclass_description": "dasdas",
+                "x0": 295,
+                "y0": 204,
+                "x1": 368,
+                "y1": 278
+            },
+            "dimensions_in_inches": {
+                "width": 3,
+                "height": 3,
+                "depth": 3
+            },
+            "ecall_data": {
+                "times_referenced": 3,
+                "rooms": [
+                    "3"
+                ]
+            }
+        }
+    ]
+}
