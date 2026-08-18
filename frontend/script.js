@@ -22,6 +22,14 @@ const LABEL_STYLES = {
     cabinet:           { stroke: '#00ff9d', fill: 'rgba(0, 255, 157, 0.28)',  lineWidth: 2 },
     countertop:        { stroke: '#ffb347', fill: 'rgba(255, 179, 71, 0.35)', lineWidth: 2 },
     elevation_callout: { stroke: '#ff5fa2', fill: 'rgba(255, 95, 162, 0.35)', lineWidth: 2 },
+    // 5-type taxonomy additions (2026-08-17): "callout" replaces
+    // "elevation_callout" and "floor plan" is new — note the SPACE, it
+    // matches ground truth's category spelling exactly. Both old and new
+    // callout names get their own style so history from either era of
+    // prompt still renders distinctly rather than falling back to the
+    // shared default (which collides with cabinet's color).
+    callout:           { stroke: '#c65fff', fill: 'rgba(198, 95, 255, 0.35)', lineWidth: 2 },
+    'floor plan':      { stroke: '#ffe14d', fill: null,                       lineWidth: 3 },
 };
 const DEFAULT_LABEL_STYLE = { stroke: '#00ff9d', fill: 'rgba(0, 255, 157, 0.25)', lineWidth: 2 };
 
@@ -45,6 +53,7 @@ const pdfNav = document.getElementById('pdf-nav');
 
 const modelCountSelect = document.getElementById('model-count');
 const dpiInput = document.getElementById('dpi-input');
+const maxDimInput = document.getElementById('max-dim-input');
 const modelsGrid = document.getElementById('models-grid');
 const useGlobalPrompt = document.getElementById('use-global-prompt');
 const globalPrompt = document.getElementById('global-prompt');
@@ -106,6 +115,8 @@ const fileExecutionModeRow = document.getElementById('file-execution-mode-row');
 const pageGroupingModeSelect = document.getElementById('page-grouping-mode');
 const pageExecutionModeSelect = document.getElementById('page-execution-mode');
 const pageExecutionModeRow = document.getElementById('page-execution-mode-row');
+const maxParallelPagesInput = document.getElementById('max-parallel-pages-input');
+const maxParallelPagesRow = document.getElementById('max-parallel-pages-row');
 
 // Applied execution settings (only updated when the modal is saved).
 // Defaults reproduce the original tool's behaviour: one sequential request
@@ -115,7 +126,8 @@ const defaultExecutionSettings = {
     fileGroupingMode: 'single',
     fileExecutionMode: 'sequential',
     pageGroupingMode: 'single',
-    pageExecutionMode: 'sequential'
+    pageExecutionMode: 'sequential',
+    maxParallelPages: null
 };
 let executionSettings = { ...defaultExecutionSettings };
 
@@ -231,6 +243,20 @@ if (dpiInput) {
     });
 }
 
+if (maxDimInput) {
+    maxDimInput.addEventListener('change', () => {
+        // Optional field — an empty value means "off" (plain DPI flow), so
+        // leave it empty rather than snapping it to a default.
+        if (maxDimInput.value.trim() === '') return;
+        const min = parseInt(maxDimInput.min, 10);
+        const max = parseInt(maxDimInput.max, 10);
+        let val = parseInt(maxDimInput.value, 10);
+        if (!Number.isFinite(val)) { maxDimInput.value = ''; return; }
+        val = Math.min(max, Math.max(min, val));
+        maxDimInput.value = val;
+    });
+}
+
 if (modelCountSelect) {
     modelCountSelect.addEventListener('change', updateActiveModels);
 }
@@ -290,6 +316,7 @@ function applyExecutionSettingsToForm(settings) {
     if (fileExecutionModeSelect) fileExecutionModeSelect.value = settings.fileExecutionMode;
     if (pageGroupingModeSelect) pageGroupingModeSelect.value = settings.pageGroupingMode;
     if (pageExecutionModeSelect) pageExecutionModeSelect.value = settings.pageExecutionMode;
+    if (maxParallelPagesInput) maxParallelPagesInput.value = settings.maxParallelPages || '';
     updateExecutionSubRowsVisibility();
 }
 
@@ -297,8 +324,15 @@ function updateExecutionSubRowsVisibility() {
     if (fileExecutionModeRow) {
         fileExecutionModeRow.style.display = (fileGroupingModeSelect && fileGroupingModeSelect.value === 'split') ? 'flex' : 'none';
     }
+    const pagesSplit = pageGroupingModeSelect && pageGroupingModeSelect.value === 'split';
     if (pageExecutionModeRow) {
-        pageExecutionModeRow.style.display = (pageGroupingModeSelect && pageGroupingModeSelect.value === 'split') ? 'flex' : 'none';
+        pageExecutionModeRow.style.display = pagesSplit ? 'flex' : 'none';
+    }
+    if (maxParallelPagesRow) {
+        // Only meaningful once pages are both split AND run in parallel —
+        // sequential page requests never have more than one in flight anyway.
+        const pagesParallel = pageExecutionModeSelect && pageExecutionModeSelect.value === 'parallel';
+        maxParallelPagesRow.style.display = (pagesSplit && pagesParallel) ? 'flex' : 'none';
     }
 }
 
@@ -323,6 +357,21 @@ if (closeExecutionSettingsBtn) closeExecutionSettingsBtn.addEventListener('click
 
 if (fileGroupingModeSelect) fileGroupingModeSelect.addEventListener('change', updateExecutionSubRowsVisibility);
 if (pageGroupingModeSelect) pageGroupingModeSelect.addEventListener('change', updateExecutionSubRowsVisibility);
+if (pageExecutionModeSelect) pageExecutionModeSelect.addEventListener('change', updateExecutionSubRowsVisibility);
+
+if (maxParallelPagesInput) {
+    maxParallelPagesInput.addEventListener('change', () => {
+        // Optional field — empty means "unlimited", so leave it empty rather
+        // than snapping it to a default.
+        if (maxParallelPagesInput.value.trim() === '') return;
+        const min = parseInt(maxParallelPagesInput.min, 10);
+        const max = parseInt(maxParallelPagesInput.max, 10);
+        let val = parseInt(maxParallelPagesInput.value, 10);
+        if (!Number.isFinite(val)) { maxParallelPagesInput.value = ''; return; }
+        val = Math.min(max, Math.max(min, val));
+        maxParallelPagesInput.value = val;
+    });
+}
 
 if (resetExecutionSettingsBtn) {
     resetExecutionSettingsBtn.addEventListener('click', () => {
@@ -337,7 +386,8 @@ if (saveExecutionSettingsBtn) {
             fileGroupingMode: fileGroupingModeSelect ? fileGroupingModeSelect.value : defaultExecutionSettings.fileGroupingMode,
             fileExecutionMode: fileExecutionModeSelect ? fileExecutionModeSelect.value : defaultExecutionSettings.fileExecutionMode,
             pageGroupingMode: pageGroupingModeSelect ? pageGroupingModeSelect.value : defaultExecutionSettings.pageGroupingMode,
-            pageExecutionMode: pageExecutionModeSelect ? pageExecutionModeSelect.value : defaultExecutionSettings.pageExecutionMode
+            pageExecutionMode: pageExecutionModeSelect ? pageExecutionModeSelect.value : defaultExecutionSettings.pageExecutionMode,
+            maxParallelPages: (maxParallelPagesInput && maxParallelPagesInput.value.trim() !== '') ? parseInt(maxParallelPagesInput.value, 10) : null
         };
         closeExecutionSettingsModal();
     });
@@ -722,12 +772,24 @@ if (runBtn) {
         if (!Number.isFinite(dpiValue) || dpiValue <= 0) dpiValue = 200;
         formData.append('dpi', dpiValue);
 
+        // Optional — only sent when the field actually has a value; left
+        // empty, the backend skips the resize and uses the DPI render as-is.
+        if (maxDimInput && maxDimInput.value.trim() !== '') {
+            const maxDimValue = parseInt(maxDimInput.value, 10);
+            if (Number.isFinite(maxDimValue) && maxDimValue > 0) {
+                formData.append('max_dim', maxDimValue);
+            }
+        }
+
         // Execution settings chosen in the "Execution Settings" modal
         formData.append('model_execution_mode', executionSettings.modelExecutionMode);
         formData.append('file_grouping_mode', executionSettings.fileGroupingMode);
         formData.append('file_execution_mode', executionSettings.fileExecutionMode);
         formData.append('page_grouping_mode', executionSettings.pageGroupingMode);
         formData.append('page_execution_mode', executionSettings.pageExecutionMode);
+        if (executionSettings.maxParallelPages !== null && executionSettings.maxParallelPages !== undefined) {
+            formData.append('max_parallel_pages', executionSettings.maxParallelPages);
+        }
 
         let iouValue = iouThresholdInput ? parseFloat(iouThresholdInput.value) : 0.5;
         if (!Number.isFinite(iouValue)) iouValue = 0.5;
@@ -826,6 +888,8 @@ const EVAL_LABELS = [
     ['countertops', 'Countertops'],
     ['elevations', 'Elevations'],
     ['elevation_callouts', 'Elevation callouts'],
+    ['callouts', 'Callouts'],
+    ['floor_plans', 'Floor plans'],
 ];
 
 function formatDelta(diff) {
@@ -1071,6 +1135,9 @@ function applyRunToForm(run) {
     if (dpiInput && run.dpi) {
         dpiInput.value = run.dpi;
     }
+    if (maxDimInput) {
+        maxDimInput.value = run.max_dim || '';
+    }
 
     restoreScoringInputs(run, 'iou-threshold', 'ground-truth');
 
@@ -1117,6 +1184,7 @@ function applyRunToForm(run) {
         fileExecutionMode: es.file_execution_mode || defaultExecutionSettings.fileExecutionMode,
         pageGroupingMode: es.page_grouping_mode || defaultExecutionSettings.pageGroupingMode,
         pageExecutionMode: es.page_execution_mode || defaultExecutionSettings.pageExecutionMode,
+        maxParallelPages: es.max_parallel_pages ?? null,
     };
     // Keep the Execution Settings modal's own fields in sync too, in case
     // the person opens it afterward.
@@ -1157,7 +1225,8 @@ function renderHistoryList() {
         const fileNames = (run.files || []).join(', ');
         const chips = (run.models || []).map(m => {
             const c = m.counts || {};
-            const total = (c.cabinets || 0) + (c.countertops || 0) + (c.elevations || 0) + (c.elevation_callouts || 0);
+            const total = (c.cabinets || 0) + (c.countertops || 0) + (c.elevations || 0) + (c.elevation_callouts || 0)
+                + (c.callouts || 0) + (c.floor_plans || 0);
             return `<span class="history-model-chip">${escapeHtml(m.model)}: ${total}</span>`;
         }).join('');
 
@@ -1253,10 +1322,12 @@ function renderHistoryDetail() {
     ` : `
         <div class="history-settings-grid">
             <div><b>DPI:</b> ${escapeHtml(run.dpi)}</div>
+            ${run.max_dim ? `<div><b>Max image dimension:</b> ${escapeHtml(run.max_dim)}px</div>` : ''}
             <div><b>Models:</b> ${escapeHtml((run.results || []).map(r => r.model).join(', '))}</div>
             <div><b>Model order:</b> ${escapeHtml(settings.model_execution_mode)}</div>
             <div><b>File batching:</b> ${escapeHtml(settings.file_grouping_mode)} / ${escapeHtml(settings.file_execution_mode)}</div>
             <div><b>Page batching:</b> ${escapeHtml(settings.page_grouping_mode)} / ${escapeHtml(settings.page_execution_mode)}</div>
+            ${settings.max_parallel_pages != null ? `<div><b>Max pages in parallel:</b> ${escapeHtml(settings.max_parallel_pages)}</div>` : ''}
         </div>
         <button type="button" class="run-button history-replay-btn" id="history-detail-replay">↻ Replay this run's setup</button>
     `;
@@ -1287,7 +1358,9 @@ function renderHistoryDetail() {
   "cabinets": 0,
   "countertops": 0,
   "elevations": 0,
-  "elevation_callouts": 0
+  "elevation_callouts": 0,
+  "callouts": 0,
+  "floor_plans": 0
 }'>${r.expected_summary ? escapeHtml(JSON.stringify(r.expected_summary, null, 2)) : ''}</textarea>
                     <div class="history-eval-actions">
                         <button type="button" class="ghost-button" data-save-expected="${idx}">Save expected</button>

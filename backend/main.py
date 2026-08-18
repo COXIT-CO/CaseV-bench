@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import List, Optional
 from dotenv import load_dotenv
-from pdf2image import convert_from_bytes
+from pdf2image import convert_from_bytes, pdfinfo_from_bytes
 from openai import AsyncOpenAI
 from json_repair import repair_json  # Library for repairing malformed JSON
 from PIL import Image, ImageDraw, ImageFont
@@ -62,12 +62,20 @@ client = AsyncOpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-VALID_LABELS = {"cabinet", "countertop", "elevation", "elevation_callout"}
+VALID_LABELS = {"cabinet", "countertop", "elevation", "floor plan", "callout"}
 LABEL_TO_SUMMARY_KEY = {
     "cabinet": "cabinets",
     "countertop": "countertops",
     "elevation": "elevations",
+    # Two-Stage/Grid are untouched and still emit "elevation_callout" —
+    # this mapping stays for them. One-Stage's taxonomy (2026-08-17) has
+    # no "elevation_callout" any more, only "callout" — see [[casev-object-taxonomy]].
     "elevation_callout": "elevation_callouts",
+    "callout": "callouts",
+    # "floor plan" has a SPACE — matches ground truth's category spelling
+    # exactly (drafts/overlay-demo/input/prj*-obj-location.json), so
+    # predictions can match it string-for-string during scoring.
+    "floor plan": "floor_plans",
 }
 
 # Every model has its own native box-order bias (Gemini's vision head is
@@ -643,6 +651,35 @@ def render_pdf_page(pdf_bytes: bytes, page_num: int, dpi: int):
     return images[0]
 
 
+def iter_pdf_pages(pdf_bytes: bytes, dpi: int):
+    """Yields (0-indexed position, PIL.Image) for every page of a PDF, ONE
+    page at a time, instead of the single convert_from_bytes(pdf_bytes,
+    dpi=dpi) call that used to render the whole document into memory as
+    fully-decoded rasters in one go. A physically large multi-page sheet set
+    (e.g. 28 ANSI-E pages) rendered that way holds every page's raw
+    (uncompressed) bitmap alive simultaneously — that spike, not any request
+    concurrency setting, is what was actually OOM-killing the container,
+    since it happens before a single model request is even built. Getting
+    the page count from pdfinfo first (metadata only, no rasterizing) lets
+    each page be rendered, consumed, and freed before the next one starts."""
+    try:
+        page_count = pdfinfo_from_bytes(pdf_bytes).get("Pages")
+    except Exception:
+        page_count = None
+
+    if not page_count:
+        # Metadata lookup failed for some reason — fall back to the
+        # original bulk render rather than silently yielding nothing.
+        for p_idx, img in enumerate(convert_from_bytes(pdf_bytes, dpi=dpi, fmt="png")):
+            yield p_idx, img
+        return
+
+    for p_idx in range(page_count):
+        images = convert_from_bytes(pdf_bytes, dpi=dpi, first_page=p_idx + 1, last_page=p_idx + 1, fmt="png")
+        if images:
+            yield p_idx, images[0]
+
+
 def image_to_b64(img) -> str:
     buffered = BytesIO()
     img.save(buffered, format="PNG", optimize=True)
@@ -937,7 +974,8 @@ async def read_index():
 def compute_counts(response_text: str) -> dict:
     """Recompute per-label counts from a model's raw response JSON, ignoring
     any 'summary' the model may have included — counting is code's job."""
-    counts = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0}
+    counts = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0,
+              "callouts": 0, "floor_plans": 0}
     try:
         data = json.loads(response_text)
         objects = data.get("objects", []) if isinstance(data, dict) else []
@@ -1014,11 +1052,13 @@ async def generate_responses(
         system_prompt: str = Form(...),
         models_data: str = Form(...),
         dpi: int = Form(200),
+        max_dim: Optional[int] = Form(None),
         model_execution_mode: str = Form("sequential"),
         file_grouping_mode: str = Form("single"),
         file_execution_mode: str = Form("sequential"),
         page_grouping_mode: str = Form("single"),
         page_execution_mode: str = Form("sequential"),
+        max_parallel_pages: Optional[int] = Form(None),
         ground_truth: str = Form("[]"),   # JSON, same shape /api/grid/detect accepts
         iou_threshold: float = Form(0.5),
         files: List[UploadFile] = File(...)
@@ -1034,6 +1074,11 @@ async def generate_responses(
     # Guard against absurd or malicious values while still respecting the
     # user's chosen resolution (matches the 72-600 range exposed in the UI).
     dpi = max(72, min(600, dpi))
+    # Optional: None/absent means "no resize", the original DPI-only flow —
+    # only clamp and apply resize_to_fit() below when the caller actually
+    # set a value, rather than forcing every request through a resize.
+    if max_dim is not None:
+        max_dim = max(256, min(8092, max_dim))
 
     def norm_mode(value, default="sequential"):
         value = (value or default).strip().lower()
@@ -1045,12 +1090,22 @@ async def generate_responses(
     file_grouping_mode = "split" if (file_grouping_mode or "").strip().lower() == "split" else "single"
     page_grouping_mode = "split" if (page_grouping_mode or "").strip().lower() == "split" else "single"
 
+    # Optional: caps how many page-level requests (page_grouping_mode=split,
+    # page_execution_mode=parallel) may be in flight at once for this run,
+    # across every model/file. Left unset, a large PDF's every page fires
+    # off as one big burst of concurrent requests — which is what actually
+    # overwhelmed a run and made it fail outright rather than just run
+    # slower. None means "no cap", the original unbounded-parallel behaviour.
+    if max_parallel_pages is not None:
+        max_parallel_pages = max(1, min(15, max_parallel_pages))
+
     execution_settings = {
         "model_execution_mode": model_execution_mode,
         "file_grouping_mode": file_grouping_mode,
         "file_execution_mode": file_execution_mode,
         "page_grouping_mode": page_grouping_mode,
         "page_execution_mode": page_execution_mode,
+        "max_parallel_pages": max_parallel_pages,
     }
 
     # ===============================
@@ -1065,18 +1120,36 @@ async def generate_responses(
         pdf_bytes = await file.read()
         file_names.append(file.filename)
 
-        images = convert_from_bytes(
-            pdf_bytes,
-            dpi=dpi,
-            fmt="png"
-        )
-
         pages = []
-        for p_idx, img in enumerate(images):
+        for p_idx, img in iter_pdf_pages(pdf_bytes, dpi):
+            # native_w/native_h are the untouched DPI render's size — needed
+            # below to convert back to PDF points (native_w * 72 / dpi is
+            # only correct against the ACTUAL dpi render, not whatever
+            # resize_to_fit() produces from it two lines down).
+            native_w, native_h = img.width, img.height
+
+            # DPI alone renders a physically-large sheet to far more pixels
+            # than a physically-small one at the same setting, and every
+            # vision model downscales whatever it's actually given before
+            # its own encoder sees it — so an oversized render doesn't get
+            # more detail through, it gets an internal downscale we don't
+            # control, and the model's own coordinate math ends up relative
+            # to whatever internal frame IT picked, not the render we
+            # measured page_pixel_dims from. Doing that resize ourselves,
+            # to the same max_dim contract the Grid flow already uses (see
+            # resize_to_fit()), makes the frame the model measures against
+            # the same frame we know the pixel size of, regardless of how
+            # physically large or small the source sheet is.
+            #
+            # Optional: only applied when max_dim was actually set. Left
+            # unset, this is exactly the original DPI-only flow — img stays
+            # the native render, native_w/native_h == img.width/img.height.
+            if max_dim is not None:
+                img = resize_to_fit(img, max_dim)
             buffered = BytesIO()
             img.save(buffered, format="PNG", optimize=True)
             img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-            pages.append((p_idx + 1, img_str, file.filename, img.width, img.height))
+            pages.append((p_idx + 1, img_str, file.filename, img.width, img.height, native_w, native_h))
         file_pages.append(pages)
 
     total_images = sum(len(p) for p in file_pages)
@@ -1095,10 +1168,18 @@ async def generate_responses(
     # normalization and returns raw pixel coordinates instead — see the
     # coordinate normalization step in run_batch below.
     page_pixel_dims = {}
+    # Ground truth is measured in PDF points, so each page's render is
+    # converted back to its 72-DPI equivalent size rather than normalized
+    # against the pixel size of whatever DPI this run used — see
+    # normalize_ground_truth() for why that distinction matters. Computed
+    # from native_w/native_h (the untouched DPI render), NOT from px_w/px_h
+    # below — those are post-resize_to_fit() and would silently shrink
+    # every ground-truth box if used here instead.
+    page_points_dims = {}
 
     pages_meta = []
     for f_idx, pages in enumerate(file_pages):
-        for (page_num, b64, fname, px_w, px_h) in pages:
+        for (page_num, b64, fname, px_w, px_h, native_w, native_h) in pages:
             image_filename = f"{f_idx}_{page_num}.png"
             with open(os.path.join(images_dir, image_filename), "wb") as f:
                 f.write(base64.b64decode(b64))
@@ -1109,16 +1190,9 @@ async def generate_responses(
                 "image_url": f"/history-files/{run_id}/images/{image_filename}",
             })
             page_pixel_dims[(f_idx, page_num)] = (px_w, px_h)
+            page_points_dims[(f_idx, page_num)] = (native_w * 72 / dpi, native_h * 72 / dpi)
 
-    # Ground truth is measured in PDF points, so each page's render is
-    # converted back to its 72-DPI equivalent size rather than normalized
-    # against the pixel size of whatever DPI this run used — see
-    # normalize_ground_truth() for why that distinction matters.
     multi_file = len(file_pages) > 1
-    page_points_dims = {
-        key: (px_w * 72 / dpi, px_h * 72 / dpi)
-        for key, (px_w, px_h) in page_pixel_dims.items()
-    }
     file_index_by_name = {name: idx for idx, name in enumerate(file_names)}
     ground_truth_norm = normalize_ground_truth(gt_items, page_points_dims, multi_file,
                                                 file_index_by_name)
@@ -1153,7 +1227,7 @@ async def generate_responses(
         entries = [
             (fidx, p, b64, fname)
             for fidx in group
-            for (p, b64, fname, _px_w, _px_h) in file_pages[fidx]
+            for (p, b64, fname, _px_w, _px_h, _native_w, _native_h) in file_pages[fidx]
         ]
         if page_grouping_mode == "split":
             batches = [[entry] for entry in entries]
@@ -1165,7 +1239,15 @@ async def generate_responses(
     print(f"[generate] run={run_id} {total_images} page(s) at {dpi} DPI split into "
           f"{len(file_group_batches)} file-group(s) / {total_requests_per_model} request(s) per model "
           f"(models: {model_execution_mode}, files: {file_grouping_mode}/{file_execution_mode}, "
-          f"pages: {page_grouping_mode}/{page_execution_mode}).")
+          f"pages: {page_grouping_mode}/{page_execution_mode}"
+          f"{f', max {max_parallel_pages} page(s) at once' if max_parallel_pages is not None else ''}).")
+
+    # Shared across every model/file-group in this run (not recreated per
+    # call), so "max_parallel_pages" caps the true total of concurrent
+    # page-level requests in flight, not just within one group. Only
+    # meaningful when page_execution_mode == "parallel" — the sequential
+    # path below never has more than one request in flight anyway.
+    page_semaphore = asyncio.Semaphore(max_parallel_pages) if max_parallel_pages is not None else None
 
     # ===============================
     # Run a single batch (one API call) for one model
@@ -1299,21 +1381,30 @@ async def generate_responses(
 
                 obj.pop("image_index", None)
 
-                # Some models (observed repeatedly with claude-sonnet-5)
-                # ignore the 0-1000 normalization instruction and return raw
-                # pixel coordinates of the exact image they were sent,
-                # regardless of prompt wording. A value above 1000 can never
-                # be a valid 0-1000 coordinate — detect that here and rescale
-                # using the REAL pixel size of the exact page this object
-                # came from, so every response leaving this endpoint is
-                # already normalized 0-1000, independent of whether the
-                # model itself normalized correctly. No model-name check —
-                # this only ever activates when the numbers are actually out
-                # of range, so models that already normalize correctly
-                # (Gemini, Qwen, ...) are completely unaffected.
-                box_out = box
-                if max(box) > 1000:
+                # Some models ignore the requested coordinate scale and
+                # report in a different one than the prompt asked for —
+                # observed repeatedly with claude-sonnet-5 returning raw
+                # pixel coordinates of the exact image it was sent, and
+                # some prompts now legitimately ask for 0-1 fractions
+                # instead of 0-1000 (see drafts/new_annotation). Detect
+                # which of the three scales the box is actually in and
+                # normalize to 0-1000 regardless, so every response leaving
+                # this endpoint is on the same scale independent of what
+                # the model/prompt combination actually produced:
+                #   - every value <= 1.0: a 0-1 fraction (an object under
+                #     0.1% of the image in both dimensions is never a
+                #     genuine 0-1000 box, so this reading is unambiguous)
+                #   - every value <= 1000: already 0-1000
+                #   - anything above 1000: raw pixels, rescaled using the
+                #     REAL pixel size of the exact page this object came
+                #     from. No model-name check — this only ever activates
+                #     when the numbers are actually out of range, so models
+                #     that already normalize correctly are unaffected.
+                if max(box) <= 1.0:
+                    box_out = [max(0, min(1000, round(v * 1000))) for v in box]
+                elif max(box) > 1000:
                     dims = page_pixel_dims.get((obj.get("file_index"), obj.get("page_num")))
+                    box_out = box
                     if dims:
                         px_w, px_h = dims
                         x0, y0, x1, y1 = box
@@ -1324,6 +1415,8 @@ async def generate_responses(
                             round((y1 / px_h) * 1000),
                         ]
                     box_out = [max(0, min(1000, v)) for v in box_out]
+                else:
+                    box_out = [max(0, min(1000, v)) for v in box]
 
                 # Keep only what the frontend actually needs — label, box,
                 # file_index, page_num. Any left/top/right/bottom fields the
@@ -1345,9 +1438,15 @@ async def generate_responses(
     # ===============================
     # Run every batch for one model, respecting file/page execution modes
     # ===============================
+    async def run_batch_limited(model_name: str, user_prompt: str, entries: list, usage_sink: list):
+        if page_semaphore is None:
+            return await run_batch(model_name, user_prompt, entries, usage_sink)
+        async with page_semaphore:
+            return await run_batch(model_name, user_prompt, entries, usage_sink)
+
     async def run_batches_in_group(model_name: str, user_prompt: str, batches: list, usage_sink: list):
         if page_execution_mode == "parallel":
-            return await asyncio.gather(*[run_batch(model_name, user_prompt, b, usage_sink) for b in batches])
+            return await asyncio.gather(*[run_batch_limited(model_name, user_prompt, b, usage_sink) for b in batches])
         results = []
         for b in batches:
             results.append(await run_batch(model_name, user_prompt, b, usage_sink))
@@ -1396,7 +1495,8 @@ async def generate_responses(
 
         # Counting is ALWAYS done here, from the actual objects list — never
         # trusted from the model's own output.
-        summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0}
+        summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0,
+                   "callouts": 0, "floor_plans": 0}
         for obj in all_objects:
             key = LABEL_TO_SUMMARY_KEY.get(obj.get("label"))
             if key:
@@ -1431,7 +1531,7 @@ async def generate_responses(
     results = list(results)
     save_history_meta(run_id, run_dir, system_prompt, dpi, execution_settings,
                        file_names, pages_meta, models, results,
-                       ground_truth_norm, iou_threshold)
+                       ground_truth_norm, iou_threshold, max_dim)
     prune_history()
 
     return {"results": results, "run_id": run_id}
@@ -1439,7 +1539,7 @@ async def generate_responses(
 
 def save_history_meta(run_id, run_dir, system_prompt, dpi, execution_settings,
                        file_names, pages_meta, models, results,
-                       ground_truth=None, iou_threshold=None):
+                       ground_truth=None, iou_threshold=None, max_dim=None):
     """Persist everything needed to fully reconstruct this run later: the
     prompts used (system + per-model), settings, file/page list, and every
     model's raw response alongside code-computed counts, its location score
@@ -1456,6 +1556,7 @@ def save_history_meta(run_id, run_dir, system_prompt, dpi, execution_settings,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "system_prompt": system_prompt,
         "dpi": dpi,
+        "max_dim": max_dim,
         "execution_settings": execution_settings,
         "iou_threshold": iou_threshold,
         "ground_truth": ground_truth or [],
@@ -2001,7 +2102,8 @@ async def two_stage_detect_details(
     for rec in page_records:
         final_objects.extend(rec["objects"])
 
-    summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0}
+    summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0,
+               "callouts": 0, "floor_plans": 0}
     for obj in final_objects:
         key = LABEL_TO_SUMMARY_KEY.get(obj.get("label"))
         if key:
@@ -2280,7 +2382,7 @@ async def call_model_for_grid_objects(model_name: str, system_prompt: str, user_
 async def grid_detect(
         file: UploadFile = File(...),
         dpi: int = Form(200),
-        max_dim: int = Form(1568),
+        max_dim: int = Form(None),
         grid_rows: int = Form(6),
         grid_cols: int = Form(6),
         grid_color: str = Form("#dc0000"),   # hex, e.g. "#dc0000" — grid line (and label) color
@@ -2306,7 +2408,7 @@ async def grid_detect(
     same PDF; model_execution_mode/page_execution_mode control concurrency
     the same way they do for /api/generate."""
     dpi = max(72, min(600, dpi))
-    max_dim = max(256, min(4096, max_dim))
+    max_dim = max(256, min(8092, max_dim))
     grid_rows = max(1, min(200, grid_rows))
     grid_cols = max(1, min(200, grid_cols))
     grid_rgb = hex_to_rgb(grid_color)
@@ -2433,7 +2535,8 @@ async def grid_detect(
 
         score_result = safe_score(predictions, ground_truth_norm, iou_threshold)
 
-        summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0}
+        summary = {"cabinets": 0, "countertops": 0, "elevations": 0, "elevation_callouts": 0,
+                   "callouts": 0, "floor_plans": 0}
         objects_out = []
         for p in predictions:
             key = LABEL_TO_SUMMARY_KEY.get(p["object_type"])
