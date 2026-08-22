@@ -2,9 +2,10 @@
 overlay PNG, all under ``/api`` for the SPA."""
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -19,14 +20,14 @@ from core.services.prediction_override import (
     PredictionOverrideError,
     PredictionOverrideService,
 )
-from core.services.scoring import ScoringService
+from core.services.scoring import LOCATION_IOU_THRESHOLD, ScoringService
 
 router = APIRouter(prefix="/api", tags=["results"])
 
 
 class LocationLabelDetail(BaseModel):
     """One label's location breakdown (mirrors ``scoring.LabelLocationScore``): the
-    IoU@0.5 tally and its derived rates."""
+    matched tally and its derived rates, at the response's echoed ``iou_threshold``."""
 
     label: str
     tp: int
@@ -39,7 +40,8 @@ class LocationLabelDetail(BaseModel):
 
 class LocationScoreOut(BaseModel):
     """A location Result's Score block: the micro-averaged P/R/F1 headline plus the
-    per-label rows (subtitle "IoU@0.5, matched per page then micro-averaged")."""
+    per-label rows. The operating point is the response's ``iou_threshold``, not a fixed
+    0.5 — the subtitle renders that echoed value."""
 
     precision: float
     recall: float
@@ -79,6 +81,12 @@ class ResultDetailResponse(BaseModel):
     scored: bool
     label_count: int
     knobs: KnobsOut
+    # The operating point these rates were computed at, and whether it is CaseV's canonical
+    # one. Echoed rather than assumed so the drill-down can label an exploratory board
+    # honestly instead of printing a hardcoded "IoU@0.5" over 0.3 numbers.
+    iou_threshold: float
+    canonical_iou: bool
+    canonical_iou_threshold: float
     location_score: LocationScoreOut | None = None
     predictions: list[PredictionOut]
 
@@ -107,12 +115,22 @@ def _prediction_out(pred: Prediction) -> PredictionOut:
 
 @router.get("/results/{result_id}", response_model=ResultDetailResponse)
 def result_detail(
-    result_id: int, session: Session = Depends(get_session)
+    result_id: int,
+    iou_threshold: float | None = Query(default=None, gt=0.0, le=1.0),
+    session: Session = Depends(get_session),
 ) -> ResultDetailResponse:
     """JSON twin of the retired Jinja ``/results/{id}`` drill-down (spec §A.3). The Score is
-    IoU@0.5 P/R/F1, recomputed against current GT on read (ADR 0004), so a GT import after the
-    Run shows up without a re-run. Returns ``scored:false`` with a null score block when the
-    Drawing has no GT (unscored, distinct from a zero score)."""
+    P/R/F1 at the canonical operating point, recomputed against current GT on read (ADR
+    0004), so a GT import after the Run shows up without a re-run. Returns ``scored:false``
+    with a null score block when the Drawing has no GT (unscored, distinct from a zero
+    score).
+
+    ``iou_threshold`` re-scores this Result at an arbitrary operating point for exploration
+    (scope: IoU knob). It persists nothing — the service routes it to
+    ``explore_location_result``, which has no write path — so inspecting which boxes flip
+    TP/FP at 0.3 leaves the canonical Score row untouched. The threshold in force is always
+    echoed back, so the drill-down never has to assume which one produced its numbers.
+    """
     result = session.get(Result, result_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"no result with id {result_id}")
@@ -120,18 +138,31 @@ def result_detail(
     prompt = session.get(Prompt, run.prompt_id)
     drawing = session.get(Drawing, run.drawing_id)
 
-    score = ScoringService(session).score_location_result(result_id)
-
+    scoring = ScoringService(session)
+    effective_iou = (
+        iou_threshold if iou_threshold is not None else LOCATION_IOU_THRESHOLD
+    )
     location_score: LocationScoreOut | None = None
-    if score is not None:
-        location_score = LocationScoreOut(
-            precision=score.precision,
-            recall=score.recall,
-            f1=score.f1,
-            per_label=[
-                LocationLabelDetail(**ls) for ls in json.loads(score.per_label_json)
-            ],
-        )
+    if iou_threshold is None:
+        score = scoring.score_location_result(result_id)
+        if score is not None:
+            location_score = LocationScoreOut(
+                precision=score.precision,
+                recall=score.recall,
+                f1=score.f1,
+                per_label=[
+                    LocationLabelDetail(**ls) for ls in json.loads(score.per_label_json)
+                ],
+            )
+    else:
+        score = scoring.explore_location_result(result_id, iou_threshold)
+        if score is not None:
+            location_score = LocationScoreOut(
+                precision=score.precision,
+                recall=score.recall,
+                f1=score.f1,
+                per_label=[LocationLabelDetail(**asdict(ls)) for ls in score.per_label],
+            )
 
     return ResultDetailResponse(
         result_id=result.id,
@@ -143,6 +174,9 @@ def result_detail(
         drawing_name=drawing.name,
         scored=score is not None,
         label_count=len(OBJECT_LABELS),
+        iou_threshold=effective_iou,
+        canonical_iou=iou_threshold is None,
+        canonical_iou_threshold=LOCATION_IOU_THRESHOLD,
         knobs=KnobsOut(
             dpi=run.dpi,
             downsample_px=run.downsample_px,

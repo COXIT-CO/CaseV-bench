@@ -2,7 +2,7 @@
 (spec §A.2). The service ranks once and returns rows already ordered; this router only
 serializes and enriches each row with its Drawing."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -11,15 +11,20 @@ from api.routers.common import LeaderboardDrawing
 from core.models.drawing import Drawing
 from core.models.results import OBJECT_LABELS
 from core.models.run import Run
-from core.services.scoring import LocationLeaderboardMetric, ScoringService
+from core.services.scoring import (
+    LOCATION_IOU_THRESHOLD,
+    LocationLeaderboardMetric,
+    ScoringService,
+)
 
 router = APIRouter(prefix="/api", tags=["leaderboard"])
 
 
 class LeaderboardRowOut(BaseModel):
-    """One Leaderboard line — a prompt-version × model Configuration outcome and its IoU@0.5
-    rates. Unscored rows (no GT) have ``rank:null`` and null metrics — a claim about the row,
-    not about a ``Score`` — and the service has already pinned them last.
+    """One Leaderboard line — a prompt-version × model Configuration outcome and its rates
+    at the response's echoed ``iou_threshold``. Unscored rows (no GT) have ``rank:null`` and
+    null metrics — a claim about the row, not about a ``Score`` — and the service has already
+    pinned them last.
     ``drawing_id``/``drawing_name`` let the SPA show the Drawing column and point an unscored
     row's CTA at its ground-truth entry (§B.2).
     """
@@ -53,6 +58,12 @@ class LeaderboardResponse(BaseModel):
     metrics: list[str]
     drawings: list[LeaderboardDrawing]
     label_count: int
+    # The operating point the board was ranked at, plus whether that is CaseV's canonical
+    # one. The SPA needs both: the value to label the rates with, the flag to decide whether
+    # to show the "exploring" badge and suppress anything that treats the board as official.
+    iou_threshold: float
+    canonical_iou: bool
+    canonical_iou_threshold: float
     rows: list[LeaderboardRowOut]
 
 
@@ -72,6 +83,7 @@ def leaderboard(
     prompt_family: str | None = None,
     prompt_version: int | None = None,
     sort: str | None = None,
+    iou_threshold: float | None = Query(default=None, gt=0.0, le=1.0),
     session: Session = Depends(get_session),
 ) -> LeaderboardResponse:
     """JSON twin of the Jinja ``/leaderboard`` (spec §A.2). Same service method, so the
@@ -81,7 +93,13 @@ def leaderboard(
 
     Optional ``prompt_family`` / ``prompt_version`` narrow the board to one prompt lineage
     or pin one exact version (ticket 04). A ``prompt_version`` without a ``prompt_family``
-    is a ``400`` — versions are per-family, so a bare version is ambiguous."""
+    is a ``400`` — versions are per-family, so a bare version is ambiguous.
+
+    ``iou_threshold`` re-ranks the board at an arbitrary operating point for exploration.
+    Omitted, the board is the canonical one and Scores are recomputed and persisted as
+    always; supplied, the service computes in memory and **writes nothing**, so a browse at
+    0.3 cannot move the published numbers. The threshold in force and the canonical one are
+    both echoed, so no client has to hardcode either."""
     if prompt_version is not None and prompt_family is None:
         raise HTTPException(
             status_code=400,
@@ -94,6 +112,7 @@ def leaderboard(
         metric=metric,
         prompt_family=prompt_family,
         prompt_version=prompt_version,
+        iou_threshold=iou_threshold,
     )
 
     # The board rows carry only run_id; look the Drawing up once per Run so a row can show
@@ -143,5 +162,10 @@ def leaderboard(
             for d in drawings
         ],
         label_count=len(OBJECT_LABELS),
+        iou_threshold=(
+            iou_threshold if iou_threshold is not None else LOCATION_IOU_THRESHOLD
+        ),
+        canonical_iou=iou_threshold is None,
+        canonical_iou_threshold=LOCATION_IOU_THRESHOLD,
         rows=out_rows,
     )

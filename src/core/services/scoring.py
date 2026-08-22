@@ -335,17 +335,41 @@ class ScoringService:
         self.session.add(score)
         return score
 
-    def score_location_result(self, result_id: int) -> Score | None:
-        """Recompute and upsert a single location Result's Score against current GT.
-
-        Returns the persisted ``Score``, or ``None`` when the Drawing has no location GT
-        (the Result is unscored, distinct from a zero score).
-        """
+    def _result_with_gt(
+        self, result_id: int
+    ) -> tuple[Result, dict[int, list[LocationBox]]]:
         result = self.session.get(Result, result_id)
         if result is None:
             raise ValueError(f"no result with id {result_id}")
         run = self.session.get(Run, result.run_id)
-        gt = self.location_gt_boxes(run.drawing_id)
+        return result, self.location_gt_boxes(run.drawing_id)
+
+    def explore_location_result(
+        self, result_id: int, iou_threshold: float
+    ) -> LocationScore | None:
+        """Score one Result at an **arbitrary** operating point without persisting anything.
+
+        The exploration twin of ``score_location_result``: same inputs, same arithmetic, but
+        it returns the computed ``LocationScore`` instead of upserting a ``Score`` row. The
+        split is deliberate and structural rather than a flag on the canonical method — a
+        number computed at a non-canonical threshold has no write path at all, so browsing
+        the board at 0.3 can never rewrite the 0.5 numbers the Leaderboard and the shared
+        store are built on (ADR 0004, 0030).
+        """
+        result, gt = self._result_with_gt(result_id)
+        return score_location(
+            self.predicted_boxes_by_page(result), gt, iou_threshold=iou_threshold
+        )
+
+    def score_location_result(self, result_id: int) -> Score | None:
+        """Recompute and upsert a single location Result's Score against current GT, at
+        CaseV's one canonical operating point (``LOCATION_IOU_THRESHOLD``).
+
+        Returns the persisted ``Score``, or ``None`` when the Drawing has no location GT
+        (the Result is unscored, distinct from a zero score). To score at any other
+        threshold, use ``explore_location_result`` — which deliberately cannot write.
+        """
+        result, gt = self._result_with_gt(result_id)
         score = self._stage_location_score(result, gt)
         self.session.commit()
         if score is not None:
@@ -378,6 +402,7 @@ class ScoringService:
         metric: LocationLeaderboardMetric = LocationLeaderboardMetric.f1,
         prompt_family: str | None = None,
         prompt_version: int | None = None,
+        iou_threshold: float | None = None,
     ) -> list[LocationLeaderboardRow]:
         """Build the location Leaderboard: every location Result as a prompt-version ×
         model row, filtered by Drawing, ranked best-first by ``metric``. Scores are
@@ -386,7 +411,16 @@ class ScoringService:
 
         Optional ``prompt_family`` / ``prompt_version`` narrow the board to one prompt
         lineage or pin one exact version, applied as ``WHERE`` clauses on the Prompt join
-        (spec-run-report, ticket 04)."""
+        (spec-run-report, ticket 04).
+
+        ``iou_threshold`` is the **exploration** knob and defaults to ``None``, meaning "the
+        canonical operating point": score at ``LOCATION_IOU_THRESHOLD``, upsert every Score,
+        commit once — exactly what this method has always done. Pass a float and the board is
+        computed at that threshold and **nothing is written**: no Score upsert, no commit.
+        That asymmetry is the point. Recompute-on-read means a board built at 0.3 would
+        otherwise persist 0.3 rates into the very rows the published 0.5 numbers come from,
+        and a reader would have no way to tell. Ranking a board is not deciding an operating
+        point; moving CaseV's is a dated decision of its own (ADR 0030)."""
         stmt = (
             select(Result, Run, Prompt)
             .join(Run, Result.run_id == Run.id)
@@ -404,7 +438,19 @@ class ScoringService:
         for result, run, prompt in self.session.exec(stmt).all():
             if run.drawing_id not in gt_by_drawing:
                 gt_by_drawing[run.drawing_id] = self.location_gt_boxes(run.drawing_id)
-            score = self._stage_location_score(result, gt_by_drawing[run.drawing_id])
+            gt = gt_by_drawing[run.drawing_id]
+            # Two paths on purpose: the canonical one stages a Score row for the single
+            # commit below, the exploration one computes and discards. ``Score`` and
+            # ``LocationScore`` both expose precision/recall/f1, so the row is built the
+            # same way from either.
+            if iou_threshold is None:
+                score = self._stage_location_score(result, gt)
+            else:
+                score = score_location(
+                    self.predicted_boxes_by_page(result),
+                    gt,
+                    iou_threshold=iou_threshold,
+                )
             rows.append(
                 LocationLeaderboardRow(
                     result_id=result.id,
@@ -418,7 +464,8 @@ class ScoringService:
                     f1=score.f1 if score else None,
                 )
             )
-        self.session.commit()
+        if iou_threshold is None:
+            self.session.commit()
 
         return _rank_location(rows, metric)
 

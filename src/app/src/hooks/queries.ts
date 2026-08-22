@@ -29,6 +29,7 @@ export function useLeaderboard(params: LeaderboardParams) {
       params.prompt_family,
       params.prompt_version,
       params.sort,
+      params.iou_threshold,
     ],
     queryFn: () => api.leaderboard(params),
     placeholderData: (prev) => prev,
@@ -36,10 +37,10 @@ export function useLeaderboard(params: LeaderboardParams) {
 }
 
 /** One Result's drill-down, keyed by its id (spec §A.3). */
-export function useResult(id: number) {
+export function useResult(id: number, iouThreshold: number | null = null) {
   return useQuery({
-    queryKey: ["result", id],
-    queryFn: () => api.result(id),
+    queryKey: ["result", id, iouThreshold],
+    queryFn: () => api.result(id, iouThreshold),
   });
 }
 

@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ResultDetailResponse } from "@/types";
@@ -68,7 +68,7 @@ describe("ResultDetail", () => {
     expect(screen.getByText("Precision")).toBeInTheDocument();
     expect(screen.getByText("Recall")).toBeInTheDocument();
     expect(
-      screen.getByText(/IoU@0.5, matched per page then micro-averaged/),
+      screen.getByText(/IoU@0.50, matched per page then micro-averaged/),
     ).toBeInTheDocument();
     // One Score shape: the counting block is gone, not branched around (ADR 0032).
     expect(screen.queryByText("Total abs. error")).not.toBeInTheDocument();
@@ -313,5 +313,106 @@ describe("ResultDetail", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("boom"),
     );
+  });
+});
+
+describe("ResultDetail IoU knob", () => {
+  // The exploratory twin of LOCATION_RESULT: same Result, re-scored at 0.3 by the server,
+  // which is what makes the loose boxes count.
+  const EXPLORED: ResultDetailResponse = {
+    ...LOCATION_RESULT,
+    iou_threshold: 0.3,
+    canonical_iou: false,
+    location_score: {
+      ...LOCATION_RESULT.location_score!,
+      precision: 0.94,
+      recall: 0.91,
+      f1: 0.92,
+    },
+  };
+
+  // Surfaces the live URL so the knob can be asserted to mirror into it, the way the
+  // Leaderboard's filters do (spec §B.3) — that mirroring is what makes an exploratory view
+  // shareable and back/forward-able.
+  function UrlProbe() {
+    const loc = useLocation();
+    return <div data-testid="url">{loc.pathname + loc.search}</div>;
+  }
+
+  function renderKnob(route: string) {
+    return renderWithProviders(
+      <>
+        <Routes>
+          <Route path="/results/:id" element={<ResultDetail />} />
+        </Routes>
+        <UrlProbe />
+      </>,
+      { route },
+    );
+  }
+
+  beforeEach(() => {
+    vi.mocked(api.result).mockReset();
+  });
+
+  it("requests the threshold from the URL and labels the rates with it", async () => {
+    vi.mocked(api.result).mockResolvedValue(EXPLORED);
+    renderDetail("/results/90?iou_threshold=0.3");
+
+    await screen.findByRole("heading", { name: "Result #90" });
+    expect(api.result).toHaveBeenCalledWith(90, 0.3);
+    expect(
+      screen.getByText(/IoU@0.30, matched per page then micro-averaged/),
+    ).toBeInTheDocument();
+    // The banner names what the exploration is deviating *from*, read off the response
+    // rather than hardcoded, and says plainly that nothing was stored.
+    expect(screen.getByRole("status")).toHaveTextContent("Exploring at IoU 0.30");
+    expect(screen.getByRole("status")).toHaveTextContent("IoU 0.50");
+  });
+
+  it("defaults to the canonical point and shows no exploring banner", async () => {
+    vi.mocked(api.result).mockResolvedValue(LOCATION_RESULT);
+    renderDetail("/results/90");
+
+    await screen.findByRole("heading", { name: "Result #90" });
+    expect(api.result).toHaveBeenCalledWith(90, null);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("re-scores from the dropdown and mirrors the choice into the URL", async () => {
+    vi.mocked(api.result).mockImplementation(async (_id, threshold) =>
+      threshold === 0.3 ? EXPLORED : LOCATION_RESULT,
+    );
+    renderKnob("/results/90");
+    await screen.findByRole("heading", { name: "Result #90" });
+
+    await userEvent.selectOptions(screen.getByLabelText("IoU"), "0.3");
+
+    await waitFor(() => expect(api.result).toHaveBeenCalledWith(90, 0.3));
+    expect(screen.getByTestId("url")).toHaveTextContent(
+      "/results/90?iou_threshold=0.3",
+    );
+    // The rendered rates really came back re-scored, not just the request re-issued: the
+    // subtitle and banner both track the new operating point.
+    await waitFor(() =>
+      expect(
+        screen.getByText(/IoU@0.30, matched per page then micro-averaged/),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Exploring at IoU 0.30");
+  });
+
+  it("returns to the canonical point from the banner", async () => {
+    vi.mocked(api.result).mockImplementation(async (_id, threshold) =>
+      threshold === 0.3 ? EXPLORED : LOCATION_RESULT,
+    );
+    renderKnob("/results/90?iou_threshold=0.3");
+    await screen.findByRole("heading", { name: "Result #90" });
+
+    await userEvent.click(screen.getByRole("button", { name: /back to default/i }));
+
+    await waitFor(() => expect(api.result).toHaveBeenCalledWith(90, null));
+    expect(screen.getByTestId("url")).toHaveTextContent("/results/90");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

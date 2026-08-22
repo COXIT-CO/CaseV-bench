@@ -148,6 +148,7 @@ describe("Leaderboard", () => {
       prompt_family: null,
       prompt_version: null,
       sort: "precision",
+      iou_threshold: null,
     });
   });
 
@@ -161,6 +162,24 @@ describe("Leaderboard", () => {
     await userEvent.click(row);
 
     expect(await screen.findByText("result detail page")).toBeInTheDocument();
+  });
+
+  it("carries the explored IoU threshold into the Result detail route", async () => {
+    // Otherwise opening a row from an exploratory board would silently show that Result at
+    // the canonical operating point — the same numbers the board just said it was not using.
+    board();
+    renderBoard("/?iou_threshold=0.3");
+
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: /open result for anthropic\/claude-sonnet-4.5/i,
+      }),
+    );
+
+    expect(await screen.findByText("result detail page")).toBeInTheDocument();
+    expect(screen.getByTestId("url")).toHaveTextContent(
+      "/results/90?iou_threshold=0.3",
+    );
   });
 
   it("the ground-truth CTA navigates to GT entry, not the Result detail", async () => {
@@ -222,6 +241,7 @@ describe("Leaderboard", () => {
       prompt_family: "boxes",
       prompt_version: 2,
       sort: null,
+      iou_threshold: null,
     });
   });
 

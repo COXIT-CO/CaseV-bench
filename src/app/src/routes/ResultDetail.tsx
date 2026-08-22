@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { KnobsSnapshot } from "@/components/KnobsSnapshot";
@@ -20,6 +20,7 @@ import {
   useSetPredictionOverride,
 } from "@/hooks/queries";
 import { formatRate } from "@/lib/format";
+import { IOU_CHOICES, parseIouThreshold } from "@/lib/iou";
 import { cn } from "@/lib/utils";
 import type {
   LocationScore,
@@ -36,10 +37,18 @@ import type {
 export function ResultDetail() {
   const { id } = useParams();
   const resultId = Number(id);
+  // The drill-down honours the same `?iou_threshold=` the Leaderboard writes, so following a
+  // row from an exploratory board lands on the matching view instead of silently snapping
+  // back to the canonical numbers.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const iouThreshold = parseIouThreshold(searchParams.get("iou_threshold"));
 
   // A non-numeric :id never matched a real Result; treat it as a not-found, not a fetch.
   const valid = Number.isInteger(resultId);
-  const { data, isLoading, isError, error } = useResult(valid ? resultId : 0);
+  const { data, isLoading, isError, error } = useResult(
+    valid ? resultId : 0,
+    iouThreshold,
+  );
 
   if (!valid) {
     return (
@@ -71,7 +80,16 @@ export function ResultDetail() {
       <Header result={data} />
       <KnobsSnapshot knobs={data.knobs} />
       {data.scored ? (
-        <ScoreBlock result={data} />
+        <ScoreBlock
+          result={data}
+          iouThreshold={iouThreshold}
+          onIouChange={(next) => {
+            const params = new URLSearchParams(searchParams);
+            if (next === null) params.delete("iou_threshold");
+            else params.set("iou_threshold", String(next));
+            setSearchParams(params);
+          }}
+        />
       ) : (
         <UnscoredCta drawingId={data.drawing_id} />
       )}
@@ -148,11 +166,64 @@ function UnscoredCta({ drawingId }: { drawingId: number }) {
   );
 }
 
-function ScoreBlock({ result }: { result: ResultDetailResponse }) {
+function ScoreBlock({
+  result,
+  iouThreshold,
+  onIouChange,
+}: {
+  result: ResultDetailResponse;
+  iouThreshold: number | null;
+  onIouChange: (next: number | null) => void;
+}) {
   return (
     <div className="mb-6 rounded-lg border bg-card p-5">
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <label
+          htmlFor="rd-iou"
+          className="text-xs font-medium text-muted-foreground"
+        >
+          IoU
+        </label>
+        <select
+          id="rd-iou"
+          value={iouThreshold === null ? "" : String(iouThreshold)}
+          onChange={(e) => onIouChange(parseIouThreshold(e.target.value))}
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="">Default</option>
+          {IOU_CHOICES.map((t) => (
+            <option key={t} value={t}>
+              {t.toFixed(1)}
+            </option>
+          ))}
+        </select>
+      </div>
+      {!result.canonical_iou && (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]"
+        >
+          <span className="font-medium">
+            Exploring at IoU {result.iou_threshold.toFixed(2)}
+          </span>
+          <span className="text-muted-foreground">
+            Not saved, and not this Result&apos;s published score — that stays at
+            IoU {result.canonical_iou_threshold.toFixed(2)}.
+          </span>
+          <button
+            type="button"
+            onClick={() => onIouChange(null)}
+            className="ml-auto rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Back to default
+          </button>
+        </div>
+      )}
       {result.location_score && (
-        <LocationScoreBlock score={result.location_score} />
+        <LocationScoreBlock
+          score={result.location_score}
+          iouThreshold={result.iou_threshold}
+        />
       )}
     </div>
   );
@@ -185,7 +256,13 @@ function Stat({
   );
 }
 
-function LocationScoreBlock({ score }: { score: LocationScore }) {
+function LocationScoreBlock({
+  score,
+  iouThreshold,
+}: {
+  score: LocationScore;
+  iouThreshold: number;
+}) {
   return (
     <>
       <div className="mb-4 flex gap-9">
@@ -194,7 +271,7 @@ function LocationScoreBlock({ score }: { score: LocationScore }) {
         <Stat label="F1" value={formatRate(score.f1)} emphasis />
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        IoU@0.5, matched per page then micro-averaged.
+        IoU@{iouThreshold.toFixed(2)}, matched per page then micro-averaged.
       </p>
       <div className="overflow-x-auto">
         <Table>

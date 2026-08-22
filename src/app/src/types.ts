@@ -54,6 +54,13 @@ export interface LeaderboardResponse {
   metrics: string[];
   drawings: LeaderboardDrawing[];
   label_count: number;
+  /** The operating point this board was ranked at, echoed by the server. */
+  iou_threshold: number;
+  /** False when the board is exploratory — the rates are real, but nothing was persisted
+   * and they are not the numbers the benchmark publishes. */
+  canonical_iou: boolean;
+  /** CaseV's one published operating point, always reported so a client never hardcodes it. */
+  canonical_iou_threshold: number;
   rows: LeaderboardRow[];
 }
 
@@ -64,9 +71,13 @@ export interface LeaderboardParams {
   prompt_family: string | null;
   prompt_version: number | null;
   sort: string | null;
+  /** Exploration only. `null` means the canonical operating point, which is the only one
+   * whose scores the server persists. */
+  iou_threshold: number | null;
 }
 
-/** One label's location breakdown: the IoU@0.5 tally + its derived rates. */
+/** One label's location breakdown: the matched tally + its derived rates, at the
+ * enclosing response's `iou_threshold`. */
 export interface LocationLabelDetail {
   label: string;
   tp: number;
@@ -119,6 +130,9 @@ export interface ResultDetailResponse {
   scored: boolean;
   label_count: number;
   knobs: RunKnobs;
+  iou_threshold: number;
+  canonical_iou: boolean;
+  canonical_iou_threshold: number;
   location_score: LocationScore | null;
   predictions: ResultPrediction[];
 }

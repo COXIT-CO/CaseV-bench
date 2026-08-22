@@ -17,6 +17,7 @@ import {
   formatRate,
   metricLabel,
 } from "@/lib/format";
+import { IOU_CHOICES, parseIouThreshold } from "@/lib/iou";
 import { cn } from "@/lib/utils";
 import type { LeaderboardRow } from "@/types";
 
@@ -55,12 +56,14 @@ export function Leaderboard() {
     ? parsePromptVersion(searchParams.get("prompt_version"))
     : null;
   const sort = searchParams.get("sort");
+  const iouThreshold = parseIouThreshold(searchParams.get("iou_threshold"));
 
   const { data, isLoading, isError, error } = useLeaderboard({
     drawing_id: drawingId,
     prompt_family: promptFamily,
     prompt_version: promptVersion,
     sort,
+    iou_threshold: iouThreshold,
   });
 
   // The family dropdown lists the prompt families; the version dropdown is populated from
@@ -88,6 +91,11 @@ export function Leaderboard() {
   // unknown metric to the default), so the dropdown always mirrors the live board.
   const metrics = data?.metrics ?? [];
   const activeSort = data?.sort ?? "";
+
+  // The board is exploratory whenever the server says the threshold in force is not the
+  // canonical one. Read off the response rather than off `iouThreshold`, so the banner can
+  // never claim an operating point the numbers were not actually computed at.
+  const exploring = data ? !data.canonical_iou : false;
 
   return (
     <section className="mx-auto max-w-[1400px]">
@@ -198,7 +206,52 @@ export function Leaderboard() {
             </option>
           ))}
         </select>
+
+        <label
+          htmlFor="lb-iou"
+          className="ml-1 text-xs font-medium text-muted-foreground"
+        >
+          IoU
+        </label>
+        <select
+          id="lb-iou"
+          value={iouThreshold === null ? "" : String(iouThreshold)}
+          onChange={(e) =>
+            patchParams({ iou_threshold: e.target.value || null })
+          }
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="">Default</option>
+          {IOU_CHOICES.map((t) => (
+            <option key={t} value={t}>
+              {t.toFixed(1)}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {exploring ? (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]"
+        >
+          <span className="font-medium">
+            Exploring at IoU {data?.iou_threshold.toFixed(2)}
+          </span>
+          <span className="text-muted-foreground">
+            These rates are not the benchmark&apos;s published numbers and nothing
+            was saved. The scored history is unchanged at IoU{" "}
+            {data?.canonical_iou_threshold.toFixed(2)}.
+          </span>
+          <button
+            type="button"
+            onClick={() => patchParams({ iou_threshold: null })}
+            className="ml-auto rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Back to default
+          </button>
+        </div>
+      ) : null}
 
       {isLoading ? (
         <LoadingBlock rows={8} />
@@ -232,7 +285,14 @@ export function Leaderboard() {
                   <BoardRow
                     key={row.result_id}
                     row={row}
-                    onOpen={() => navigate(`/results/${row.result_id}`)}
+                    onOpen={() =>
+                      navigate(
+                        `/results/${row.result_id}` +
+                          (iouThreshold !== null
+                            ? `?iou_threshold=${iouThreshold}`
+                            : ""),
+                      )
+                    }
                   />
                 ))}
               </TableBody>

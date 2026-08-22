@@ -37,6 +37,9 @@ export const LOCATION_BOARD: LeaderboardResponse = {
   metrics: ["f1", "precision", "recall"],
   drawings: DRAWINGS,
   label_count: 4,
+  iou_threshold: 0.5,
+  canonical_iou: true,
+  canonical_iou_threshold: 0.5,
   rows: [
     {
       rank: 1,
@@ -92,6 +95,9 @@ export const EMPTY_BOARD: LeaderboardResponse = {
   metrics: ["f1", "precision", "recall"],
   drawings: [],
   label_count: 4,
+  iou_threshold: 0.5,
+  canonical_iou: true,
+  canonical_iou_threshold: 0.5,
   rows: [],
 };
 
@@ -107,6 +113,9 @@ export const LOCATION_RESULT: ResultDetailResponse = {
   scored: true,
   label_count: 4,
   knobs: { dpi: 600, downsample_px: 2000, max_tokens: 8192, temperature: null },
+  iou_threshold: 0.5,
+  canonical_iou: true,
+  canonical_iou_threshold: 0.5,
   location_score: {
     precision: 0.87,
     recall: 0.81,

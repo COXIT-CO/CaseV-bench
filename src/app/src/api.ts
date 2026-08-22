@@ -163,6 +163,7 @@ export const api = {
     prompt_family,
     prompt_version,
     sort,
+    iou_threshold,
   }: LeaderboardParams) => {
     const query = new URLSearchParams();
     if (drawing_id !== null) query.set("drawing_id", String(drawing_id));
@@ -170,12 +171,20 @@ export const api = {
     if (prompt_version !== null)
       query.set("prompt_version", String(prompt_version));
     if (sort !== null) query.set("sort", sort);
+    if (iou_threshold !== null)
+      query.set("iou_threshold", String(iou_threshold));
     const suffix = query.size > 0 ? `?${query}` : "";
     return getJson<LeaderboardResponse>(`/api/leaderboard${suffix}`);
   },
 
-  /** One Result's drill-down: header refs, the score block, and the per-page predictions (spec §A.3). */
-  result: (id: number) => getJson<ResultDetailResponse>(`/api/results/${id}`),
+  /** One Result's drill-down: header refs, the score block, and the per-page predictions
+   * (spec §A.3). `iouThreshold` re-scores at an exploratory operating point; omitted, the
+   * canonical Score is returned and persisted as usual. */
+  result: (id: number, iouThreshold: number | null = null) =>
+    getJson<ResultDetailResponse>(
+      `/api/results/${id}` +
+        (iouThreshold !== null ? `?iou_threshold=${iouThreshold}` : ""),
+    ),
 
   /** Set a location Prediction's manual JSON override — the corrected boxes as a
    * `LocationResult` string (ADR 0020, ticket 07). The server validates against the taxonomy
