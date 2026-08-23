@@ -299,6 +299,28 @@
       }
     },
     {
+      "id": "cal-005",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 332,
+        "y": 430,
+        "width": 41,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-006",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 834,
+        "y": 432,
+        "width": 40,
+        "height": 43
+      }
+    },
+    {
       "id": "ctp-003",
       "category": "countertop",
       "page": 4,
@@ -354,7 +376,7 @@
       }
     },
     {
-      "id": "cal-005",
+      "id": "cal-007",
       "category": "callout",
       "page": 5,
       "bbox": {

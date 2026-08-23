@@ -35,6 +35,17 @@
       }
     },
     {
+      "id": "cal-001",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1903,
+        "y": 336,
+        "width": 45,
+        "height": 42
+      }
+    },
+    {
       "id": "ctp-001",
       "category": "countertop",
       "page": 1,
@@ -53,7 +64,7 @@
         "x": 1562,
         "y": 555,
         "width": 876,
-        "height": 524
+        "height": 523
       }
     },
     {
@@ -76,6 +87,28 @@
         "y": 558,
         "width": 876,
         "height": 520
+      }
+    },
+    {
+      "id": "cal-002",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1185,
+        "y": 856,
+        "width": 44,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-003",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2039,
+        "y": 860,
+        "width": 39,
+        "height": 44
       }
     },
     {
@@ -178,6 +211,94 @@
       }
     },
     {
+      "id": "cal-004",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2088,
+        "y": 1098,
+        "width": 41,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-005",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1030,
+        "y": 1268,
+        "width": 40,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-006",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2116,
+        "y": 1282,
+        "width": 42,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-007",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1693,
+        "y": 1292,
+        "width": 46,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-008",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2217,
+        "y": 1292,
+        "width": 41,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-009",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 959,
+        "y": 1343,
+        "width": 43,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-010",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1139,
+        "y": 1343,
+        "width": 42,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-011",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2040,
+        "y": 1381,
+        "width": 43,
+        "height": 45
+      }
+    },
+    {
       "id": "ctp-004",
       "category": "countertop",
       "page": 1,
@@ -266,6 +387,39 @@
       }
     },
     {
+      "id": "cal-012",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1745,
+        "y": 1490,
+        "width": 37,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-013",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1784,
+        "y": 1491,
+        "width": 36,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-014",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1823,
+        "y": 1492,
+        "width": 39,
+        "height": 40
+      }
+    },
+    {
       "id": "flp-002",
       "category": "floor plan",
       "page": 1,
@@ -273,7 +427,7 @@
         "x": 686,
         "y": 1599,
         "width": 876,
-        "height": 520
+        "height": 524
       }
     },
     {
@@ -295,22 +449,99 @@
         "x": 1563,
         "y": 1601,
         "width": 876,
-        "height": 518
+        "height": 522
       }
     },
     {
-      "id": "cal-001",
+      "id": "cal-015",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2128,
+        "y": 1666,
+        "width": 40,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-016",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 388,
+        "y": 1772,
+        "width": 37,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-017",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 474,
+        "y": 1772,
+        "width": 39,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-018",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 308,
+        "y": 1773,
+        "width": 39,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-019",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 429,
+        "y": 1773,
+        "width": 37,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-020",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 269,
+        "y": 1775,
+        "width": 38,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-021",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1916,
+        "y": 1804,
+        "width": 42,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-022",
       "category": "callout",
       "page": 1,
       "bbox": {
         "x": 2157,
-        "y": 1806,
+        "y": 1804,
         "width": 36,
-        "height": 67
+        "height": 70
       }
     },
     {
-      "id": "cal-002",
+      "id": "cal-023",
       "category": "callout",
       "page": 1,
       "bbox": {
@@ -376,7 +607,18 @@
       }
     },
     {
-      "id": "cal-003",
+      "id": "cal-024",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2124,
+        "y": 1868,
+        "width": 39,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-025",
       "category": "callout",
       "page": 1,
       "bbox": {
@@ -420,7 +662,18 @@
       }
     },
     {
-      "id": "cal-004",
+      "id": "cal-026",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 997,
+        "y": 1957,
+        "width": 39,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-027",
       "category": "callout",
       "page": 1,
       "bbox": {
@@ -431,7 +684,7 @@
       }
     },
     {
-      "id": "cal-005",
+      "id": "cal-028",
       "category": "callout",
       "page": 1,
       "bbox": {
@@ -450,6 +703,28 @@
         "y": 1970,
         "width": 44,
         "height": 34
+      }
+    },
+    {
+      "id": "cal-029",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 479,
+        "y": 2035,
+        "width": 43,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-030",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 435,
+        "y": 2036,
+        "width": 41,
+        "height": 40
       }
     },
     {
@@ -475,6 +750,83 @@
       }
     },
     {
+      "id": "cal-031",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 592,
+        "y": 203,
+        "width": 42,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-032",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1048,
+        "y": 248,
+        "width": 40,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-033",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2142,
+        "y": 248,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-034",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1399,
+        "y": 262,
+        "width": 46,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-035",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1621,
+        "y": 266,
+        "width": 40,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-036",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1305,
+        "y": 336,
+        "width": 47,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-037",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1672,
+        "y": 360,
+        "width": 44,
+        "height": 40
+      }
+    },
+    {
       "id": "elv-012",
       "category": "elevation",
       "page": 2,
@@ -497,7 +849,7 @@
       }
     },
     {
-      "id": "cal-006",
+      "id": "cal-038",
       "category": "callout",
       "page": 2,
       "bbox": {
@@ -508,7 +860,7 @@
       }
     },
     {
-      "id": "cal-007",
+      "id": "cal-039",
       "category": "callout",
       "page": 2,
       "bbox": {
@@ -516,6 +868,39 @@
         "y": 566,
         "width": 43,
         "height": 49
+      }
+    },
+    {
+      "id": "cal-040",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1343,
+        "y": 786,
+        "width": 40,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-041",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 340,
+        "y": 880,
+        "width": 42,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-042",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1348,
+        "y": 887,
+        "width": 42,
+        "height": 41
       }
     },
     {
@@ -629,7 +1014,7 @@
       }
     },
     {
-      "id": "cal-008",
+      "id": "cal-043",
       "category": "callout",
       "page": 2,
       "bbox": {
@@ -637,6 +1022,116 @@
         "y": 1096,
         "width": 42,
         "height": 47
+      }
+    },
+    {
+      "id": "cal-044",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 745,
+        "y": 1306,
+        "width": 42,
+        "height": 47
+      }
+    },
+    {
+      "id": "cal-045",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1153,
+        "y": 1306,
+        "width": 43,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-046",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1109,
+        "y": 1307,
+        "width": 41,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-047",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 680,
+        "y": 1308,
+        "width": 52,
+        "height": 47
+      }
+    },
+    {
+      "id": "cal-048",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 825,
+        "y": 1386,
+        "width": 39,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-049",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1769,
+        "y": 1397,
+        "width": 46,
+        "height": 47
+      }
+    },
+    {
+      "id": "cal-050",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 632,
+        "y": 1398,
+        "width": 39,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-051",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 870,
+        "y": 1398,
+        "width": 46,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-052",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1041,
+        "y": 1399,
+        "width": 43,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-053",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1236,
+        "y": 1414,
+        "width": 43,
+        "height": 42
       }
     },
     {
@@ -651,7 +1146,7 @@
       }
     },
     {
-      "id": "cal-009",
+      "id": "cal-054",
       "category": "callout",
       "page": 2,
       "bbox": {
@@ -659,6 +1154,127 @@
         "y": 1607,
         "width": 42,
         "height": 48
+      }
+    },
+    {
+      "id": "cal-055",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 653,
+        "y": 1825,
+        "width": 54,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-056",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1770,
+        "y": 1826,
+        "width": 46,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-057",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 727,
+        "y": 1827,
+        "width": 48,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-058",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1722,
+        "y": 1828,
+        "width": 40,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-059",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2059,
+        "y": 1829,
+        "width": 41,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-060",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1828,
+        "y": 1900,
+        "width": 44,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-061",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 775,
+        "y": 1903,
+        "width": 43,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-062",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2136,
+        "y": 1907,
+        "width": 42,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-063",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 592,
+        "y": 1925,
+        "width": 41,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-064",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1636,
+        "y": 1926,
+        "width": 45,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-065",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 536,
+        "y": 2054,
+        "width": 45,
+        "height": 41
       }
     },
     {
@@ -681,6 +1297,105 @@
         "y": 36,
         "width": 584,
         "height": 519
+      }
+    },
+    {
+      "id": "cal-066",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 323,
+        "y": 213,
+        "width": 50,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-067",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 692,
+        "y": 215,
+        "width": 51,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-068",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1392,
+        "y": 216,
+        "width": 51,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-069",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 466,
+        "y": 256,
+        "width": 42,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-070",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 512,
+        "y": 257,
+        "width": 50,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-071",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2147,
+        "y": 270,
+        "width": 47,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-072",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 420,
+        "y": 312,
+        "width": 52,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-073",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 567,
+        "y": 340,
+        "width": 52,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-074",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2044,
+        "y": 340,
+        "width": 46,
+        "height": 40
       }
     },
     {
@@ -761,6 +1476,61 @@
       }
     },
     {
+      "id": "cal-075",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2138,
+        "y": 716,
+        "width": 43,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-076",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1530,
+        "y": 778,
+        "width": 47,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-077",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1482,
+        "y": 780,
+        "width": 46,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-078",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1583,
+        "y": 863,
+        "width": 43,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-079",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1445,
+        "y": 912,
+        "width": 43,
+        "height": 39
+      }
+    },
+    {
       "id": "elv-020",
       "category": "elevation",
       "page": 3,
@@ -769,6 +1539,17 @@
         "y": 1079,
         "width": 2334,
         "height": 521
+      }
+    },
+    {
+      "id": "cal-080",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1671,
+        "y": 1210,
+        "width": 43,
+        "height": 39
       }
     },
     {
@@ -783,7 +1564,7 @@
       }
     },
     {
-      "id": "cal-010",
+      "id": "cal-081",
       "category": "callout",
       "page": 3,
       "bbox": {
@@ -794,7 +1575,7 @@
       }
     },
     {
-      "id": "cal-011",
+      "id": "cal-082",
       "category": "callout",
       "page": 3,
       "bbox": {
@@ -805,7 +1586,51 @@
       }
     },
     {
-      "id": "cal-012",
+      "id": "cal-083",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1607,
+        "y": 1824,
+        "width": 45,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-084",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1658,
+        "y": 1825,
+        "width": 44,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-085",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1557,
+        "y": 1896,
+        "width": 47,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-086",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1748,
+        "y": 1932,
+        "width": 46,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-087",
       "category": "callout",
       "page": 3,
       "bbox": {
@@ -824,6 +1649,17 @@
         "y": 36,
         "width": 583,
         "height": 519
+      }
+    },
+    {
+      "id": "cab-032",
+      "category": "cabinet",
+      "page": 4,
+      "bbox": {
+        "x": 2276,
+        "y": 90,
+        "width": 120,
+        "height": 256
       }
     },
     {
@@ -868,6 +1704,94 @@
         "y": 556,
         "width": 583,
         "height": 1566
+      }
+    },
+    {
+      "id": "cal-088",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 572,
+        "y": 1100,
+        "width": 45,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-089",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 516,
+        "y": 1102,
+        "width": 44,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-090",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2212,
+        "y": 1178,
+        "width": 47,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-091",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1576,
+        "y": 1230,
+        "width": 45,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-092",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1570,
+        "y": 1708,
+        "width": 56,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-093",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2114,
+        "y": 1855,
+        "width": 44,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-094",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1576,
+        "y": 1992,
+        "width": 53,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-095",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 563,
+        "y": 2008,
+        "width": 44,
+        "height": 40
       }
     }
   ]
