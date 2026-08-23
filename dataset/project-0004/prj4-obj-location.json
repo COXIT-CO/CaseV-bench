@@ -1,0 +1,6506 @@
+{
+  "project_id": "prj4",
+  "objects": [
+    {
+      "id": "flp-001",
+      "category": "floor plan",
+      "page": 1,
+      "bbox": {
+        "x": 187,
+        "y": 107,
+        "width": 2112,
+        "height": 1253
+      }
+    },
+    {
+      "id": "cal-001",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1217,
+        "y": 118,
+        "width": 62,
+        "height": 50
+      }
+    },
+    {
+      "id": "cal-002",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2042,
+        "y": 167,
+        "width": 49,
+        "height": 55
+      }
+    },
+    {
+      "id": "cal-003",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1688,
+        "y": 169,
+        "width": 48,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-004",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 429,
+        "y": 269,
+        "width": 37,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-005",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1237,
+        "y": 280,
+        "width": 41,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-006",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2033,
+        "y": 288,
+        "width": 39,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-007",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 348,
+        "y": 296,
+        "width": 50,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-008",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1863,
+        "y": 302,
+        "width": 39,
+        "height": 56
+      }
+    },
+    {
+      "id": "cal-009",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2088,
+        "y": 308,
+        "width": 56,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-010",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 588,
+        "y": 309,
+        "width": 38,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-011",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 194,
+        "y": 453,
+        "width": 49,
+        "height": 55
+      }
+    },
+    {
+      "id": "cal-012",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2097,
+        "y": 495,
+        "width": 59,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-013",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2213,
+        "y": 524,
+        "width": 53,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-014",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1231,
+        "y": 548,
+        "width": 45,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-015",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 537,
+        "y": 568,
+        "width": 34,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-016",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1037,
+        "y": 588,
+        "width": 37,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-017",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1427,
+        "y": 588,
+        "width": 41,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-018",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1896,
+        "y": 607,
+        "width": 39,
+        "height": 55
+      }
+    },
+    {
+      "id": "cal-019",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 646,
+        "y": 621,
+        "width": 46,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-020",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1810,
+        "y": 621,
+        "width": 43,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-021",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2041,
+        "y": 627,
+        "width": 41,
+        "height": 58
+      }
+    },
+    {
+      "id": "cal-022",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 349,
+        "y": 631,
+        "width": 51,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-023",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 428,
+        "y": 638,
+        "width": 42,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-024",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1293,
+        "y": 720,
+        "width": 54,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-025",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1122,
+        "y": 726,
+        "width": 55,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-026",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1228,
+        "y": 738,
+        "width": 36,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-027",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1589,
+        "y": 747,
+        "width": 59,
+        "height": 46
+      }
+    },
+    {
+      "id": "flp-002",
+      "category": "floor plan",
+      "page": 1,
+      "bbox": {
+        "x": 188,
+        "y": 1371,
+        "width": 2227,
+        "height": 465
+      }
+    },
+    {
+      "id": "cal-028",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1338,
+        "y": 1703,
+        "width": 63,
+        "height": 48
+      }
+    },
+    {
+      "id": "flp-003",
+      "category": "floor plan",
+      "page": 2,
+      "bbox": {
+        "x": 147,
+        "y": 150,
+        "width": 2231,
+        "height": 887
+      }
+    },
+    {
+      "id": "cal-029",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2073,
+        "y": 189,
+        "width": 50,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-030",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1719,
+        "y": 202,
+        "width": 49,
+        "height": 52
+      }
+    },
+    {
+      "id": "cal-031",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1264,
+        "y": 213,
+        "width": 50,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-032",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 432,
+        "y": 314,
+        "width": 56,
+        "height": 58
+      }
+    },
+    {
+      "id": "cal-033",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 575,
+        "y": 316,
+        "width": 40,
+        "height": 58
+      }
+    },
+    {
+      "id": "cal-034",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1948,
+        "y": 323,
+        "width": 42,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-035",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1266,
+        "y": 325,
+        "width": 40,
+        "height": 57
+      }
+    },
+    {
+      "id": "cal-036",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2077,
+        "y": 325,
+        "width": 41,
+        "height": 55
+      }
+    },
+    {
+      "id": "cal-037",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 228,
+        "y": 489,
+        "width": 50,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-038",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2127,
+        "y": 560,
+        "width": 73,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-039",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2245,
+        "y": 563,
+        "width": 50,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-040",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 735,
+        "y": 573,
+        "width": 46,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-041",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1254,
+        "y": 584,
+        "width": 47,
+        "height": 48
+      }
+    },
+    {
+      "id": "cal-042",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1458,
+        "y": 620,
+        "width": 37,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-043",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1079,
+        "y": 621,
+        "width": 37,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-044",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1931,
+        "y": 644,
+        "width": 37,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-045",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 656,
+        "y": 646,
+        "width": 39,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-046",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1843,
+        "y": 657,
+        "width": 53,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-047",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 430,
+        "y": 661,
+        "width": 60,
+        "height": 57
+      }
+    },
+    {
+      "id": "cal-048",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2078,
+        "y": 661,
+        "width": 37,
+        "height": 55
+      }
+    },
+    {
+      "id": "cal-049",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1249,
+        "y": 742,
+        "width": 73,
+        "height": 57
+      }
+    },
+    {
+      "id": "cal-050",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1255,
+        "y": 864,
+        "width": 55,
+        "height": 44
+      }
+    },
+    {
+      "id": "flp-004",
+      "category": "floor plan",
+      "page": 2,
+      "bbox": {
+        "x": 156,
+        "y": 1042,
+        "width": 2179,
+        "height": 815
+      }
+    },
+    {
+      "id": "cal-051",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1721,
+        "y": 1051,
+        "width": 46,
+        "height": 52
+      }
+    },
+    {
+      "id": "cal-052",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2074,
+        "y": 1054,
+        "width": 50,
+        "height": 51
+      }
+    },
+    {
+      "id": "cal-053",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1254,
+        "y": 1072,
+        "width": 63,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-054",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 433,
+        "y": 1176,
+        "width": 57,
+        "height": 59
+      }
+    },
+    {
+      "id": "cal-055",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2107,
+        "y": 1179,
+        "width": 44,
+        "height": 56
+      }
+    },
+    {
+      "id": "cal-056",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1266,
+        "y": 1184,
+        "width": 43,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-057",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 229,
+        "y": 1351,
+        "width": 50,
+        "height": 52
+      }
+    },
+    {
+      "id": "cal-058",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2247,
+        "y": 1424,
+        "width": 51,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-059",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1257,
+        "y": 1451,
+        "width": 43,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-060",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 670,
+        "y": 1514,
+        "width": 44,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-061",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1846,
+        "y": 1515,
+        "width": 44,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-062",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 431,
+        "y": 1524,
+        "width": 60,
+        "height": 58
+      }
+    },
+    {
+      "id": "cal-063",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 2107,
+        "y": 1530,
+        "width": 45,
+        "height": 57
+      }
+    },
+    {
+      "id": "cal-064",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1274,
+        "y": 1613,
+        "width": 40,
+        "height": 56
+      }
+    },
+    {
+      "id": "cal-065",
+      "category": "callout",
+      "page": 2,
+      "bbox": {
+        "x": 1254,
+        "y": 1727,
+        "width": 55,
+        "height": 45
+      }
+    },
+    {
+      "id": "flp-005",
+      "category": "floor plan",
+      "page": 3,
+      "bbox": {
+        "x": 242,
+        "y": 147,
+        "width": 2129,
+        "height": 800
+      }
+    },
+    {
+      "id": "cal-066",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1272,
+        "y": 151,
+        "width": 56,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-067",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2090,
+        "y": 153,
+        "width": 51,
+        "height": 50
+      }
+    },
+    {
+      "id": "cal-068",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1736,
+        "y": 156,
+        "width": 50,
+        "height": 52
+      }
+    },
+    {
+      "id": "cal-069",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 245,
+        "y": 468,
+        "width": 51,
+        "height": 52
+      }
+    },
+    {
+      "id": "cal-070",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1493,
+        "y": 484,
+        "width": 47,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-071",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2264,
+        "y": 541,
+        "width": 48,
+        "height": 50
+      }
+    },
+    {
+      "id": "cal-072",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1272,
+        "y": 844,
+        "width": 57,
+        "height": 47
+      }
+    },
+    {
+      "id": "flp-006",
+      "category": "floor plan",
+      "page": 3,
+      "bbox": {
+        "x": 222,
+        "y": 1005,
+        "width": 2129,
+        "height": 796
+      }
+    },
+    {
+      "id": "cal-073",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2092,
+        "y": 1006,
+        "width": 49,
+        "height": 55
+      }
+    },
+    {
+      "id": "cal-074",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1270,
+        "y": 1015,
+        "width": 48,
+        "height": 51
+      }
+    },
+    {
+      "id": "cal-075",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1643,
+        "y": 1028,
+        "width": 49,
+        "height": 48
+      }
+    },
+    {
+      "id": "cal-076",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1736,
+        "y": 1031,
+        "width": 47,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-077",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1360,
+        "y": 1037,
+        "width": 56,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-078",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2167,
+        "y": 1053,
+        "width": 47,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-079",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 543,
+        "y": 1064,
+        "width": 39,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-080",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 295,
+        "y": 1148,
+        "width": 44,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-081",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1975,
+        "y": 1151,
+        "width": 34,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-082",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2265,
+        "y": 1157,
+        "width": 39,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-083",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1614,
+        "y": 1242,
+        "width": 39,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-084",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 243,
+        "y": 1320,
+        "width": 52,
+        "height": 51
+      }
+    },
+    {
+      "id": "cal-085",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1214,
+        "y": 1329,
+        "width": 42,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-086",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1337,
+        "y": 1389,
+        "width": 39,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-087",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 2262,
+        "y": 1393,
+        "width": 50,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-088",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1507,
+        "y": 1396,
+        "width": 49,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-089",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1615,
+        "y": 1450,
+        "width": 39,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-090",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1554,
+        "y": 1471,
+        "width": 54,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-091",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1945,
+        "y": 1495,
+        "width": 39,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-092",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1470,
+        "y": 1509,
+        "width": 40,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-093",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1362,
+        "y": 1518,
+        "width": 39,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-094",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1640,
+        "y": 1571,
+        "width": 42,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-095",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 777,
+        "y": 1612,
+        "width": 50,
+        "height": 53
+      }
+    },
+    {
+      "id": "cal-096",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 544,
+        "y": 1613,
+        "width": 52,
+        "height": 52
+      }
+    },
+    {
+      "id": "cal-097",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 829,
+        "y": 1613,
+        "width": 50,
+        "height": 54
+      }
+    },
+    {
+      "id": "cal-098",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 480,
+        "y": 1616,
+        "width": 53,
+        "height": 50
+      }
+    },
+    {
+      "id": "cal-099",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 381,
+        "y": 1617,
+        "width": 44,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-100",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 1269,
+        "y": 1700,
+        "width": 58,
+        "height": 48
+      }
+    },
+    {
+      "id": "elv-001",
+      "category": "elevation",
+      "page": 4,
+      "bbox": {
+        "x": 151,
+        "y": 1130,
+        "width": 560,
+        "height": 343
+      }
+    },
+    {
+      "id": "elv-002",
+      "category": "elevation",
+      "page": 4,
+      "bbox": {
+        "x": 1332,
+        "y": 1270,
+        "width": 668,
+        "height": 584
+      }
+    },
+    {
+      "id": "elv-003",
+      "category": "elevation",
+      "page": 4,
+      "bbox": {
+        "x": 2000,
+        "y": 1404,
+        "width": 610,
+        "height": 449
+      }
+    },
+    {
+      "id": "elv-004",
+      "category": "elevation",
+      "page": 4,
+      "bbox": {
+        "x": 162,
+        "y": 1501,
+        "width": 506,
+        "height": 352
+      }
+    },
+    {
+      "id": "flp-007",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 150,
+        "y": 145,
+        "width": 2802,
+        "height": 1034
+      }
+    },
+    {
+      "id": "cal-101",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1540,
+        "y": 163,
+        "width": 37,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-102",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2537,
+        "y": 172,
+        "width": 35,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-103",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 820,
+        "y": 217,
+        "width": 30,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-104",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 649,
+        "y": 218,
+        "width": 29,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-105",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 263,
+        "y": 229,
+        "width": 29,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-106",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2112,
+        "y": 232,
+        "width": 36,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-107",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2051,
+        "y": 238,
+        "width": 32,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-108",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2418,
+        "y": 238,
+        "width": 33,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-109",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1899,
+        "y": 240,
+        "width": 30,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-110",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2174,
+        "y": 240,
+        "width": 30,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-111",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 892,
+        "y": 243,
+        "width": 31,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-112",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1071,
+        "y": 245,
+        "width": 28,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-113",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2386,
+        "y": 385,
+        "width": 27,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-114",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2334,
+        "y": 525,
+        "width": 26,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-115",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1175,
+        "y": 536,
+        "width": 25,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-116",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1146,
+        "y": 567,
+        "width": 31,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-117",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2415,
+        "y": 577,
+        "width": 28,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-118",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2387,
+        "y": 578,
+        "width": 26,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-119",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2444,
+        "y": 578,
+        "width": 30,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-120",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1053,
+        "y": 579,
+        "width": 27,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-121",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 839,
+        "y": 582,
+        "width": 28,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-122",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1803,
+        "y": 582,
+        "width": 32,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-123",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2068,
+        "y": 582,
+        "width": 29,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-124",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2192,
+        "y": 582,
+        "width": 28,
+        "height": 27
+      }
+    },
+    {
+      "id": "cal-125",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2010,
+        "y": 584,
+        "width": 29,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-126",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1296,
+        "y": 585,
+        "width": 29,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-127",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2258,
+        "y": 593,
+        "width": 27,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-128",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 194,
+        "y": 595,
+        "width": 42,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-129",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1560,
+        "y": 654,
+        "width": 27,
+        "height": 25
+      }
+    },
+    {
+      "id": "cal-130",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1559,
+        "y": 682,
+        "width": 29,
+        "height": 26
+      }
+    },
+    {
+      "id": "cal-131",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1560,
+        "y": 707,
+        "width": 26,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-132",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 677,
+        "y": 775,
+        "width": 23,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-133",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 703,
+        "y": 775,
+        "width": 29,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-134",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 733,
+        "y": 777,
+        "width": 25,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-135",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1902,
+        "y": 880,
+        "width": 32,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-136",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 957,
+        "y": 884,
+        "width": 38,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-137",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 696,
+        "y": 886,
+        "width": 30,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-138",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2391,
+        "y": 888,
+        "width": 29,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-139",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 353,
+        "y": 933,
+        "width": 31,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-140",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2668,
+        "y": 945,
+        "width": 28,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-141",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 497,
+        "y": 966,
+        "width": 33,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-142",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1766,
+        "y": 1033,
+        "width": 31,
+        "height": 30
+      }
+    },
+    {
+      "id": "flp-008",
+      "category": "floor plan",
+      "page": 6,
+      "bbox": {
+        "x": 150,
+        "y": 111,
+        "width": 2812,
+        "height": 1068
+      }
+    },
+    {
+      "id": "cal-143",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1907,
+        "y": 208,
+        "width": 31,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-144",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2060,
+        "y": 208,
+        "width": 32,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-145",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2183,
+        "y": 208,
+        "width": 28,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-146",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 899,
+        "y": 211,
+        "width": 30,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-147",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1077,
+        "y": 212,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-148",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 469,
+        "y": 297,
+        "width": 26,
+        "height": 25
+      }
+    },
+    {
+      "id": "cal-149",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2591,
+        "y": 329,
+        "width": 30,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-150",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 657,
+        "y": 342,
+        "width": 31,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-151",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2181,
+        "y": 342,
+        "width": 32,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-152",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1289,
+        "y": 345,
+        "width": 33,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-153",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1818,
+        "y": 353,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-154",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2361,
+        "y": 356,
+        "width": 33,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-155",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1590,
+        "y": 360,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-156",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2518,
+        "y": 367,
+        "width": 32,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-157",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1095,
+        "y": 551,
+        "width": 31,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-158",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1390,
+        "y": 553,
+        "width": 32,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-159",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 654,
+        "y": 554,
+        "width": 33,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-160",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 895,
+        "y": 555,
+        "width": 32,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-161",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 961,
+        "y": 556,
+        "width": 30,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-162",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2263,
+        "y": 570,
+        "width": 30,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-163",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1510,
+        "y": 571,
+        "width": 31,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-164",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 659,
+        "y": 612,
+        "width": 30,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-165",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1761,
+        "y": 614,
+        "width": 29,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-166",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1987,
+        "y": 614,
+        "width": 27,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-167",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1585,
+        "y": 619,
+        "width": 28,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-168",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1834,
+        "y": 629,
+        "width": 29,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-169",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1253,
+        "y": 631,
+        "width": 28,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-170",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2525,
+        "y": 672,
+        "width": 31,
+        "height": 27
+      }
+    },
+    {
+      "id": "cal-171",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1891,
+        "y": 675,
+        "width": 28,
+        "height": 27
+      }
+    },
+    {
+      "id": "cal-172",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2094,
+        "y": 679,
+        "width": 31,
+        "height": 27
+      }
+    },
+    {
+      "id": "cal-173",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 895,
+        "y": 734,
+        "width": 30,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-174",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 529,
+        "y": 735,
+        "width": 30,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-175",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1018,
+        "y": 736,
+        "width": 32,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-176",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2258,
+        "y": 736,
+        "width": 31,
+        "height": 26
+      }
+    },
+    {
+      "id": "cal-177",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1972,
+        "y": 737,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-178",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1135,
+        "y": 738,
+        "width": 28,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-179",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2430,
+        "y": 738,
+        "width": 32,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-180",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 651,
+        "y": 739,
+        "width": 31,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-181",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1436,
+        "y": 740,
+        "width": 29,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-182",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1260,
+        "y": 741,
+        "width": 30,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-183",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1398,
+        "y": 744,
+        "width": 29,
+        "height": 26
+      }
+    },
+    {
+      "id": "cal-184",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1561,
+        "y": 819,
+        "width": 28,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-185",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1910,
+        "y": 848,
+        "width": 31,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-186",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1517,
+        "y": 852,
+        "width": 28,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-187",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2392,
+        "y": 852,
+        "width": 36,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-188",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 466,
+        "y": 904,
+        "width": 34,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-189",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 2635,
+        "y": 921,
+        "width": 34,
+        "height": 33
+      }
+    },
+    {
+      "id": "flp-009",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 245,
+        "y": 122,
+        "width": 691,
+        "height": 598
+      }
+    },
+    {
+      "id": "flp-010",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 1970,
+        "y": 198,
+        "width": 900,
+        "height": 524
+      }
+    },
+    {
+      "id": "flp-011",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 1006,
+        "y": 202,
+        "width": 860,
+        "height": 521
+      }
+    },
+    {
+      "id": "cal-190",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1791,
+        "y": 279,
+        "width": 34,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-191",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1083,
+        "y": 281,
+        "width": 34,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-192",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2690,
+        "y": 283,
+        "width": 36,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-193",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2049,
+        "y": 285,
+        "width": 34,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-194",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 536,
+        "y": 288,
+        "width": 31,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-195",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1382,
+        "y": 294,
+        "width": 34,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-196",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2348,
+        "y": 296,
+        "width": 34,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-197",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2782,
+        "y": 507,
+        "width": 35,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-198",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1422,
+        "y": 513,
+        "width": 32,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-199",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2430,
+        "y": 515,
+        "width": 31,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-200",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2191,
+        "y": 570,
+        "width": 34,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-201",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1784,
+        "y": 585,
+        "width": 31,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-202",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2772,
+        "y": 586,
+        "width": 34,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-203",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1474,
+        "y": 587,
+        "width": 32,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-204",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1076,
+        "y": 595,
+        "width": 31,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-205",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 561,
+        "y": 597,
+        "width": 33,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-206",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2051,
+        "y": 597,
+        "width": 34,
+        "height": 33
+      }
+    },
+    {
+      "id": "flp-012",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 247,
+        "y": 753,
+        "width": 895,
+        "height": 545
+      }
+    },
+    {
+      "id": "flp-013",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 1264,
+        "y": 753,
+        "width": 871,
+        "height": 542
+      }
+    },
+    {
+      "id": "flp-014",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 2275,
+        "y": 753,
+        "width": 545,
+        "height": 539
+      }
+    },
+    {
+      "id": "cal-207",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1328,
+        "y": 817,
+        "width": 35,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-208",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1953,
+        "y": 820,
+        "width": 32,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-209",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2621,
+        "y": 841,
+        "width": 31,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-210",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1049,
+        "y": 848,
+        "width": 33,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-211",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 293,
+        "y": 853,
+        "width": 32,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-212",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1629,
+        "y": 854,
+        "width": 36,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-213",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 737,
+        "y": 857,
+        "width": 34,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-214",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2032,
+        "y": 1134,
+        "width": 31,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-215",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1329,
+        "y": 1150,
+        "width": 36,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-216",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2543,
+        "y": 1151,
+        "width": 33,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-217",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 977,
+        "y": 1154,
+        "width": 35,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-218",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1649,
+        "y": 1154,
+        "width": 30,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-219",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 328,
+        "y": 1157,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-220",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 653,
+        "y": 1158,
+        "width": 35,
+        "height": 29
+      }
+    },
+    {
+      "id": "flp-015",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 926,
+        "y": 1336,
+        "width": 483,
+        "height": 496
+      }
+    },
+    {
+      "id": "flp-016",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 1580,
+        "y": 1352,
+        "width": 530,
+        "height": 483
+      }
+    },
+    {
+      "id": "flp-017",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 245,
+        "y": 1360,
+        "width": 527,
+        "height": 472
+      }
+    },
+    {
+      "id": "flp-018",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 2275,
+        "y": 1362,
+        "width": 468,
+        "height": 471
+      }
+    },
+    {
+      "id": "cal-221",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2494,
+        "y": 1397,
+        "width": 30,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-222",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1236,
+        "y": 1613,
+        "width": 32,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-223",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2519,
+        "y": 1707,
+        "width": 31,
+        "height": 30
+      }
+    },
+    {
+      "id": "flp-019",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 232,
+        "y": 126,
+        "width": 797,
+        "height": 598
+      }
+    },
+    {
+      "id": "flp-020",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 2029,
+        "y": 184,
+        "width": 884,
+        "height": 536
+      }
+    },
+    {
+      "id": "flp-021",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 1096,
+        "y": 196,
+        "width": 876,
+        "height": 529
+      }
+    },
+    {
+      "id": "cal-224",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 1903,
+        "y": 264,
+        "width": 33,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-225",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 2745,
+        "y": 266,
+        "width": 32,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-226",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 1581,
+        "y": 276,
+        "width": 33,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-227",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 2494,
+        "y": 278,
+        "width": 30,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-228",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 2861,
+        "y": 492,
+        "width": 30,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-229",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 620,
+        "y": 591,
+        "width": 27,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-230",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 2251,
+        "y": 592,
+        "width": 31,
+        "height": 31
+      }
+    },
+    {
+      "id": "flp-022",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 2209,
+        "y": 753,
+        "width": 548,
+        "height": 549
+      }
+    },
+    {
+      "id": "flp-023",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 1232,
+        "y": 783,
+        "width": 853,
+        "height": 520
+      }
+    },
+    {
+      "id": "flp-024",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 250,
+        "y": 787,
+        "width": 870,
+        "height": 516
+      }
+    },
+    {
+      "id": "cal-231",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 1922,
+        "y": 831,
+        "width": 28,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-232",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 1680,
+        "y": 841,
+        "width": 31,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-233",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 999,
+        "y": 845,
+        "width": 30,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-234",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 710,
+        "y": 848,
+        "width": 32,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-235",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 2558,
+        "y": 858,
+        "width": 31,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-236",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 318,
+        "y": 859,
+        "width": 29,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-237",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 307,
+        "y": 1157,
+        "width": 36,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-238",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 957,
+        "y": 1161,
+        "width": 32,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-239",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 2491,
+        "y": 1167,
+        "width": 31,
+        "height": 29
+      }
+    },
+    {
+      "id": "flp-025",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 916,
+        "y": 1326,
+        "width": 458,
+        "height": 505
+      }
+    },
+    {
+      "id": "flp-026",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 2245,
+        "y": 1362,
+        "width": 546,
+        "height": 469
+      }
+    },
+    {
+      "id": "flp-027",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 286,
+        "y": 1365,
+        "width": 482,
+        "height": 468
+      }
+    },
+    {
+      "id": "flp-028",
+      "category": "floor plan",
+      "page": 8,
+      "bbox": {
+        "x": 1553,
+        "y": 1380,
+        "width": 519,
+        "height": 447
+      }
+    },
+    {
+      "id": "cal-240",
+      "category": "callout",
+      "page": 8,
+      "bbox": {
+        "x": 1332,
+        "y": 1599,
+        "width": 31,
+        "height": 31
+      }
+    },
+    {
+      "id": "flp-029",
+      "category": "floor plan",
+      "page": 9,
+      "bbox": {
+        "x": 161,
+        "y": 112,
+        "width": 2793,
+        "height": 1024
+      }
+    },
+    {
+      "id": "cal-241",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 2551,
+        "y": 140,
+        "width": 34,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-242",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 1552,
+        "y": 144,
+        "width": 35,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-243",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 2122,
+        "y": 157,
+        "width": 37,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-244",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 1346,
+        "y": 541,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-245",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 216,
+        "y": 560,
+        "width": 41,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-246",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 1783,
+        "y": 738,
+        "width": 34,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-247",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 971,
+        "y": 866,
+        "width": 36,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-248",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 505,
+        "y": 929,
+        "width": 38,
+        "height": 41
+      }
+    },
+    {
+      "id": "elv-005",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 172,
+        "y": 1357,
+        "width": 377,
+        "height": 399
+      }
+    },
+    {
+      "id": "elv-006",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 617,
+        "y": 1410,
+        "width": 609,
+        "height": 346
+      }
+    },
+    {
+      "id": "flp-030",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 2460,
+        "y": 90,
+        "width": 474,
+        "height": 476
+      }
+    },
+    {
+      "id": "flp-031",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 1976,
+        "y": 100,
+        "width": 474,
+        "height": 467
+      }
+    },
+    {
+      "id": "flp-032",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 1477,
+        "y": 103,
+        "width": 461,
+        "height": 464
+      }
+    },
+    {
+      "id": "flp-033",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 729,
+        "y": 113,
+        "width": 749,
+        "height": 454
+      }
+    },
+    {
+      "id": "cal-249",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1028,
+        "y": 117,
+        "width": 34,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-250",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1443,
+        "y": 126,
+        "width": 34,
+        "height": 33
+      }
+    },
+    {
+      "id": "flp-034",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 142,
+        "y": 142,
+        "width": 573,
+        "height": 882
+      }
+    },
+    {
+      "id": "cal-251",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1713,
+        "y": 234,
+        "width": 60,
+        "height": 59
+      }
+    },
+    {
+      "id": "cal-252",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2227,
+        "y": 252,
+        "width": 67,
+        "height": 64
+      }
+    },
+    {
+      "id": "cal-253",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1043,
+        "y": 297,
+        "width": 46,
+        "height": 66
+      }
+    },
+    {
+      "id": "cal-254",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 417,
+        "y": 304,
+        "width": 60,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-255",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2683,
+        "y": 308,
+        "width": 60,
+        "height": 60
+      }
+    },
+    {
+      "id": "cal-256",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1263,
+        "y": 314,
+        "width": 44,
+        "height": 67
+      }
+    },
+    {
+      "id": "cal-257",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 213,
+        "y": 326,
+        "width": 33,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-258",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1614,
+        "y": 387,
+        "width": 33,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-259",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2236,
+        "y": 448,
+        "width": 32,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-260",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 676,
+        "y": 483,
+        "width": 33,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-261",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2902,
+        "y": 484,
+        "width": 31,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-262",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 468,
+        "y": 491,
+        "width": 56,
+        "height": 41
+      }
+    },
+    {
+      "id": "flp-035",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 2288,
+        "y": 576,
+        "width": 605,
+        "height": 775
+      }
+    },
+    {
+      "id": "flp-036",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 1448,
+        "y": 591,
+        "width": 773,
+        "height": 433
+      }
+    },
+    {
+      "id": "flp-037",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 757,
+        "y": 594,
+        "width": 596,
+        "height": 430
+      }
+    },
+    {
+      "id": "cal-263",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 169,
+        "y": 639,
+        "width": 50,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-264",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 681,
+        "y": 683,
+        "width": 31,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-265",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 399,
+        "y": 688,
+        "width": 59,
+        "height": 61
+      }
+    },
+    {
+      "id": "cal-266",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1748,
+        "y": 714,
+        "width": 43,
+        "height": 63
+      }
+    },
+    {
+      "id": "cal-267",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1949,
+        "y": 717,
+        "width": 48,
+        "height": 61
+      }
+    },
+    {
+      "id": "cal-268",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2608,
+        "y": 721,
+        "width": 60,
+        "height": 52
+      }
+    },
+    {
+      "id": "cal-269",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1029,
+        "y": 758,
+        "width": 62,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-270",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 871,
+        "y": 782,
+        "width": 33,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-271",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2631,
+        "y": 922,
+        "width": 61,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-272",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2384,
+        "y": 1003,
+        "width": 48,
+        "height": 34
+      }
+    },
+    {
+      "id": "flp-038",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 138,
+        "y": 1042,
+        "width": 845,
+        "height": 846
+      }
+    },
+    {
+      "id": "flp-039",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 1006,
+        "y": 1043,
+        "width": 1102,
+        "height": 844
+      }
+    },
+    {
+      "id": "cal-273",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 731,
+        "y": 1071,
+        "width": 35,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-274",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 377,
+        "y": 1073,
+        "width": 32,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-275",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1568,
+        "y": 1099,
+        "width": 31,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-276",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1883,
+        "y": 1107,
+        "width": 31,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-277",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2612,
+        "y": 1128,
+        "width": 65,
+        "height": 68
+      }
+    },
+    {
+      "id": "cal-278",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1018,
+        "y": 1164,
+        "width": 33,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-279",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 381,
+        "y": 1341,
+        "width": 65,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-280",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 818,
+        "y": 1474,
+        "width": 64,
+        "height": 47
+      }
+    },
+    {
+      "id": "cal-281",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1811,
+        "y": 1571,
+        "width": 62,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-282",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1223,
+        "y": 1591,
+        "width": 65,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-283",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 854,
+        "y": 1599,
+        "width": 29,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-284",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 536,
+        "y": 1662,
+        "width": 31,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-285",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1549,
+        "y": 1792,
+        "width": 35,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-286",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1254,
+        "y": 1794,
+        "width": 40,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-287",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1817,
+        "y": 1798,
+        "width": 31,
+        "height": 33
+      }
+    },
+    {
+      "id": "flp-040",
+      "category": "floor plan",
+      "page": 11,
+      "bbox": {
+        "x": 1997,
+        "y": 83,
+        "width": 922,
+        "height": 1151
+      }
+    },
+    {
+      "id": "cal-288",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2304,
+        "y": 85,
+        "width": 42,
+        "height": 44
+      }
+    },
+    {
+      "id": "flp-041",
+      "category": "floor plan",
+      "page": 11,
+      "bbox": {
+        "x": 212,
+        "y": 97,
+        "width": 741,
+        "height": 1132
+      }
+    },
+    {
+      "id": "flp-042",
+      "category": "floor plan",
+      "page": 11,
+      "bbox": {
+        "x": 1063,
+        "y": 100,
+        "width": 815,
+        "height": 1135
+      }
+    },
+    {
+      "id": "cal-289",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 1387,
+        "y": 341,
+        "width": 66,
+        "height": 63
+      }
+    },
+    {
+      "id": "cal-290",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 624,
+        "y": 493,
+        "width": 62,
+        "height": 61
+      }
+    },
+    {
+      "id": "cal-291",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2318,
+        "y": 548,
+        "width": 71,
+        "height": 69
+      }
+    },
+    {
+      "id": "cal-292",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 259,
+        "y": 562,
+        "width": 32,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-293",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 1379,
+        "y": 571,
+        "width": 68,
+        "height": 61
+      }
+    },
+    {
+      "id": "cal-294",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 1098,
+        "y": 578,
+        "width": 35,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-295",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 868,
+        "y": 589,
+        "width": 36,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-296",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2024,
+        "y": 598,
+        "width": 35,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-297",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 1816,
+        "y": 606,
+        "width": 30,
+        "height": 27
+      }
+    },
+    {
+      "id": "cal-298",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2709,
+        "y": 612,
+        "width": 36,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-299",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2493,
+        "y": 632,
+        "width": 58,
+        "height": 67
+      }
+    },
+    {
+      "id": "cal-300",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 469,
+        "y": 736,
+        "width": 64,
+        "height": 58
+      }
+    },
+    {
+      "id": "cal-301",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 689,
+        "y": 792,
+        "width": 33,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-302",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 783,
+        "y": 898,
+        "width": 30,
+        "height": 48
+      }
+    },
+    {
+      "id": "cal-303",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2609,
+        "y": 912,
+        "width": 45,
+        "height": 66
+      }
+    },
+    {
+      "id": "cal-304",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 1478,
+        "y": 927,
+        "width": 25,
+        "height": 51
+      }
+    },
+    {
+      "id": "cal-305",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2431,
+        "y": 1023,
+        "width": 31,
+        "height": 48
+      }
+    },
+    {
+      "id": "cal-306",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 869,
+        "y": 1027,
+        "width": 34,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-307",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 1822,
+        "y": 1042,
+        "width": 35,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-308",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 383,
+        "y": 1044,
+        "width": 35,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-309",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2184,
+        "y": 1060,
+        "width": 34,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-310",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 2696,
+        "y": 1062,
+        "width": 35,
+        "height": 34
+      }
+    },
+    {
+      "id": "flp-043",
+      "category": "floor plan",
+      "page": 11,
+      "bbox": {
+        "x": 1577,
+        "y": 1263,
+        "width": 457,
+        "height": 608
+      }
+    },
+    {
+      "id": "flp-044",
+      "category": "floor plan",
+      "page": 11,
+      "bbox": {
+        "x": 1086,
+        "y": 1269,
+        "width": 470,
+        "height": 601
+      }
+    },
+    {
+      "id": "flp-045",
+      "category": "floor plan",
+      "page": 11,
+      "bbox": {
+        "x": 615,
+        "y": 1270,
+        "width": 449,
+        "height": 600
+      }
+    },
+    {
+      "id": "flp-046",
+      "category": "floor plan",
+      "page": 11,
+      "bbox": {
+        "x": 153,
+        "y": 1275,
+        "width": 446,
+        "height": 596
+      }
+    },
+    {
+      "id": "cal-311",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 567,
+        "y": 1413,
+        "width": 30,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-312",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 623,
+        "y": 1423,
+        "width": 35,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-313",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 1517,
+        "y": 1429,
+        "width": 35,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-314",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 332,
+        "y": 1464,
+        "width": 65,
+        "height": 62
+      }
+    },
+    {
+      "id": "cal-315",
+      "category": "callout",
+      "page": 11,
+      "bbox": {
+        "x": 763,
+        "y": 1747,
+        "width": 33,
+        "height": 27
+      }
+    },
+    {
+      "id": "flp-047",
+      "category": "floor plan",
+      "page": 12,
+      "bbox": {
+        "x": 2027,
+        "y": 82,
+        "width": 905,
+        "height": 1115
+      }
+    },
+    {
+      "id": "cal-316",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 2543,
+        "y": 95,
+        "width": 31,
+        "height": 51
+      }
+    },
+    {
+      "id": "flp-048",
+      "category": "floor plan",
+      "page": 12,
+      "bbox": {
+        "x": 1110,
+        "y": 96,
+        "width": 849,
+        "height": 1102
+      }
+    },
+    {
+      "id": "flp-049",
+      "category": "floor plan",
+      "page": 12,
+      "bbox": {
+        "x": 220,
+        "y": 114,
+        "width": 809,
+        "height": 1081
+      }
+    },
+    {
+      "id": "cal-317",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 1467,
+        "y": 173,
+        "width": 29,
+        "height": 50
+      }
+    },
+    {
+      "id": "cal-318",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 2687,
+        "y": 240,
+        "width": 47,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-319",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 1307,
+        "y": 387,
+        "width": 47,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-320",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 2090,
+        "y": 418,
+        "width": 39,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-321",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 1237,
+        "y": 509,
+        "width": 30,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-322",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 2764,
+        "y": 517,
+        "width": 32,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-323",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 2451,
+        "y": 532,
+        "width": 66,
+        "height": 71
+      }
+    },
+    {
+      "id": "cal-324",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 1509,
+        "y": 560,
+        "width": 67,
+        "height": 61
+      }
+    },
+    {
+      "id": "cal-325",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 510,
+        "y": 579,
+        "width": 58,
+        "height": 63
+      }
+    },
+    {
+      "id": "cal-326",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 1437,
+        "y": 778,
+        "width": 56,
+        "height": 65
+      }
+    },
+    {
+      "id": "cal-327",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 709,
+        "y": 796,
+        "width": 55,
+        "height": 61
+      }
+    },
+    {
+      "id": "cal-328",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 2601,
+        "y": 818,
+        "width": 56,
+        "height": 69
+      }
+    },
+    {
+      "id": "cal-329",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 442,
+        "y": 903,
+        "width": 26,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-330",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 1504,
+        "y": 1006,
+        "width": 35,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-331",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 693,
+        "y": 1074,
+        "width": 35,
+        "height": 35
+      }
+    },
+    {
+      "id": "flp-050",
+      "category": "floor plan",
+      "page": 12,
+      "bbox": {
+        "x": 1116,
+        "y": 1233,
+        "width": 430,
+        "height": 621
+      }
+    },
+    {
+      "id": "flp-051",
+      "category": "floor plan",
+      "page": 12,
+      "bbox": {
+        "x": 1577,
+        "y": 1235,
+        "width": 449,
+        "height": 618
+      }
+    },
+    {
+      "id": "flp-052",
+      "category": "floor plan",
+      "page": 12,
+      "bbox": {
+        "x": 162,
+        "y": 1246,
+        "width": 449,
+        "height": 607
+      }
+    },
+    {
+      "id": "flp-053",
+      "category": "floor plan",
+      "page": 12,
+      "bbox": {
+        "x": 616,
+        "y": 1251,
+        "width": 482,
+        "height": 602
+      }
+    },
+    {
+      "id": "cal-332",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 1062,
+        "y": 1396,
+        "width": 33,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-333",
+      "category": "callout",
+      "page": 12,
+      "bbox": {
+        "x": 942,
+        "y": 1710,
+        "width": 34,
+        "height": 35
+      }
+    },
+    {
+      "id": "flp-054",
+      "category": "floor plan",
+      "page": 13,
+      "bbox": {
+        "x": 153,
+        "y": 198,
+        "width": 1914,
+        "height": 958
+      }
+    },
+    {
+      "id": "cal-334",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 1003,
+        "y": 511,
+        "width": 65,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-335",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 419,
+        "y": 637,
+        "width": 48,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-336",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 1407,
+        "y": 659,
+        "width": 45,
+        "height": 65
+      }
+    },
+    {
+      "id": "cal-337",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 411,
+        "y": 804,
+        "width": 48,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-338",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 738,
+        "y": 804,
+        "width": 45,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-339",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 1869,
+        "y": 866,
+        "width": 37,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-340",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 724,
+        "y": 881,
+        "width": 48,
+        "height": 32
+      }
+    },
+    {
+      "id": "flp-055",
+      "category": "floor plan",
+      "page": 13,
+      "bbox": {
+        "x": 235,
+        "y": 1181,
+        "width": 513,
+        "height": 681
+      }
+    },
+    {
+      "id": "flp-056",
+      "category": "floor plan",
+      "page": 13,
+      "bbox": {
+        "x": 876,
+        "y": 1211,
+        "width": 566,
+        "height": 650
+      }
+    },
+    {
+      "id": "flp-057",
+      "category": "floor plan",
+      "page": 13,
+      "bbox": {
+        "x": 1552,
+        "y": 1211,
+        "width": 638,
+        "height": 650
+      }
+    },
+    {
+      "id": "flp-058",
+      "category": "floor plan",
+      "page": 13,
+      "bbox": {
+        "x": 2293,
+        "y": 1254,
+        "width": 624,
+        "height": 589
+      }
+    },
+    {
+      "id": "cal-341",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 535,
+        "y": 1353,
+        "width": 61,
+        "height": 62
+      }
+    },
+    {
+      "id": "cal-342",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 1168,
+        "y": 1548,
+        "width": 61,
+        "height": 55
+      }
+    },
+    {
+      "id": "cal-343",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 2507,
+        "y": 1607,
+        "width": 53,
+        "height": 50
+      }
+    },
+    {
+      "id": "cal-344",
+      "category": "callout",
+      "page": 13,
+      "bbox": {
+        "x": 2646,
+        "y": 1729,
+        "width": 32,
+        "height": 36
+      }
+    },
+    {
+      "id": "flp-059",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 1551,
+        "y": 88,
+        "width": 728,
+        "height": 595
+      }
+    },
+    {
+      "id": "flp-060",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 238,
+        "y": 100,
+        "width": 1212,
+        "height": 581
+      }
+    },
+    {
+      "id": "cal-345",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1728,
+        "y": 110,
+        "width": 31,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-346",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 2203,
+        "y": 116,
+        "width": 33,
+        "height": 37
+      }
+    },
+    {
+      "id": "flp-061",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 2320,
+        "y": 158,
+        "width": 620,
+        "height": 524
+      }
+    },
+    {
+      "id": "cal-347",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 511,
+        "y": 264,
+        "width": 28,
+        "height": 65
+      }
+    },
+    {
+      "id": "cal-348",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1062,
+        "y": 341,
+        "width": 47,
+        "height": 50
+      }
+    },
+    {
+      "id": "cal-349",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 2134,
+        "y": 417,
+        "width": 34,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-350",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 2093,
+        "y": 442,
+        "width": 48,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-351",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1747,
+        "y": 507,
+        "width": 32,
+        "height": 34
+      }
+    },
+    {
+      "id": "flp-062",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 1216,
+        "y": 693,
+        "width": 433,
+        "height": 608
+      }
+    },
+    {
+      "id": "flp-063",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 674,
+        "y": 707,
+        "width": 471,
+        "height": 593
+      }
+    },
+    {
+      "id": "cal-352",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1296,
+        "y": 717,
+        "width": 30,
+        "height": 30
+      }
+    },
+    {
+      "id": "flp-064",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 237,
+        "y": 718,
+        "width": 391,
+        "height": 585
+      }
+    },
+    {
+      "id": "flp-065",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 1710,
+        "y": 739,
+        "width": 459,
+        "height": 561
+      }
+    },
+    {
+      "id": "flp-066",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 2220,
+        "y": 776,
+        "width": 669,
+        "height": 526
+      }
+    },
+    {
+      "id": "cal-353",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1987,
+        "y": 959,
+        "width": 27,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-354",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 916,
+        "y": 1021,
+        "width": 31,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-355",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1517,
+        "y": 1057,
+        "width": 30,
+        "height": 32
+      }
+    },
+    {
+      "id": "flp-067",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 725,
+        "y": 1307,
+        "width": 588,
+        "height": 585
+      }
+    },
+    {
+      "id": "flp-068",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 1389,
+        "y": 1326,
+        "width": 442,
+        "height": 566
+      }
+    },
+    {
+      "id": "cal-356",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1529,
+        "y": 1336,
+        "width": 32,
+        "height": 31
+      }
+    },
+    {
+      "id": "flp-069",
+      "category": "floor plan",
+      "page": 14,
+      "bbox": {
+        "x": 238,
+        "y": 1343,
+        "width": 437,
+        "height": 549
+      }
+    },
+    {
+      "id": "cal-357",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 1017,
+        "y": 1552,
+        "width": 42,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-358",
+      "category": "callout",
+      "page": 14,
+      "bbox": {
+        "x": 436,
+        "y": 1628,
+        "width": 33,
+        "height": 28
+      }
+    },
+    {
+      "id": "flp-070",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 852,
+        "y": 80,
+        "width": 685,
+        "height": 370
+      }
+    },
+    {
+      "id": "cal-359",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1282,
+        "y": 82,
+        "width": 35,
+        "height": 42
+      }
+    },
+    {
+      "id": "flp-071",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 154,
+        "y": 85,
+        "width": 579,
+        "height": 367
+      }
+    },
+    {
+      "id": "cal-360",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 308,
+        "y": 86,
+        "width": 39,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-361",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1022,
+        "y": 87,
+        "width": 35,
+        "height": 40
+      }
+    },
+    {
+      "id": "flp-072",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 1681,
+        "y": 87,
+        "width": 520,
+        "height": 585
+      }
+    },
+    {
+      "id": "cal-362",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 540,
+        "y": 91,
+        "width": 40,
+        "height": 42
+      }
+    },
+    {
+      "id": "flp-073",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 2225,
+        "y": 98,
+        "width": 494,
+        "height": 575
+      }
+    },
+    {
+      "id": "cal-363",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1861,
+        "y": 102,
+        "width": 36,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-364",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1988,
+        "y": 103,
+        "width": 38,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-365",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2527,
+        "y": 124,
+        "width": 32,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-366",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2403,
+        "y": 127,
+        "width": 33,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-367",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 653,
+        "y": 184,
+        "width": 39,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-368",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1178,
+        "y": 191,
+        "width": 30,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-369",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2073,
+        "y": 232,
+        "width": 41,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-370",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2673,
+        "y": 254,
+        "width": 38,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-371",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 374,
+        "y": 303,
+        "width": 30,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-372",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 432,
+        "y": 303,
+        "width": 30,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-373",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1204,
+        "y": 307,
+        "width": 28,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-374",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 650,
+        "y": 317,
+        "width": 41,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-375",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 155,
+        "y": 350,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-376",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2123,
+        "y": 384,
+        "width": 38,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-377",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2638,
+        "y": 407,
+        "width": 39,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-378",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2173,
+        "y": 421,
+        "width": 28,
+        "height": 43
+      }
+    },
+    {
+      "id": "flp-074",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 858,
+        "y": 450,
+        "width": 669,
+        "height": 362
+      }
+    },
+    {
+      "id": "cal-379",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1027,
+        "y": 451,
+        "width": 36,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-380",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1267,
+        "y": 451,
+        "width": 36,
+        "height": 47
+      }
+    },
+    {
+      "id": "flp-075",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 152,
+        "y": 452,
+        "width": 580,
+        "height": 366
+      }
+    },
+    {
+      "id": "cal-381",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 310,
+        "y": 453,
+        "width": 37,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-382",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 542,
+        "y": 457,
+        "width": 36,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-383",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1383,
+        "y": 546,
+        "width": 39,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-384",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 652,
+        "y": 549,
+        "width": 42,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-385",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1388,
+        "y": 661,
+        "width": 38,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-386",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 652,
+        "y": 680,
+        "width": 39,
+        "height": 39
+      }
+    },
+    {
+      "id": "flp-076",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 1697,
+        "y": 687,
+        "width": 470,
+        "height": 572
+      }
+    },
+    {
+      "id": "cal-387",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1861,
+        "y": 688,
+        "width": 40,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-388",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1987,
+        "y": 689,
+        "width": 37,
+        "height": 43
+      }
+    },
+    {
+      "id": "cal-389",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 154,
+        "y": 698,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "flp-077",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 2224,
+        "y": 698,
+        "width": 501,
+        "height": 566
+      }
+    },
+    {
+      "id": "cal-390",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2542,
+        "y": 699,
+        "width": 32,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-391",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2412,
+        "y": 704,
+        "width": 37,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-392",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2628,
+        "y": 734,
+        "width": 34,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-393",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2306,
+        "y": 797,
+        "width": 30,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-394",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1268,
+        "y": 811,
+        "width": 34,
+        "height": 46
+      }
+    },
+    {
+      "id": "flp-078",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 841,
+        "y": 812,
+        "width": 721,
+        "height": 357
+      }
+    },
+    {
+      "id": "cal-395",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1027,
+        "y": 817,
+        "width": 32,
+        "height": 44
+      }
+    },
+    {
+      "id": "flp-079",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 142,
+        "y": 818,
+        "width": 640,
+        "height": 368
+      }
+    },
+    {
+      "id": "cal-396",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2076,
+        "y": 821,
+        "width": 37,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-397",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 544,
+        "y": 825,
+        "width": 35,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-398",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 311,
+        "y": 826,
+        "width": 37,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-399",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2681,
+        "y": 831,
+        "width": 42,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-400",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1883,
+        "y": 891,
+        "width": 33,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-401",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2316,
+        "y": 909,
+        "width": 45,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-402",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1428,
+        "y": 913,
+        "width": 39,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-403",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 642,
+        "y": 919,
+        "width": 39,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-404",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2118,
+        "y": 974,
+        "width": 45,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-405",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1893,
+        "y": 978,
+        "width": 28,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-406",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2673,
+        "y": 984,
+        "width": 46,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-407",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1429,
+        "y": 1022,
+        "width": 43,
+        "height": 37
+      }
+    },
+    {
+      "id": "cal-408",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 640,
+        "y": 1054,
+        "width": 40,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-409",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 143,
+        "y": 1058,
+        "width": 31,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-410",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2349,
+        "y": 1094,
+        "width": 33,
+        "height": 33
+      }
+    },
+    {
+      "id": "cal-411",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1269,
+        "y": 1169,
+        "width": 38,
+        "height": 43
+      }
+    },
+    {
+      "id": "flp-080",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 869,
+        "y": 1170,
+        "width": 693,
+        "height": 351
+      }
+    },
+    {
+      "id": "cal-412",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1028,
+        "y": 1171,
+        "width": 35,
+        "height": 42
+      }
+    },
+    {
+      "id": "flp-081",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 156,
+        "y": 1187,
+        "width": 569,
+        "height": 360
+      }
+    },
+    {
+      "id": "cal-413",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 312,
+        "y": 1192,
+        "width": 34,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-414",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 542,
+        "y": 1193,
+        "width": 37,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-415",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1407,
+        "y": 1261,
+        "width": 42,
+        "height": 43
+      }
+    },
+    {
+      "id": "flp-082",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 1697,
+        "y": 1265,
+        "width": 465,
+        "height": 586
+      }
+    },
+    {
+      "id": "flp-083",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 2225,
+        "y": 1269,
+        "width": 494,
+        "height": 583
+      }
+    },
+    {
+      "id": "cal-416",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2527,
+        "y": 1269,
+        "width": 35,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-417",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1859,
+        "y": 1271,
+        "width": 44,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-418",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1988,
+        "y": 1271,
+        "width": 36,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-419",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2401,
+        "y": 1272,
+        "width": 35,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-420",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 640,
+        "y": 1281,
+        "width": 41,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-421",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2648,
+        "y": 1333,
+        "width": 33,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-422",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1407,
+        "y": 1387,
+        "width": 44,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-423",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2301,
+        "y": 1388,
+        "width": 35,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-424",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2601,
+        "y": 1404,
+        "width": 38,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-425",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2071,
+        "y": 1406,
+        "width": 43,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-426",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 169,
+        "y": 1420,
+        "width": 42,
+        "height": 34
+      }
+    },
+    {
+      "id": "flp-084",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 878,
+        "y": 1523,
+        "width": 681,
+        "height": 369
+      }
+    },
+    {
+      "id": "cal-427",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1272,
+        "y": 1525,
+        "width": 36,
+        "height": 44
+      }
+    },
+    {
+      "id": "cal-428",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1030,
+        "y": 1527,
+        "width": 34,
+        "height": 42
+      }
+    },
+    {
+      "id": "flp-085",
+      "category": "floor plan",
+      "page": 15,
+      "bbox": {
+        "x": 156,
+        "y": 1547,
+        "width": 573,
+        "height": 349
+      }
+    },
+    {
+      "id": "cal-429",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 310,
+        "y": 1551,
+        "width": 36,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-430",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2121,
+        "y": 1551,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-431",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2658,
+        "y": 1551,
+        "width": 39,
+        "height": 41
+      }
+    },
+    {
+      "id": "cal-432",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 543,
+        "y": 1554,
+        "width": 36,
+        "height": 39
+      }
+    },
+    {
+      "id": "cal-433",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1400,
+        "y": 1630,
+        "width": 43,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-434",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 641,
+        "y": 1635,
+        "width": 39,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-435",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 2303,
+        "y": 1639,
+        "width": 28,
+        "height": 28
+      }
+    },
+    {
+      "id": "cal-436",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 1407,
+        "y": 1740,
+        "width": 36,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-437",
+      "category": "callout",
+      "page": 15,
+      "bbox": {
+        "x": 170,
+        "y": 1769,
+        "width": 40,
+        "height": 38
+      }
+    },
+    {
+      "id": "flp-086",
+      "category": "floor plan",
+      "page": 16,
+      "bbox": {
+        "x": 197,
+        "y": 177,
+        "width": 910,
+        "height": 486
+      }
+    },
+    {
+      "id": "flp-087",
+      "category": "floor plan",
+      "page": 16,
+      "bbox": {
+        "x": 1210,
+        "y": 326,
+        "width": 344,
+        "height": 338
+      }
+    },
+    {
+      "id": "cal-438",
+      "category": "callout",
+      "page": 16,
+      "bbox": {
+        "x": 1326,
+        "y": 328,
+        "width": 31,
+        "height": 46
+      }
+    },
+    {
+      "id": "cal-439",
+      "category": "callout",
+      "page": 16,
+      "bbox": {
+        "x": 515,
+        "y": 385,
+        "width": 64,
+        "height": 61
+      }
+    },
+    {
+      "id": "cal-440",
+      "category": "callout",
+      "page": 16,
+      "bbox": {
+        "x": 822,
+        "y": 407,
+        "width": 56,
+        "height": 59
+      }
+    },
+    {
+      "id": "cal-441",
+      "category": "callout",
+      "page": 16,
+      "bbox": {
+        "x": 1327,
+        "y": 487,
+        "width": 30,
+        "height": 45
+      }
+    },
+    {
+      "id": "elv-007",
+      "category": "elevation",
+      "page": 17,
+      "bbox": {
+        "x": 166,
+        "y": 176,
+        "width": 2157,
+        "height": 795
+      }
+    },
+    {
+      "id": "cal-442",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 1134,
+        "y": 193,
+        "width": 34,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-443",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 458,
+        "y": 198,
+        "width": 38,
+        "height": 38
+      }
+    },
+    {
+      "id": "cal-444",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 915,
+        "y": 200,
+        "width": 31,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-445",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 1200,
+        "y": 200,
+        "width": 35,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-446",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 828,
+        "y": 201,
+        "width": 36,
+        "height": 40
+      }
+    },
+    {
+      "id": "cal-447",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 1220,
+        "y": 235,
+        "width": 28,
+        "height": 25
+      }
+    },
+    {
+      "id": "cal-448",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 399,
+        "y": 248,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "cal-449",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 294,
+        "y": 267,
+        "width": 34,
+        "height": 31
+      }
+    },
+    {
+      "id": "cal-450",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 2029,
+        "y": 277,
+        "width": 28,
+        "height": 30
+      }
+    },
+    {
+      "id": "cal-451",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 1547,
+        "y": 318,
+        "width": 31,
+        "height": 32
+      }
+    },
+    {
+      "id": "cal-452",
+      "category": "callout",
+      "page": 17,
+      "bbox": {
+        "x": 1292,
+        "y": 379,
+        "width": 30,
+        "height": 29
+      }
+    },
+    {
+      "id": "elv-008",
+      "category": "elevation",
+      "page": 17,
+      "bbox": {
+        "x": 165,
+        "y": 988,
+        "width": 2193,
+        "height": 829
+      }
+    },
+    {
+      "id": "elv-009",
+      "category": "elevation",
+      "page": 18,
+      "bbox": {
+        "x": 166,
+        "y": 136,
+        "width": 2126,
+        "height": 769
+      }
+    },
+    {
+      "id": "cal-453",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 720,
+        "y": 140,
+        "width": 34,
+        "height": 49
+      }
+    },
+    {
+      "id": "cal-454",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 367,
+        "y": 142,
+        "width": 36,
+        "height": 45
+      }
+    },
+    {
+      "id": "cal-455",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 1173,
+        "y": 168,
+        "width": 33,
+        "height": 35
+      }
+    },
+    {
+      "id": "cal-456",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 1960,
+        "y": 187,
+        "width": 33,
+        "height": 42
+      }
+    },
+    {
+      "id": "cal-457",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 1989,
+        "y": 220,
+        "width": 35,
+        "height": 34
+      }
+    },
+    {
+      "id": "cal-458",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 326,
+        "y": 226,
+        "width": 34,
+        "height": 36
+      }
+    },
+    {
+      "id": "cal-459",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 1504,
+        "y": 264,
+        "width": 38,
+        "height": 40
+      }
+    },
+    {
+      "id": "elv-010",
+      "category": "elevation",
+      "page": 18,
+      "bbox": {
+        "x": 1589,
+        "y": 973,
+        "width": 633,
+        "height": 298
+      }
+    },
+    {
+      "id": "elv-011",
+      "category": "elevation",
+      "page": 18,
+      "bbox": {
+        "x": 173,
+        "y": 974,
+        "width": 2191,
+        "height": 861
+      }
+    },
+    {
+      "id": "cal-460",
+      "category": "callout",
+      "page": 18,
+      "bbox": {
+        "x": 823,
+        "y": 982,
+        "width": 41,
+        "height": 41
+      }
+    },
+    {
+      "id": "elv-012",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 889,
+        "y": 97,
+        "width": 928,
+        "height": 455
+      }
+    },
+    {
+      "id": "elv-013",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 1855,
+        "y": 97,
+        "width": 494,
+        "height": 457
+      }
+    },
+    {
+      "id": "elv-014",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 195,
+        "y": 98,
+        "width": 463,
+        "height": 457
+      }
+    },
+    {
+      "id": "elv-015",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 2376,
+        "y": 98,
+        "width": 492,
+        "height": 455
+      }
+    },
+    {
+      "id": "elv-016",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 658,
+        "y": 122,
+        "width": 207,
+        "height": 430
+      }
+    },
+    {
+      "id": "elv-017",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 191,
+        "y": 554,
+        "width": 965,
+        "height": 424
+      }
+    },
+    {
+      "id": "elv-018",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 1214,
+        "y": 554,
+        "width": 546,
+        "height": 424
+      }
+    },
+    {
+      "id": "elv-019",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 1829,
+        "y": 555,
+        "width": 946,
+        "height": 424
+      }
+    },
+    {
+      "id": "elv-020",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 2317,
+        "y": 964,
+        "width": 574,
+        "height": 454
+      }
+    },
+    {
+      "id": "elv-021",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 1721,
+        "y": 966,
+        "width": 566,
+        "height": 453
+      }
+    },
+    {
+      "id": "elv-022",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 1137,
+        "y": 978,
+        "width": 582,
+        "height": 439
+      }
+    },
+    {
+      "id": "elv-023",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 187,
+        "y": 980,
+        "width": 930,
+        "height": 439
+      }
+    },
+    {
+      "id": "elv-024",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 1359,
+        "y": 1417,
+        "width": 1317,
+        "height": 458
+      }
+    },
+    {
+      "id": "elv-025",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 794,
+        "y": 1418,
+        "width": 525,
+        "height": 456
+      }
+    },
+    {
+      "id": "elv-026",
+      "category": "elevation",
+      "page": 19,
+      "bbox": {
+        "x": 175,
+        "y": 1421,
+        "width": 543,
+        "height": 450
+      }
+    },
+    {
+      "id": "elv-027",
+      "category": "elevation",
+      "page": 20,
+      "bbox": {
+        "x": 702,
+        "y": 834,
+        "width": 470,
+        "height": 489
+      }
+    },
+    {
+      "id": "elv-028",
+      "category": "elevation",
+      "page": 20,
+      "bbox": {
+        "x": 1177,
+        "y": 834,
+        "width": 1114,
+        "height": 489
+      }
+    },
+    {
+      "id": "elv-029",
+      "category": "elevation",
+      "page": 20,
+      "bbox": {
+        "x": 266,
+        "y": 841,
+        "width": 410,
+        "height": 481
+      }
+    },
+    {
+      "id": "elv-030",
+      "category": "elevation",
+      "page": 20,
+      "bbox": {
+        "x": 264,
+        "y": 1372,
+        "width": 579,
+        "height": 493
+      }
+    },
+    {
+      "id": "elv-031",
+      "category": "elevation",
+      "page": 20,
+      "bbox": {
+        "x": 876,
+        "y": 1373,
+        "width": 471,
+        "height": 491
+      }
+    },
+    {
+      "id": "elv-032",
+      "category": "elevation",
+      "page": 20,
+      "bbox": {
+        "x": 1441,
+        "y": 1374,
+        "width": 1145,
+        "height": 492
+      }
+    },
+    {
+      "id": "elv-033",
+      "category": "elevation",
+      "page": 21,
+      "bbox": {
+        "x": 943,
+        "y": 144,
+        "width": 708,
+        "height": 1710
+      }
+    },
+    {
+      "id": "cal-461",
+      "category": "callout",
+      "page": 21,
+      "bbox": {
+        "x": 1306,
+        "y": 151,
+        "width": 61,
+        "height": 71
+      }
+    },
+    {
+      "id": "elv-034",
+      "category": "elevation",
+      "page": 21,
+      "bbox": {
+        "x": 225,
+        "y": 161,
+        "width": 660,
+        "height": 1689
+      }
+    },
+    {
+      "id": "cal-462",
+      "category": "callout",
+      "page": 21,
+      "bbox": {
+        "x": 1528,
+        "y": 310,
+        "width": 49,
+        "height": 48
+      }
+    },
+    {
+      "id": "elv-035",
+      "category": "elevation",
+      "page": 21,
+      "bbox": {
+        "x": 1706,
+        "y": 410,
+        "width": 1175,
+        "height": 499
+      }
+    },
+    {
+      "id": "cal-463",
+      "category": "callout",
+      "page": 21,
+      "bbox": {
+        "x": 744,
+        "y": 637,
+        "width": 51,
+        "height": 58
+      }
+    },
+    {
+      "id": "cal-464",
+      "category": "callout",
+      "page": 21,
+      "bbox": {
+        "x": 747,
+        "y": 881,
+        "width": 51,
+        "height": 56
+      }
+    },
+    {
+      "id": "elv-036",
+      "category": "elevation",
+      "page": 21,
+      "bbox": {
+        "x": 1736,
+        "y": 984,
+        "width": 541,
+        "height": 873
+      }
+    },
+    {
+      "id": "cal-465",
+      "category": "callout",
+      "page": 21,
+      "bbox": {
+        "x": 1941,
+        "y": 988,
+        "width": 41,
+        "height": 49
+      }
+    },
+    {
+      "id": "elv-037",
+      "category": "elevation",
+      "page": 21,
+      "bbox": {
+        "x": 2357,
+        "y": 1029,
+        "width": 443,
+        "height": 384
+      }
+    },
+    {
+      "id": "cal-466",
+      "category": "callout",
+      "page": 21,
+      "bbox": {
+        "x": 2146,
+        "y": 1181,
+        "width": 41,
+        "height": 49
+      }
+    },
+    {
+      "id": "elv-038",
+      "category": "elevation",
+      "page": 21,
+      "bbox": {
+        "x": 2305,
+        "y": 1476,
+        "width": 524,
+        "height": 373
+      }
+    }
+  ]
+}
