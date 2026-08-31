@@ -18,12 +18,22 @@ _NAMED_BBOX_KEY_SETS = (
     ("x0", "y0", "x1", "y1"),
 )
 
-# A coordinate whose absolute value exceeds this is assumed to be on a 0-1000 scale
-# (the convention several of our own prompts use) rather than the 0-1 scale
-# `location_scorer` expects, and is rescaled by /1000 accordingly. 1.0 exactly is
-# still treated as in-range 0-1, since a box legitimately touching the far edge of the
-# image has a coordinate of exactly 1.0.
-_SCALE_THRESHOLD = 1.0 + 1e-6
+# A coordinate whose absolute value clearly indicates a 0-1000 scale (not just a
+# minor overflow past the 0-1 edge) triggers rescaling for the WHOLE box. The
+# threshold is deliberately well above 1.0, not just barely over it: a box that is
+# genuinely normalized 0-1 but slightly overflows near an edge (floating-point or
+# model imprecision, e.g. y_max = 1.05) must NOT be reinterpreted as a
+# barely-perceptible 1000-scale box (0.105% of the image) and silently shrunk to a
+# corner -- that was the original bug (see PR review discussion on the earlier
+# 1.0 + 1e-6 threshold). A genuinely 0-1000-scale detection will almost always have
+# at least one coordinate well past this threshold, since a bounding box only a
+# couple of units wide on a 0-1000 scale is vanishingly rare for an actual object.
+# A coordinate just past 1.0 and up to this threshold is instead treated as an
+# in-range (if geometrically imperfect) 0-1 box, and is passed through unrescaled
+# and unclamped -- consistent with this package's "don't hide a geometrically wrong
+# box" design (see README): the near-edge overflow is handed to the caller as-is,
+# not silently corrected in either direction.
+_SCALE_THRESHOLD = 2.0
 
 # Container keys tried, in order, when the parsed JSON is an object rather than a bare
 # array. "objects" is checked first because it's what our own prompts ask for; the

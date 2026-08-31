@@ -172,11 +172,16 @@ single object that itself looks like one box — wrapped into a one-item list.
 project standardizes on 0-1 floats. Several of this project's own prompts, however,
 ask the model for 0-1000 integer coordinates instead (easier for a model to reason
 about on a raster image). `parse()` auto-detects which scale each box is in,
-**per box**: if every coordinate has `abs(value) <= 1.0`, it's assumed already
-normalized and is passed through unchanged; if any coordinate exceeds `1.0`, the
-*whole box* is assumed to be 0-1000 scale and every coordinate in it is divided by
-`1000`. A coordinate of exactly `1.0` — a box legitimately touching the image's far
-edge — is treated as already-normalized, not as a signal to rescale.
+**per box**: if every coordinate has `abs(value) <= 2.0`, it's assumed already
+normalized (or a legitimate near-edge overflow past `1.0` from floating-point/model
+imprecision, e.g. `1.05`) and is passed through unrescaled and unclamped; if any
+coordinate exceeds `2.0`, the *whole box* is assumed to be 0-1000 scale and every
+coordinate in it is divided by `1000`. The threshold sits well above `1.0` on
+purpose: a real 0-1000-scale box will almost always land far past `2.0`, since a
+bounding box only a couple of units wide on that scale is vanishingly rare for an
+actual object — so a coordinate just past `1.0` is read as an imperfect 0-1 box
+rather than misinterpreted as a barely-perceptible 1000-scale one and shrunk to a
+corner.
 
 ## Truncation repair, precisely
 

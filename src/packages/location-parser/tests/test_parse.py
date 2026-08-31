@@ -8,6 +8,8 @@ result. Nothing in these tests names an internal helper, so the tests describe
 
 import json
 
+import pytest
+
 from location_parser import parse
 
 # --- Clean input --------------------------------------------------------------------
@@ -507,6 +509,128 @@ def test_coordinate_of_exactly_1_is_treated_as_0_to_1_scale():
     assert result["boxes"][0]["bbox"] == [0.0, 0.0, 1.0, 1.0]
 
 
+def test_near_edge_overflow_past_1_is_not_misread_as_1000_scale():
+    # A box that's genuinely 0-1 scale but slightly overflows past 1.0 near an edge
+    # (floating-point or model imprecision) must be passed through as-is, not
+    # reinterpreted as a barely-perceptible 1000-scale box and shrunk to a corner.
+    text = json.dumps({"objects": [{"label": "cabinet", "box": [0.8, 0.9, 1.05, 1.0]}]})
+
+    result = parse(text)
+
+    assert result["boxes"][0]["bbox"] == [0.8, 0.9, 1.05, 1.0]
+
+
+@pytest.mark.parametrize(
+    "overflowing_coordinate",
+    [1.0001, 1.01, 1.05, 1.2, 1.5, 1.8, 1.999, 2.0],
+    ids=lambda v: f"overflow_{v}",
+)
+def test_a_range_of_near_edge_overflows_all_stay_unrescaled(overflowing_coordinate):
+    # Sweeps the whole "just past 1.0, up to and including the threshold itself"
+    # range -- not just one hand-picked value -- to confirm none of them get
+    # mistaken for 1000-scale. 2.0 itself is included as the exact boundary: the
+    # rescale check is strictly-greater-than, so the threshold value itself must
+    # still be treated as 0-1 scale, not rescaled.
+    box = [0.1, 0.1, overflowing_coordinate, 0.5]
+    text = json.dumps({"objects": [{"label": "cabinet", "box": box}]})
+
+    result = parse(text)
+
+    assert result["boxes"][0]["bbox"] == box
+
+
+@pytest.mark.parametrize(
+    "past_threshold_coordinate",
+    [2.0001, 2.5, 3, 10, 50, 100, 500, 999, 1000],
+    ids=lambda v: f"past_{v}",
+)
+def test_a_range_of_magnitudes_clearly_past_threshold_are_all_rescaled(
+    past_threshold_coordinate,
+):
+    # Sweeps small-but-unambiguous 1000-scale values (just past the threshold) up
+    # through large ones (near the top of the 0-1000 range), confirming the whole
+    # box is divided by 1000 at every magnitude, not just a hand-picked "big" one.
+    box = [0, 0, past_threshold_coordinate, past_threshold_coordinate]
+    text = json.dumps({"objects": [{"label": "cabinet", "box": box}]})
+
+    result = parse(text)
+
+    expected = [v / 1000.0 for v in box]
+    assert result["boxes"][0]["bbox"] == expected
+
+
+def test_coordinate_clearly_past_threshold_is_still_rescaled():
+    text = json.dumps({"objects": [{"label": "cabinet", "box": [0, 0, 5, 8]}]})
+
+    result = parse(text)
+
+    assert result["boxes"][0]["bbox"] == [0.0, 0.0, 0.005, 0.008]
+
+
+@pytest.mark.parametrize(
+    "negative_overflow,expected",
+    [
+        (
+            -1.05,
+            -1.05,
+        ),  # negative near-edge overflow: abs(-1.05) = 1.05 <= threshold, stays as-is
+        (-1.999, -1.999),  # still within the near-edge range
+        (
+            -2.5,
+            -0.0025,
+        ),  # abs(-2.5) = 2.5 > threshold: whole box (incl. this value) gets rescaled
+        (-500, -0.5),  # clearly 1000-scale, negative -- still rescaled by /1000
+    ],
+)
+def test_scale_detection_uses_absolute_value_for_negative_coordinates(
+    negative_overflow, expected
+):
+    # The threshold check is abs(value) > _SCALE_THRESHOLD, so a negative coordinate
+    # is judged by its magnitude, not its sign -- a small negative overflow (e.g. a
+    # box extending slightly left of x=0) must not be treated as 1000-scale just
+    # because it's negative, and a genuinely large negative 1000-scale coordinate
+    # must still be rescaled.
+    box = [negative_overflow, 0.1, 0.5, 0.5]
+    text = json.dumps({"objects": [{"label": "cabinet", "box": box}]})
+
+    result = parse(text)
+
+    assert result["boxes"][0]["bbox"][0] == expected
+
+
+@pytest.mark.parametrize(
+    "box",
+    [
+        [0.1, 0.1, 0.5, 250],  # only y_max is clearly 1000-scale
+        [
+            300,
+            0.1,
+            500,
+            0.5,
+        ],  # x_min is clearly 1000-scale (x_max too, order preserved)
+        [
+            0.1,
+            400,
+            0.5,
+            600,
+        ],  # y_min is clearly 1000-scale (y_max too, order preserved)
+        [0.1, 0.1, 600, 0.5],  # only x_max is clearly 1000-scale
+    ],
+    ids=["y_max", "x_min", "y_min", "x_max"],
+)
+def test_a_single_past_threshold_coordinate_rescales_the_whole_box_regardless_of_position(
+    box,
+):
+    # The scale decision is made once for the whole box, from whichever coordinate
+    # triggers it -- confirmed here at each of the four positions, not just one.
+    text = json.dumps({"objects": [{"label": "cabinet", "box": box}]})
+
+    result = parse(text)
+
+    expected = [v / 1000.0 for v in box]
+    assert result["boxes"][0]["bbox"] == expected
+
+
 # --- Result shape ---------------------------------------------------------------
 
 
@@ -521,3 +645,38 @@ def test_container_key_aliases_boxes_detections_predictions_results():
         text = json.dumps({key: [{"label": "cabinet", "box": [0, 0, 1, 1]}]})
         result = parse(text)
         assert len(result["boxes"]) == 1, f"container key {key!r} was not recognized"
+
+
+# --- Performance: truncation repair must stay fast on large, dense replies ----------
+
+
+def test_repair_stays_fast_on_a_large_dense_truncated_reply():
+    """Regression test for the PR review concern that repair_truncated's trim loop
+    could be O(max_trim x len(candidate)) -- benchmarked at 5+ seconds on a ~26KB
+    pathological input before the fix (a precomputed bracket-state table replacing a
+    fresh rescan per trim attempt). The realistic case this matters for -- a reply
+    truncated mid-value partway through a dense array -- must resolve in well under a
+    second, not several."""
+    import time
+
+    entries = ",".join(
+        json.dumps({"label": "cabinet", "box": [i, i, i + 20, i + 20]})
+        for i in range(500)
+    )
+    # cut off mid-value, deep into a long trailing string field -- the realistic
+    # truncation shape (a model running out of output tokens), not a syntax error
+    # injected into otherwise-complete JSON.
+    candidate = (
+        '{"objects": [' + entries + ', {"label": "cabinet", "note": "' + ("a" * 1990)
+    )
+
+    start = time.perf_counter()
+    result = parse(candidate)
+    elapsed = time.perf_counter() - start
+
+    assert (
+        elapsed < 1.0
+    ), f"repair took {elapsed:.3f}s on a dense truncated reply -- expected well under 1s"
+    assert len(result["boxes"]) == 500  # the trailing incomplete entry is discarded
+    assert result["complete"] is False
+    

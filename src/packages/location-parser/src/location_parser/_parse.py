@@ -37,13 +37,20 @@ def parse(
     this is where an invented label gets caught, since the label itself is otherwise
     read and trusted as-is, with no taxonomy of its own.
 
-    **Coordinate scale is auto-detected per box.** If every coordinate in a box's bbox
-    has an absolute value of 1.0 or less, it is assumed to already be normalized 0-1
-    and is passed through unchanged. If any coordinate exceeds 1.0, the whole box is
+    **Coordinate scale is auto-detected per box.** If every coordinate in a box's
+    bbox is 2.0 or less, it is assumed to already be normalized 0-1 (or a legitimate
+    near-edge overflow past 1.0 from floating-point/model imprecision) and is passed
+    through unrescaled and unclamped. If any coordinate exceeds 2.0, the whole box is
     assumed to be on a 0-1000 scale (the convention several prompts in this project
-    use) and every coordinate in it is divided by 1000. This is a per-box decision --
-    a reply that mixes both scales across different entries is handled correctly,
-    though that would be unusual for one model reply.
+    use) and every coordinate in it is divided by 1000. The threshold is set well
+    above 1.0, not right at it, specifically so a box that's genuinely 0-1 scale but
+    slightly overflows near an edge (e.g. y_max = 1.05) isn't misread as a
+    barely-perceptible 1000-scale box and shrunk to a corner -- a real 0-1000-scale
+    detection will almost always land its coordinates far past 2.0, since a
+    bounding box only a couple of units wide on that scale is vanishingly rare for
+    an actual object. This is a per-box decision -- a reply that mixes both scales
+    across different entries is handled correctly, though that would be unusual for
+    one model reply.
 
     **What counts as `dropped` vs. left alone.** An entry is dropped -- removed
     entirely, counted in `dropped`, absent from `boxes` -- when it is structurally
