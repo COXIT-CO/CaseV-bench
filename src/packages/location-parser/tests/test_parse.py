@@ -679,4 +679,3 @@ def test_repair_stays_fast_on_a_large_dense_truncated_reply():
     ), f"repair took {elapsed:.3f}s on a dense truncated reply -- expected well under 1s"
     assert len(result["boxes"]) == 500  # the trailing incomplete entry is discarded
     assert result["complete"] is False
-    
