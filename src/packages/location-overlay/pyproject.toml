@@ -1,0 +1,28 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "location-overlay"
+version = "0.1.0"
+description = "Draw predicted location boxes onto a rendered drawing page."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "aleryp" }]
+keywords = ["visualization", "bounding-box", "overlay", "benchmark"]
+# Pillow only, and from 10.1 for `ImageFont.load_default(size=...)`: before it the default font
+# was a fixed-size bitmap, which cannot label a 3000px sheet legibly.
+dependencies = ["pillow>=10.1"]
+
+[project.optional-dependencies]
+dev = ["black (>=26.5.1,<27.0.0)", "isort (>=8.0.1,<9.0.0)", "pytest (>=9.1.1,<10.0.0)"]
+
+[tool.black]
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
