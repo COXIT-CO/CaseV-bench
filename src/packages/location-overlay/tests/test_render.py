@@ -436,6 +436,11 @@ def test_nothing_is_drawn_when_a_later_box_is_malformed():
         pytest.param(box(0.5, 0.5, 0.5, 0.5), id="zero-area"),
         pytest.param(box(-0.2, -0.2, 0.5, 0.5), id="off-the-top-left"),
         pytest.param(box(0.5, 0.5, 1.4, 1.4), id="past-the-bottom-right"),
+        # Finite, so validate() lets it through — but 1e15 scales to a pixel coordinate far
+        # past what Pillow's C drawing routines take (a signed 32-bit int), which used to
+        # raise instead of just being an extreme, off-page box like any other.
+        pytest.param(box(0.1, 0.1, 1e15, 0.5), id="huge-positive-coordinate"),
+        pytest.param(box(-1e15, 0.1, 0.5, 0.5), id="huge-negative-coordinate"),
     ],
 )
 def test_a_geometrically_wrong_box_is_drawn_rather_than_rejected(geometry):
