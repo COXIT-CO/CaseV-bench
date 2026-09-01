@@ -1344,6 +1344,14 @@ function renderHistoryDetail() {
         <details class="history-section" open>
             <summary>Location score — ${escapeHtml(r.model)}</summary>
             <div class="history-section-body">${r.score ? escapeHtml(formatScore(r.score)) : 'No ground truth was entered for this run.'}</div>
+            ${r.score && !r.score.error ? `
+            <div class="history-eval-actions">
+                <input type="text" class="inline-select" id="db-author-${idx}" placeholder="Author" style="width: 8rem;">
+                <input type="text" class="inline-select" id="db-config-label-${idx}" placeholder="Config label (author/method)" style="width: 16rem;">
+                <button type="button" class="ghost-button" data-save-to-db="${idx}">Save to DB</button>
+                <span class="history-eval-status" id="db-save-status-${idx}"></span>
+            </div>
+            ` : ''}
         </details>
         <details class="history-section" open>
             <summary>Cost &amp; latency — ${escapeHtml(r.model)}</summary>
@@ -1490,6 +1498,41 @@ function renderHistoryDetail() {
                 }
             });
         }
+    });
+
+    // Save to DB: writes one model's scored result into the shared research table.
+    (run.results || []).forEach((r, idx) => {
+        const dbSaveBtn = historyDetailEl.querySelector(`[data-save-to-db="${idx}"]`);
+        if (!dbSaveBtn) return;
+        const authorInput = document.getElementById(`db-author-${idx}`);
+        const configLabelInput = document.getElementById(`db-config-label-${idx}`);
+        const statusEl = document.getElementById(`db-save-status-${idx}`);
+
+        dbSaveBtn.addEventListener('click', async () => {
+            const author = (authorInput.value || '').trim();
+            const configLabel = (configLabelInput.value || '').trim();
+            if (!author || !configLabel) {
+                if (statusEl) { statusEl.textContent = 'Author and config label are required'; statusEl.className = 'history-eval-status error'; }
+                return;
+            }
+            dbSaveBtn.disabled = true;
+            if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.className = 'history-eval-status'; }
+            try {
+                const res = await fetch(`/api/history/${encodeURIComponent(run.run_id)}/save-to-db`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: r.model, author, config_label: configLabel })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.detail || 'Save failed');
+                if (statusEl) { statusEl.textContent = 'Saved ✓'; statusEl.className = 'history-eval-status saved'; }
+            } catch (err) {
+                console.error(err);
+                if (statusEl) { statusEl.textContent = err.message || 'Failed to save'; statusEl.className = 'history-eval-status error'; }
+            } finally {
+                dbSaveBtn.disabled = false;
+            }
+        });
     });
 
     drawHistoryPage();

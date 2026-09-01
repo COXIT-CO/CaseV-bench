@@ -18,7 +18,11 @@ from openai import AsyncOpenAI
 from json_repair import repair_json  # Library for repairing malformed JSON
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from location_scorer import score as score_locations
+
+from results_store.models import RunResult
 
 load_dotenv()
 
@@ -37,6 +41,24 @@ HISTORY_DIR = os.getenv("HISTORY_DIR", "history")
 HISTORY_MAX_RUNS = int(os.getenv("HISTORY_MAX_RUNS", "50"))
 os.makedirs(HISTORY_DIR, exist_ok=True)
 app.mount("/history-files", StaticFiles(directory=HISTORY_DIR), name="history-files")
+
+# ===============================
+# Shared research DB (experiments.run_results)
+# ===============================
+# Optional: the "Save to DB" button in the history view writes into a Postgres
+# table shared by everyone running this benchmark — the table itself is owned
+# and migrated by src/results_store (see its README), this app only ever does
+# DML against it, never DDL. Absent DATABASE_URL, that button just fails with
+# a clear error — every other feature in this app works fine without it.
+DATABASE_URL = os.getenv("DATABASE_URL")
+_db_engine = create_engine(DATABASE_URL, pool_pre_ping=True) if DATABASE_URL else None
+DBSession = sessionmaker(bind=_db_engine) if _db_engine else None
+
+# Matches the git tag this app's location-scorer dependency is pinned to in
+# requirements.txt — bump alongside that pin, so scorer_version keeps meaning
+# "the code that actually computed this row's tp/fp/fn", the same convention
+# already used by other rows in the shared table.
+SCORER_VERSION = "location-scorer-v0.1.0"
 
 # ===============================
 # History image resizing (perf)
@@ -1755,6 +1777,76 @@ async def set_expected_summary(run_id: str, payload: ExpectedSummaryUpdate):
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
     return {"ok": True, "model": payload.model, "expected_summary": payload.expected_summary}
+
+
+class SaveToDbRequest(BaseModel):
+    model: str
+    author: str
+    config_label: str
+
+
+@app.post("/api/history/{run_id}/save-to-db")
+async def save_history_result_to_db(run_id: str, payload: SaveToDbRequest):
+    """Writes one model's scored result from this run into the shared
+    `experiments.run_results` research table (src/results_store/models.py).
+    author and config_label are free text supplied by the caller — neither
+    is derivable from the run itself, they identify who ran this and under
+    what method configuration."""
+    if "/" in run_id or ".." in run_id:
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    if DBSession is None:
+        raise HTTPException(status_code=500, detail="DATABASE_URL is not configured on the server")
+
+    author = payload.author.strip()
+    config_label = payload.config_label.strip()
+    if not author or not config_label:
+        raise HTTPException(status_code=400, detail="Author and config label are required")
+
+    meta_path = os.path.join(HISTORY_DIR, run_id, "meta.json")
+    if not os.path.isfile(meta_path):
+        raise HTTPException(status_code=404, detail="Run not found")
+    with open(meta_path, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    result = next((r for r in meta.get("results", []) if r.get("model") == payload.model), None)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Model not found in this run")
+
+    score = result.get("score")
+    if not isinstance(score, dict) or "metrics" not in score:
+        raise HTTPException(status_code=400, detail="This result has no ground-truth score to save")
+
+    counts = score.get("counts") or {}
+    metrics = score.get("metrics") or {}
+
+    row = RunResult(
+        id=uuid.uuid4(),
+        model=payload.model,
+        document_id=", ".join(meta.get("files") or []) or run_id,
+        config_label=config_label,
+        iou_threshold=score.get("iou_threshold"),
+        scorer_version=SCORER_VERSION,
+        author=author,
+        tp=counts.get("tp"),
+        fp=counts.get("fp"),
+        fn=counts.get("fn"),
+        precision=metrics.get("precision"),
+        recall=metrics.get("recall"),
+        f1=metrics.get("f1"),
+        scorer_output=score,
+    )
+
+    session = DBSession()
+    try:
+        session.add(row)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save: {e}")
+    finally:
+        session.close()
+
+    return {"ok": True, "id": str(row.id)}
 
 
 @app.delete("/api/history/{run_id}")

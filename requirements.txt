@@ -8,3 +8,5 @@ Pillow==12.3.0
 python-multipart==0.0.32
 json-repair==0.61.6
 location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=src/packages/location-scorer
+sqlalchemy==2.0.44
+psycopg2-binary==2.9.10
