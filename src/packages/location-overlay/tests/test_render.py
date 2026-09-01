@@ -474,6 +474,15 @@ def test_a_box_entirely_off_the_page_leaves_no_trace():
     assert result.tobytes() == page().tobytes()
 
 
+def test_a_box_entirely_off_the_page_leaves_no_trace_with_labels_on_too():
+    # Off-page horizontally, on-page vertically: the box itself is invisible (clipped by
+    # Pillow), but before the entirely-off-canvas check, `x` alone was clamped back onto the
+    # page, leaving a floating chip pinned to the right edge with no box for it to label.
+    result = render(page(), [box(1.5, 0.4, 1.6, 0.5)], line_width=1)
+
+    assert result.tobytes() == page().tobytes()
+
+
 # --- Draw order ---------------------------------------------------------------------
 
 

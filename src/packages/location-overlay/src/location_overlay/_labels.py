@@ -18,11 +18,18 @@ def draw_label(
     text over it is unreadable exactly where the interesting objects are. It goes *above* the
     box so it never hides the pixels the box is pointing at, and drops inside only when the box
     is too close to the top edge for the chip to fit on the page.
+
+    A box entirely off-canvas draws no chip either: the box itself is invisible (clipped by
+    Pillow, see `to_pixels`), and pinning a label to where an invisible box would be produces a
+    floating chip with nothing for it to label.
     """
     if not text:
         return
 
-    left, top, _, _ = rect
+    left, top, right, bottom = rect
+    if right <= 0 or left >= size[0] or bottom <= 0 or top >= size[1]:
+        return
+
     padding = max(2, round(font.size / 6))
     text_left, text_top, text_right, text_bottom = draw.textbbox(
         (0, 0), text, font=font
