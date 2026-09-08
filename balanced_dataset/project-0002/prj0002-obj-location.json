@@ -1,0 +1,2781 @@
+{
+  "project_id": "prj0002",
+  "page_map": {
+    "1": {
+      "project": "prj1",
+      "original_page": 2
+    },
+    "2": {
+      "project": "prj2",
+      "original_page": 2
+    },
+    "3": {
+      "project": "prj3",
+      "original_page": 1
+    },
+    "4": {
+      "project": "prj4",
+      "original_page": 5
+    },
+    "5": {
+      "project": "prj4",
+      "original_page": 7
+    },
+    "6": {
+      "project": "prj5",
+      "original_page": 1
+    },
+    "7": {
+      "project": "prj6",
+      "original_page": 9
+    },
+    "8": {
+      "project": "prj7",
+      "original_page": 23
+    },
+    "9": {
+      "project": "prj8",
+      "original_page": 26
+    },
+    "10": {
+      "project": "prj9",
+      "original_page": 3
+    }
+  },
+  "objects": [
+    {
+      "id": "elv-010",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 105,
+        "y": 36,
+        "width": 873,
+        "height": 523
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "elv-011",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 978,
+        "y": 36,
+        "width": 1463,
+        "height": 523
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-031",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 592,
+        "y": 203,
+        "width": 42,
+        "height": 44
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-032",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1048,
+        "y": 248,
+        "width": 40,
+        "height": 41
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-033",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2142,
+        "y": 248,
+        "width": 40,
+        "height": 40
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-034",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1399,
+        "y": 262,
+        "width": 46,
+        "height": 46
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-035",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1621,
+        "y": 266,
+        "width": 40,
+        "height": 44
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-036",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1305,
+        "y": 336,
+        "width": 47,
+        "height": 44
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-037",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1672,
+        "y": 360,
+        "width": 44,
+        "height": 40
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "elv-012",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 105,
+        "y": 559,
+        "width": 872,
+        "height": 521
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "elv-013",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 976,
+        "y": 560,
+        "width": 1465,
+        "height": 518
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-038",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1688,
+        "y": 560,
+        "width": 49,
+        "height": 53
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-039",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2032,
+        "y": 566,
+        "width": 43,
+        "height": 49
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-040",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1343,
+        "y": 786,
+        "width": 40,
+        "height": 42
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-041",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 340,
+        "y": 880,
+        "width": 42,
+        "height": 43
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-042",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1348,
+        "y": 887,
+        "width": 42,
+        "height": 41
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "ctp-006",
+      "category": "countertop",
+      "page": 1,
+      "bbox": {
+        "x": 326,
+        "y": 927,
+        "width": 430,
+        "height": 2
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-020",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 326,
+        "y": 929,
+        "width": 53,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-021",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 379,
+        "y": 929,
+        "width": 54,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-022",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 433,
+        "y": 929,
+        "width": 54,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-023",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 487,
+        "y": 929,
+        "width": 54,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-024",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 541,
+        "y": 929,
+        "width": 54,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-025",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 595,
+        "y": 929,
+        "width": 54,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-026",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 649,
+        "y": 929,
+        "width": 54,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cab-027",
+      "category": "cabinet",
+      "page": 1,
+      "bbox": {
+        "x": 703,
+        "y": 929,
+        "width": 53,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "elv-014",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 104,
+        "y": 1080,
+        "width": 2337,
+        "height": 521
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-043",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1926,
+        "y": 1096,
+        "width": 42,
+        "height": 47
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-044",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 745,
+        "y": 1306,
+        "width": 42,
+        "height": 47
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-045",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1153,
+        "y": 1306,
+        "width": 43,
+        "height": 44
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-046",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1109,
+        "y": 1307,
+        "width": 41,
+        "height": 45
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-047",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 680,
+        "y": 1308,
+        "width": 52,
+        "height": 47
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-048",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 825,
+        "y": 1386,
+        "width": 39,
+        "height": 45
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-049",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1769,
+        "y": 1397,
+        "width": 46,
+        "height": 47
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-050",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 632,
+        "y": 1398,
+        "width": 39,
+        "height": 44
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-051",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 870,
+        "y": 1398,
+        "width": 46,
+        "height": 43
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-052",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1041,
+        "y": 1399,
+        "width": 43,
+        "height": 42
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-053",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1236,
+        "y": 1414,
+        "width": 43,
+        "height": 42
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "elv-015",
+      "category": "elevation",
+      "page": 1,
+      "bbox": {
+        "x": 104,
+        "y": 1602,
+        "width": 2337,
+        "height": 521
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-054",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 706,
+        "y": 1607,
+        "width": 42,
+        "height": 48
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-055",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 653,
+        "y": 1825,
+        "width": 54,
+        "height": 42
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-056",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1770,
+        "y": 1826,
+        "width": 46,
+        "height": 45
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-057",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 727,
+        "y": 1827,
+        "width": 48,
+        "height": 41
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-058",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1722,
+        "y": 1828,
+        "width": 40,
+        "height": 41
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-059",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2059,
+        "y": 1829,
+        "width": 41,
+        "height": 39
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-060",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1828,
+        "y": 1900,
+        "width": 44,
+        "height": 44
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-061",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 775,
+        "y": 1903,
+        "width": 43,
+        "height": 42
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-062",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 2136,
+        "y": 1907,
+        "width": 42,
+        "height": 42
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-063",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 592,
+        "y": 1925,
+        "width": 41,
+        "height": 43
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-064",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 1636,
+        "y": 1926,
+        "width": 45,
+        "height": 40
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "cal-065",
+      "category": "callout",
+      "page": 1,
+      "bbox": {
+        "x": 536,
+        "y": 2054,
+        "width": 45,
+        "height": 41
+      },
+      "source_project": "prj1"
+    },
+    {
+      "id": "flp-002",
+      "category": "floor plan",
+      "page": 2,
+      "bbox": {
+        "x": 1344,
+        "y": 159,
+        "width": 1171,
+        "height": 603
+      },
+      "source_page": 2,
+      "source_project": "prj2"
+    },
+    {
+      "id": "flp-003",
+      "category": "floor plan",
+      "page": 2,
+      "bbox": {
+        "x": 1224,
+        "y": 865,
+        "width": 1413,
+        "height": 1006
+      },
+      "source_page": 2,
+      "source_project": "prj2"
+    },
+    {
+      "id": "flp-001",
+      "category": "floor plan",
+      "page": 3,
+      "bbox": {
+        "x": 92,
+        "y": 136,
+        "width": 441,
+        "height": 450
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cal-001",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 224,
+        "y": 303,
+        "width": 49,
+        "height": 43
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "elv-001",
+      "category": "elevation",
+      "page": 3,
+      "bbox": {
+        "x": 567,
+        "y": 319,
+        "width": 163,
+        "height": 267
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "elv-002",
+      "category": "elevation",
+      "page": 3,
+      "bbox": {
+        "x": 775,
+        "y": 319,
+        "width": 163,
+        "height": 267
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cab-001",
+      "category": "cabinet",
+      "page": 3,
+      "bbox": {
+        "x": 818,
+        "y": 352,
+        "width": 34,
+        "height": 68
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cab-002",
+      "category": "cabinet",
+      "page": 3,
+      "bbox": {
+        "x": 599,
+        "y": 354,
+        "width": 34,
+        "height": 68
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cab-003",
+      "category": "cabinet",
+      "page": 3,
+      "bbox": {
+        "x": 633,
+        "y": 354,
+        "width": 68,
+        "height": 55
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "ctp-001",
+      "category": "countertop",
+      "page": 3,
+      "bbox": {
+        "x": 598,
+        "y": 461,
+        "width": 104,
+        "height": 4
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cal-002",
+      "category": "callout",
+      "page": 3,
+      "bbox": {
+        "x": 442,
+        "y": 464,
+        "width": 51,
+        "height": 43
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cab-004",
+      "category": "cabinet",
+      "page": 3,
+      "bbox": {
+        "x": 599,
+        "y": 465,
+        "width": 34,
+        "height": 76
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cab-005",
+      "category": "cabinet",
+      "page": 3,
+      "bbox": {
+        "x": 633,
+        "y": 465,
+        "width": 68,
+        "height": 76
+      },
+      "source_project": "prj3"
+    },
+    {
+      "id": "cal-316",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2543,
+        "y": 95,
+        "width": 31,
+        "height": 51
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-317",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1467,
+        "y": 173,
+        "width": 29,
+        "height": 50
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-318",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2687,
+        "y": 240,
+        "width": 47,
+        "height": 34
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-319",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1307,
+        "y": 387,
+        "width": 47,
+        "height": 28
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-320",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2090,
+        "y": 418,
+        "width": 39,
+        "height": 42
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-321",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1237,
+        "y": 509,
+        "width": 30,
+        "height": 34
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-322",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2764,
+        "y": 517,
+        "width": 32,
+        "height": 32
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-323",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2451,
+        "y": 532,
+        "width": 66,
+        "height": 71
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-324",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1509,
+        "y": 560,
+        "width": 67,
+        "height": 61
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-325",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 510,
+        "y": 579,
+        "width": 58,
+        "height": 63
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-326",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1437,
+        "y": 778,
+        "width": 56,
+        "height": 65
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-327",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 709,
+        "y": 796,
+        "width": 55,
+        "height": 61
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-328",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 2601,
+        "y": 818,
+        "width": 56,
+        "height": 69
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-329",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 442,
+        "y": 903,
+        "width": 26,
+        "height": 46
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-330",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1504,
+        "y": 1006,
+        "width": 35,
+        "height": 45
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-331",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 693,
+        "y": 1074,
+        "width": 35,
+        "height": 35
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-332",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 1062,
+        "y": 1396,
+        "width": 33,
+        "height": 35
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-333",
+      "category": "callout",
+      "page": 4,
+      "bbox": {
+        "x": 942,
+        "y": 1710,
+        "width": 34,
+        "height": 35
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-047",
+      "category": "floor plan",
+      "page": 4,
+      "bbox": {
+        "x": 2027,
+        "y": 82,
+        "width": 905,
+        "height": 1115
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-048",
+      "category": "floor plan",
+      "page": 4,
+      "bbox": {
+        "x": 1110,
+        "y": 96,
+        "width": 849,
+        "height": 1102
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-049",
+      "category": "floor plan",
+      "page": 4,
+      "bbox": {
+        "x": 220,
+        "y": 114,
+        "width": 809,
+        "height": 1081
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-050",
+      "category": "floor plan",
+      "page": 4,
+      "bbox": {
+        "x": 1116,
+        "y": 1233,
+        "width": 430,
+        "height": 621
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-051",
+      "category": "floor plan",
+      "page": 4,
+      "bbox": {
+        "x": 1577,
+        "y": 1235,
+        "width": 449,
+        "height": 618
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-052",
+      "category": "floor plan",
+      "page": 4,
+      "bbox": {
+        "x": 162,
+        "y": 1246,
+        "width": 449,
+        "height": 607
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-053",
+      "category": "floor plan",
+      "page": 4,
+      "bbox": {
+        "x": 616,
+        "y": 1251,
+        "width": 482,
+        "height": 602
+      },
+      "source_page": 12,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-345",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1728,
+        "y": 110,
+        "width": 31,
+        "height": 36
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-346",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2203,
+        "y": 116,
+        "width": 33,
+        "height": 37
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-347",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 511,
+        "y": 264,
+        "width": 28,
+        "height": 65
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-348",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1062,
+        "y": 341,
+        "width": 47,
+        "height": 50
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-349",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2134,
+        "y": 417,
+        "width": 34,
+        "height": 35
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-350",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 2093,
+        "y": 442,
+        "width": 48,
+        "height": 32
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-351",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1747,
+        "y": 507,
+        "width": 32,
+        "height": 34
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-352",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1296,
+        "y": 717,
+        "width": 30,
+        "height": 30
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-353",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1987,
+        "y": 959,
+        "width": 27,
+        "height": 35
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-354",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 916,
+        "y": 1021,
+        "width": 31,
+        "height": 30
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-355",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1517,
+        "y": 1057,
+        "width": 30,
+        "height": 32
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-356",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1529,
+        "y": 1336,
+        "width": 32,
+        "height": 31
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-357",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 1017,
+        "y": 1552,
+        "width": 42,
+        "height": 30
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-358",
+      "category": "callout",
+      "page": 5,
+      "bbox": {
+        "x": 436,
+        "y": 1628,
+        "width": 33,
+        "height": 28
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-059",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 1551,
+        "y": 88,
+        "width": 728,
+        "height": 595
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-060",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 238,
+        "y": 100,
+        "width": 1212,
+        "height": 581
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-061",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 2320,
+        "y": 158,
+        "width": 620,
+        "height": 524
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-062",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 1216,
+        "y": 693,
+        "width": 433,
+        "height": 608
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-063",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 674,
+        "y": 707,
+        "width": 471,
+        "height": 593
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-064",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 237,
+        "y": 718,
+        "width": 391,
+        "height": 585
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-065",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 1710,
+        "y": 739,
+        "width": 459,
+        "height": 561
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-066",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 2220,
+        "y": 776,
+        "width": 669,
+        "height": 526
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-067",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 725,
+        "y": 1307,
+        "width": 588,
+        "height": 585
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-068",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 1389,
+        "y": 1326,
+        "width": 442,
+        "height": 566
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "flp-069",
+      "category": "floor plan",
+      "page": 5,
+      "bbox": {
+        "x": 238,
+        "y": 1343,
+        "width": 437,
+        "height": 549
+      },
+      "source_page": 14,
+      "source_project": "prj4"
+    },
+    {
+      "id": "cal-054",
+      "category": "callout",
+      "page": 6,
+      "bbox": {
+        "x": 1358,
+        "y": 1528,
+        "width": 33,
+        "height": 34
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-071",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2613,
+        "y": 92,
+        "width": 326,
+        "height": 288
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-072",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 564,
+        "y": 97,
+        "width": 358,
+        "height": 283
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-073",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 179,
+        "y": 100,
+        "width": 318,
+        "height": 280
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-074",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2194,
+        "y": 113,
+        "width": 332,
+        "height": 267
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-075",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 962,
+        "y": 118,
+        "width": 355,
+        "height": 262
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-076",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1361,
+        "y": 127,
+        "width": 354,
+        "height": 253
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-077",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1762,
+        "y": 131,
+        "width": 319,
+        "height": 249
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-078",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 963,
+        "y": 414,
+        "width": 339,
+        "height": 301
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-079",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2194,
+        "y": 420,
+        "width": 351,
+        "height": 295
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-080",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2612,
+        "y": 448,
+        "width": 314,
+        "height": 268
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-081",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1762,
+        "y": 452,
+        "width": 326,
+        "height": 263
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-082",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 564,
+        "y": 463,
+        "width": 337,
+        "height": 252
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-083",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1361,
+        "y": 472,
+        "width": 318,
+        "height": 243
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-084",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 178,
+        "y": 476,
+        "width": 324,
+        "height": 239
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-085",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 555,
+        "y": 730,
+        "width": 342,
+        "height": 348
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-086",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 960,
+        "y": 733,
+        "width": 355,
+        "height": 345
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-087",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1353,
+        "y": 753,
+        "width": 369,
+        "height": 325
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-088",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 178,
+        "y": 787,
+        "width": 336,
+        "height": 291
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-089",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1762,
+        "y": 806,
+        "width": 317,
+        "height": 272
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-090",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2193,
+        "y": 809,
+        "width": 344,
+        "height": 269
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-091",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2609,
+        "y": 822,
+        "width": 331,
+        "height": 256
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-092",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2193,
+        "y": 1079,
+        "width": 354,
+        "height": 328
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-093",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 962,
+        "y": 1104,
+        "width": 350,
+        "height": 303
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-094",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 178,
+        "y": 1113,
+        "width": 309,
+        "height": 294
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-095",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2613,
+        "y": 1126,
+        "width": 310,
+        "height": 281
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-096",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1365,
+        "y": 1138,
+        "width": 325,
+        "height": 269
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-097",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1762,
+        "y": 1148,
+        "width": 336,
+        "height": 259
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-098",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 555,
+        "y": 1167,
+        "width": 327,
+        "height": 240
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-099",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1317,
+        "y": 1419,
+        "width": 449,
+        "height": 411
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-100",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2130,
+        "y": 1445,
+        "width": 476,
+        "height": 385
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-101",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 179,
+        "y": 1460,
+        "width": 329,
+        "height": 370
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-102",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 532,
+        "y": 1471,
+        "width": 418,
+        "height": 359
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-103",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 1776,
+        "y": 1505,
+        "width": 317,
+        "height": 325
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-104",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 2636,
+        "y": 1523,
+        "width": 316,
+        "height": 307
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "elv-105",
+      "category": "elevation",
+      "page": 6,
+      "bbox": {
+        "x": 985,
+        "y": 1532,
+        "width": 298,
+        "height": 298
+      },
+      "source_page": 6,
+      "source_project": "prj5"
+    },
+    {
+      "id": "cal-005",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 263,
+        "y": 1097,
+        "width": 53,
+        "height": 55
+      },
+      "source_page": 15,
+      "source_project": "prj6"
+    },
+    {
+      "id": "cal-006",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 451,
+        "y": 1275,
+        "width": 56,
+        "height": 45
+      },
+      "source_page": 15,
+      "source_project": "prj6"
+    },
+    {
+      "id": "cal-007",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 1363,
+        "y": 1373,
+        "width": 56,
+        "height": 50
+      },
+      "source_page": 15,
+      "source_project": "prj6"
+    },
+    {
+      "id": "cal-008",
+      "category": "callout",
+      "page": 7,
+      "bbox": {
+        "x": 2242,
+        "y": 1509,
+        "width": 49,
+        "height": 45
+      },
+      "source_page": 15,
+      "source_project": "prj6"
+    },
+    {
+      "id": "flp-019",
+      "category": "floor plan",
+      "page": 7,
+      "bbox": {
+        "x": 190,
+        "y": 531,
+        "width": 2724,
+        "height": 1352
+      },
+      "source_page": 15,
+      "source_project": "prj6"
+    },
+    {
+      "id": "cab-062",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 597,
+        "y": 227,
+        "width": 45,
+        "height": 36
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-063",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 642,
+        "y": 227,
+        "width": 45,
+        "height": 36
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-064",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 687,
+        "y": 227,
+        "width": 45,
+        "height": 36
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-065",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 732,
+        "y": 227,
+        "width": 45,
+        "height": 56
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-066",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 777,
+        "y": 227,
+        "width": 30,
+        "height": 117
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-067",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 807,
+        "y": 227,
+        "width": 60,
+        "height": 117
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-068",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 732,
+        "y": 283,
+        "width": 45,
+        "height": 61
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-069",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 597,
+        "y": 292,
+        "width": 45,
+        "height": 52
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-070",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 642,
+        "y": 292,
+        "width": 45,
+        "height": 52
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-071",
+      "category": "cabinet",
+      "page": 8,
+      "bbox": {
+        "x": 687,
+        "y": 292,
+        "width": 45,
+        "height": 52
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "ctp-017",
+      "category": "countertop",
+      "page": 8,
+      "bbox": {
+        "x": 597,
+        "y": 284,
+        "width": 135,
+        "height": 8
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "elv-045",
+      "category": "elevation",
+      "page": 8,
+      "bbox": {
+        "x": 20,
+        "y": 93,
+        "width": 1179,
+        "height": 318
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "elv-046",
+      "category": "elevation",
+      "page": 8,
+      "bbox": {
+        "x": 16,
+        "y": 417,
+        "width": 1189,
+        "height": 316
+      },
+      "source_page": 52,
+      "source_project": "prj7"
+    },
+    {
+      "id": "cab-004",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 1188,
+        "y": 249,
+        "width": 73,
+        "height": 108
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-005",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 1188,
+        "y": 375,
+        "width": 73,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-006",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 330,
+        "y": 746,
+        "width": 72,
+        "height": 108
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-007",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 714,
+        "y": 748,
+        "width": 72,
+        "height": 108
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-008",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 223,
+        "y": 881,
+        "width": 90,
+        "height": 98
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-009",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 313,
+        "y": 881,
+        "width": 107,
+        "height": 98
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-010",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 697,
+        "y": 881,
+        "width": 106,
+        "height": 98
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-011",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 803,
+        "y": 881,
+        "width": 63,
+        "height": 98
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-012",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 1191,
+        "y": 881,
+        "width": 89,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-013",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 1280,
+        "y": 881,
+        "width": 90,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-014",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 1370,
+        "y": 881,
+        "width": 90,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-015",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 1728,
+        "y": 881,
+        "width": 89,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-016",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 279,
+        "y": 1333,
+        "width": 90,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-017",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 369,
+        "y": 1333,
+        "width": 90,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-018",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 459,
+        "y": 1333,
+        "width": 90,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cab-019",
+      "category": "cabinet",
+      "page": 9,
+      "bbox": {
+        "x": 549,
+        "y": 1333,
+        "width": 90,
+        "height": 97
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cal-135",
+      "category": "callout",
+      "page": 9,
+      "bbox": {
+        "x": 1250,
+        "y": 787,
+        "width": 36,
+        "height": 40
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "ctp-003",
+      "category": "countertop",
+      "page": 9,
+      "bbox": {
+        "x": 1188,
+        "y": 358,
+        "width": 73,
+        "height": 17
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "ctp-004",
+      "category": "countertop",
+      "page": 9,
+      "bbox": {
+        "x": 1119,
+        "y": 864,
+        "width": 344,
+        "height": 17
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "ctp-005",
+      "category": "countertop",
+      "page": 9,
+      "bbox": {
+        "x": 1724,
+        "y": 864,
+        "width": 165,
+        "height": 17
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "ctp-006",
+      "category": "countertop",
+      "page": 9,
+      "bbox": {
+        "x": 221,
+        "y": 865,
+        "width": 199,
+        "height": 16
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "ctp-007",
+      "category": "countertop",
+      "page": 9,
+      "bbox": {
+        "x": 697,
+        "y": 865,
+        "width": 169,
+        "height": 16
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "ctp-008",
+      "category": "countertop",
+      "page": 9,
+      "bbox": {
+        "x": 173,
+        "y": 1316,
+        "width": 572,
+        "height": 17
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-044",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 1027,
+        "y": 175,
+        "width": 449,
+        "height": 389
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-045",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 1486,
+        "y": 177,
+        "width": 448,
+        "height": 387
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-046",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 112,
+        "y": 180,
+        "width": 446,
+        "height": 387
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-047",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 564,
+        "y": 180,
+        "width": 455,
+        "height": 384
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-048",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 1542,
+        "y": 677,
+        "width": 395,
+        "height": 403
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-049",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 1056,
+        "y": 681,
+        "width": 481,
+        "height": 401
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-050",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 111,
+        "y": 683,
+        "width": 461,
+        "height": 400
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-051",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 583,
+        "y": 683,
+        "width": 469,
+        "height": 399
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "elv-052",
+      "category": "elevation",
+      "page": 9,
+      "bbox": {
+        "x": 109,
+        "y": 1136,
+        "width": 641,
+        "height": 418
+      },
+      "source_page": 59,
+      "source_project": "prj8"
+    },
+    {
+      "id": "cal-001",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1755,
+        "y": 308,
+        "width": 94,
+        "height": 98
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "cal-002",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2248,
+        "y": 318,
+        "width": 84,
+        "height": 84
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "cal-003",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2705,
+        "y": 324,
+        "width": 82,
+        "height": 90
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "cal-004",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1833,
+        "y": 912,
+        "width": 98,
+        "height": 105
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "cal-005",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2611,
+        "y": 921,
+        "width": 86,
+        "height": 88
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "cal-006",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2648,
+        "y": 1564,
+        "width": 90,
+        "height": 84
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "cal-007",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 1642,
+        "y": 1568,
+        "width": 96,
+        "height": 82
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "cal-008",
+      "category": "callout",
+      "page": 10,
+      "bbox": {
+        "x": 2138,
+        "y": 1572,
+        "width": 92,
+        "height": 74
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-001",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 2580,
+        "y": 158,
+        "width": 335,
+        "height": 510
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-002",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 2145,
+        "y": 161,
+        "width": 298,
+        "height": 517
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-003",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 1398,
+        "y": 166,
+        "width": 557,
+        "height": 498
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-004",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 1420,
+        "y": 751,
+        "width": 733,
+        "height": 520
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-005",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 2312,
+        "y": 754,
+        "width": 583,
+        "height": 517
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-006",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 2556,
+        "y": 1376,
+        "width": 361,
+        "height": 518
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-007",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 1311,
+        "y": 1381,
+        "width": 527,
+        "height": 513
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    },
+    {
+      "id": "flp-008",
+      "category": "floor plan",
+      "page": 10,
+      "bbox": {
+        "x": 2050,
+        "y": 1381,
+        "width": 388,
+        "height": 513
+      },
+      "source_page": 4,
+      "source_project": "prj9"
+    }
+  ]
+}
