@@ -322,7 +322,7 @@ does not get outweighed by several small ones.
 | `claude-sonnet-5` | 316 | 1,205 | 1,037 | 20.8% | 23.4% | **22.0%** | $8.65 | 71.0 s |
 | **All models pooled** | 3,719 | 5,536 | 4,399 | 40.2% | 45.8% | **42.8%** | $57.44 | — |
 
-![F1, precision, and recall by model](../figures/fig1_f1_by_model.png)
+![F1, precision, and recall by model](figures/fig1_f1_by_model.png)
 
 Two things stand out. First, **the spread across models is wide** — 22.0% to 59.7% F1,
 a 2.7× range — for the *same* prompt, the *same* documents, and the *same* IoU
@@ -349,7 +349,7 @@ the boxes it does report.
 | `trim_prj8` | 29 | 231 | 56.7% |
 | `trim_prj9` | 9 | 94 | 45.4% |
 
-![F1 by document](../figures/fig2_f1_by_document.png)
+![F1 by document](figures/fig2_f1_by_document.png)
 
 Difficulty does not track document size in either direction: both the easiest document
 (`trim_prj5`, F1 71.3%, 2 pages) and the hardest (`trim_prj1`, F1 24.2%, 3 pages) are
@@ -370,7 +370,7 @@ per se; a per-document type breakdown is left for a future revision of this draf
 | `callout` | 801 | 3,715 | 2,079 | 17.7% | 27.8% | **21.7%** |
 | `countertop` | 72 | 373 | 468 | 16.2% | 13.3% | **14.6%** |
 
-![F1 by object type](../figures/fig4_f1_by_type.png)
+![F1 by object type](figures/fig4_f1_by_type.png)
 
 The two large, sheet-level region types (`floor_plan`, `elevation`) score 76.8–90.4%
 F1; the three small/dense object types (`cabinet`, `callout`, `countertop`) score
@@ -437,7 +437,7 @@ prompt-following one) is not resolved by this data and is noted as an open quest
 
 ### 6.5 Cost and latency
 
-![Cost vs. F1 by model](../figures/fig3_cost_vs_f1.png)
+![Cost vs. F1 by model](figures/fig3_cost_vs_f1.png)
 
 The three cheapest models by mean cost per document — `gemini-3.5-flash` ($0.46/doc),
 `gemini-3.1-pro-preview` ($0.52/doc), and `qwen3.8-max` ($0.75/doc) — are exactly the
