@@ -143,8 +143,6 @@ class RunArtifacts:
         pages_total: int,
         pages_scored: int,
         cost_spent_usd: float,
-        cost_cap_usd: float | None,
-        cost_cap_hit: bool,
     ) -> Path:
         """Write run.json.
 
@@ -154,11 +152,9 @@ class RunArtifacts:
         record under <drawing>/pNNNN.json carries its actual value instead — that
         record, not this one, is authoritative per page.
 
-        ``status`` is "partial" whenever pages_scored < pages_total — either a
-        page permanently failed technically, or the run stopped early on a cost
-        cap. ``cost.cap_hit`` distinguishes the two: a cost-capped page has no
-        call record at all (so it can be attempted on a later resume), while a
-        technically failed page has one with status "failed" and an error.
+        ``status`` is "partial" whenever pages_scored < pages_total: a page
+        permanently failed technically and has its own record with status
+        "failed" and an error, so it's excluded from scoring but resumable.
         """
         metadata: dict[str, Any] = {
             "run_id": config.run_id,
@@ -182,8 +178,6 @@ class RunArtifacts:
             },
             "cost": {
                 "spent_usd": cost_spent_usd,
-                "cap_usd": cost_cap_usd,
-                "cap_hit": cost_cap_hit,
             },
             "pages_total": pages_total,
             "pages_scored": pages_scored,

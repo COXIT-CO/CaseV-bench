@@ -137,7 +137,6 @@ class RawPipeline:
         max_px: int,
         render_cache_dir: Path | None = None,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
-        cost_cap_usd: float | None = None,
     ) -> Path:
         dataset_dir, drawings = resolve_dataset(dataset_dir)
         provider_cap = MODEL_ROSTER.get(model)
@@ -162,7 +161,6 @@ class RawPipeline:
 
         pages_scored = 0
         cost_spent_usd = 0.0
-        cost_cap_hit = False
         # First page's achieved DPI, representative for the run — see
         # write_run_metadata's docstring for when a later page's own record differs.
         run_effective_dpi: float | None = None
@@ -175,10 +173,6 @@ class RawPipeline:
                         pages_scored += 1
                         run_effective_dpi = run_effective_dpi or existing["render"]["effective_dpi"]
                         cost_spent_usd += existing["usage"].get("cost_usd") or 0.0
-                        continue
-
-                    if cost_cap_usd is not None and cost_spent_usd >= cost_cap_usd:
-                        cost_cap_hit = True
                         continue
 
                     rendered = renderer.render(
@@ -222,8 +216,6 @@ class RawPipeline:
             pages_total=sum(d.page_count for d in drawings.values()),
             pages_scored=pages_scored,
             cost_spent_usd=cost_spent_usd,
-            cost_cap_usd=cost_cap_usd,
-            cost_cap_hit=cost_cap_hit,
         )
         RawPipeline.score_run(run_dir, dataset_dir)
         return run_dir

@@ -125,8 +125,6 @@ class TestRunArtifacts:
             pages_total=2,
             pages_scored=2,
             cost_spent_usd=0.02,
-            cost_cap_usd=None,
-            cost_cap_hit=False,
         )
         metadata = json.loads((self.run_dir / "run.json").read_text())
         assert metadata["status"] == "complete"
@@ -139,9 +137,6 @@ class TestRunArtifacts:
             pages_total=2,
             pages_scored=1,
             cost_spent_usd=0.01,
-            cost_cap_usd=1.0,
-            cost_cap_hit=True,
         )
         metadata = json.loads((self.run_dir / "run.json").read_text())
         assert metadata["status"] == "partial"
-        assert metadata["cost"]["cap_hit"] is True

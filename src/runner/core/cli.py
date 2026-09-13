@@ -74,7 +74,6 @@ class Cli:
                 run_id=args.run_id or f"{args.model.replace('/', '-')}__{date.today():%Y%m%d}",
                 out_dir=Path(args.out_dir),
                 max_px=args.max_px,
-                cost_cap_usd=args.cost_cap_usd,
             )
         except ApiKeyError as exc:
             return self._fail(exc, exit_code=2)
@@ -137,13 +136,6 @@ class Cli:
             type=int,
             default=DEFAULT_MAX_PX,
             help="target long edge in pixels, used when --model has no entry in the roster",
-        )
-        run_parser.add_argument(
-            "--cost-cap-usd",
-            type=float,
-            default=None,
-            help="abort cleanly once the run's accumulated spend reaches this many USD "
-            "(default: no cap)",
         )
         run_parser.set_defaults(func=self._cmd_run)
 
