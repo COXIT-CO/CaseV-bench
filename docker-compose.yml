@@ -1,0 +1,9 @@
+services:
+  runner:
+    build:
+      context: src/runner
+    environment:
+      - OPENROUTER_API_KEY
+    volumes:
+      - ./dataset:/dataset
+      - ./src/runner/results:/results

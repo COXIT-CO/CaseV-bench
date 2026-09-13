@@ -1,0 +1,61 @@
+[project]
+name = "runner"
+version = "0.1.0"
+description = "Runner"
+authors = []
+requires-python = ">=3.12"
+dependencies = [
+    "pymupdf>=1.24",
+    "pillow>=10.0",
+    "location-scorer",
+]
+
+[project.scripts]
+casev = "core.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+location-scorer = { path = "vendor/location_scorer-0.1.0.tar.gz" }
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = "core"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11",
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["core", "tests"]
+
+[[tool.mypy.overrides]]
+module = "pymupdf"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "core.pipelines.raw",
+    "core.dataset",
+    "core.render",
+    "tests.helpers",
+    "tests.test_render",
+]
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
