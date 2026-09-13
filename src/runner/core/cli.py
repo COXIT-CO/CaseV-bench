@@ -14,6 +14,7 @@ from core.pipelines.raw import RawPipeline
 
 DATASET_DIR_ENV_VAR = "CASEV_DATASET_DIR"
 DEFAULT_OUT_DIR = "results"
+DEFAULT_THREADS = 1
 
 
 class Cli:
@@ -60,6 +61,13 @@ class Cli:
         return 0
 
     @staticmethod
+    def _positive_int(raw: str) -> int:
+        value = int(raw)
+        if value < 1:
+            raise argparse.ArgumentTypeError(f"must be >= 1, got {value}")
+        return value
+
+    @staticmethod
     def _default_client() -> ModelClient:
         client = OpenRouterClient.from_env()
         client.check_api_key()
@@ -74,6 +82,7 @@ class Cli:
                 run_id=args.run_id or f"{args.model.replace('/', '-')}__{date.today():%Y%m%d}",
                 out_dir=Path(args.out_dir),
                 max_px=args.max_px,
+                threads=args.threads,
             )
         except ApiKeyError as exc:
             return self._fail(exc, exit_code=2)
@@ -136,6 +145,12 @@ class Cli:
             type=int,
             default=DEFAULT_MAX_PX,
             help="target long edge in pixels, used when --model has no entry in the roster",
+        )
+        run_parser.add_argument(
+            "--threads",
+            type=self._positive_int,
+            default=DEFAULT_THREADS,
+            help=f"number of pages to call the model for concurrently (default: {DEFAULT_THREADS})",
         )
         run_parser.set_defaults(func=self._cmd_run)
 

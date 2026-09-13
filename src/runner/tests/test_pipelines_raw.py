@@ -6,7 +6,23 @@ import pytest
 from core.parse import ZeroDetectionsError
 from core.pipelines.raw import RawPipeline
 
-from .helpers import FailingModelClient, StubModelClient, ok_response, write_smoke_dataset
+from .helpers import (
+    ConcurrencyTrackingModelClient,
+    FailingModelClient,
+    FractionalBox,
+    StubModelClient,
+    ok_response,
+    write_local_dataset,
+    write_smoke_dataset,
+)
+
+_CABINET: FractionalBox = {
+    "label": "cabinet",
+    "x_min": 0.1,
+    "y_min": 0.1,
+    "x_max": 0.3,
+    "y_max": 0.3,
+}
 
 
 class TestRawPipeline:
@@ -19,6 +35,12 @@ class TestRawPipeline:
         dataset_dir = self.tmp_path / "dataset"
         dataset_dir.mkdir()
         return write_smoke_dataset(dataset_dir)
+
+    def _multi_page_dataset_dir(self, page_count: int) -> Path:
+        dataset_dir = self.tmp_path / "dataset"
+        dataset_dir.mkdir()
+        write_local_dataset(dataset_dir, "d1", pages_objects=[[_CABINET]] * page_count)
+        return dataset_dir
 
     def test_execute_run_writes_a_complete_run(self) -> None:
         client = StubModelClient()
@@ -91,4 +113,85 @@ class TestRawPipeline:
                 run_id="r1",
                 out_dir=self.out_dir,
                 max_px=1024,
+            )
+
+    def test_execute_run_defaults_to_calling_pages_one_at_a_time(self) -> None:
+        client = ConcurrencyTrackingModelClient(hold_seconds=0.05)
+
+        RawPipeline(client).execute_run(
+            model="test/model",
+            dataset_dir=self._multi_page_dataset_dir(4),
+            run_id="r1",
+            out_dir=self.out_dir,
+            max_px=1024,
+        )
+
+        assert client.max_concurrent == 1
+        assert len(client.calls) == 4
+
+    def test_execute_run_dispatches_pages_concurrently_up_to_the_thread_count(self) -> None:
+        client = ConcurrencyTrackingModelClient(hold_seconds=0.05)
+
+        RawPipeline(client).execute_run(
+            model="test/model",
+            dataset_dir=self._multi_page_dataset_dir(4),
+            run_id="r1",
+            out_dir=self.out_dir,
+            max_px=1024,
+            threads=4,
+        )
+
+        assert client.max_concurrent == 4
+        assert len(client.calls) == 4
+
+    def test_execute_run_never_exceeds_the_requested_thread_count(self) -> None:
+        client = ConcurrencyTrackingModelClient(hold_seconds=0.05)
+
+        RawPipeline(client).execute_run(
+            model="test/model",
+            dataset_dir=self._multi_page_dataset_dir(4),
+            run_id="r1",
+            out_dir=self.out_dir,
+            max_px=1024,
+            threads=2,
+        )
+
+        assert client.max_concurrent == 2
+        assert len(client.calls) == 4
+
+    def test_execute_run_with_threads_scores_the_same_as_sequential(self) -> None:
+        sequential_dir = self.out_dir / "sequential"
+        threaded_dir = self.out_dir / "threaded"
+        dataset_dir = self._multi_page_dataset_dir(4)
+
+        RawPipeline(StubModelClient()).execute_run(
+            model="test/model",
+            dataset_dir=dataset_dir,
+            run_id="r1",
+            out_dir=sequential_dir,
+            max_px=1024,
+        )
+        RawPipeline(StubModelClient()).execute_run(
+            model="test/model",
+            dataset_dir=dataset_dir,
+            run_id="r1",
+            out_dir=threaded_dir,
+            max_px=1024,
+            threads=4,
+        )
+
+        sequential_score = json.loads((sequential_dir / "r1" / "scores.json").read_text())
+        threaded_score = json.loads((threaded_dir / "r1" / "scores.json").read_text())
+        assert sequential_score == threaded_score
+
+    def test_execute_run_rejects_non_positive_threads(self) -> None:
+        client = StubModelClient()
+        with pytest.raises(ValueError, match="max_workers"):
+            RawPipeline(client).execute_run(
+                model="test/model",
+                dataset_dir=self._smoke_dataset_dir(),
+                run_id="r1",
+                out_dir=self.out_dir,
+                max_px=1024,
+                threads=0,
             )

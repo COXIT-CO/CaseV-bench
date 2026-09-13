@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import TypedDict
@@ -124,6 +126,42 @@ def write_smoke_dataset(root: Path) -> Path:
     """A single-drawing, single-page dataset matching SMOKE_PAGE_RESPONSE_TEXT exactly."""
     write_local_dataset(root, "drawing-1", pages_objects=[[_ELEVATION_BOX, _CABINET_BOX]])
     return root
+
+
+class ConcurrencyTrackingModelClient:
+    """A ModelClient that records the highest number of `generate` calls observed in flight at
+    once, to prove pages are actually dispatched in parallel."""
+
+    def __init__(
+        self,
+        respond: Callable[[], ModelResponse] | None = None,
+        *,
+        hold_seconds: float = 0.05,
+    ) -> None:
+        self._respond = respond or (lambda: ok_response(SMOKE_PAGE_RESPONSE_TEXT))
+        self._hold_seconds = hold_seconds
+        self._lock = threading.Lock()
+        self._active = 0
+        self.max_concurrent = 0
+        self.calls: list[dict[str, object]] = []
+
+    def generate(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        image_bytes: bytes,
+        image_mime_type: str,
+        params: GenerationParams,
+    ) -> ModelResponse:
+        with self._lock:
+            self._active += 1
+            self.max_concurrent = max(self.max_concurrent, self._active)
+        time.sleep(self._hold_seconds)
+        with self._lock:
+            self._active -= 1
+        self.calls.append({"model": model, "prompt": prompt, "params": params})
+        return self._respond()
 
 
 class FailingModelClient:

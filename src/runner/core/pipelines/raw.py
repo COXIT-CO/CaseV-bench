@@ -1,6 +1,8 @@
+import functools
 import random
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pymupdf
@@ -8,9 +10,9 @@ import pymupdf
 from core.artifacts import RunArtifacts
 from core.client import GenerationParams, ModelClient, ModelClientError, ModelResponse
 from core.config import MODEL_ROSTER, RunConfig
-from core.dataset import DrawingGroundTruth, LocalDatasetSource, resolve_dataset
+from core.dataset import DrawingGroundTruth, LocalDatasetSource, PageGroundTruth, resolve_dataset
 from core.parse import ResponseParser, ZeroDetectionsError
-from core.render import PageRenderer
+from core.render import PageRenderer, RenderedPage
 from core.scoring import Box, DrawingScore, ScorerWrapper
 
 # Technical failures are retried this many times in total before the page
@@ -21,6 +23,9 @@ DEFAULT_BACKOFF_MAX_SECONDS = 60.0
 # Beneath the run's own out-dir, so renders are reused across runs and
 # across models sharing a provider cap, without a dedicated flag.
 RENDER_CACHE_DIRNAME = ".render-cache"
+
+
+_PendingPage = tuple[str, PageGroundTruth, RenderedPage]
 
 
 class RawPipeline:
@@ -127,6 +132,45 @@ class RawPipeline:
                     raise
                 time.sleep(self._backoff_delay(exc.retry_after, attempt))
 
+    def _call_and_write(
+        self,
+        item: _PendingPage,
+        *,
+        model: str,
+        prompt: str,
+        params: GenerationParams,
+        max_attempts: int,
+        artifacts: RunArtifacts,
+    ) -> float | None:
+        drawing_name, page, rendered = item
+        try:
+            response = self._generate_with_retries(
+                model=model,
+                prompt=prompt,
+                image_bytes=rendered.png_bytes,
+                params=params,
+                max_attempts=max_attempts,
+            )
+        except ModelClientError as exc:
+            artifacts.write_call_failure(
+                drawing=drawing_name,
+                page=page.page,
+                source_page=page.source_page,
+                model=model,
+                error=str(exc),
+                attempts=max_attempts,
+            )
+            return None
+        artifacts.write_call_record(
+            drawing=drawing_name,
+            page=page.page,
+            source_page=page.source_page,
+            model=model,
+            response=response,
+            rendered=rendered,
+        )
+        return response.usage.cost_usd or 0.0
+
     def execute_run(
         self,
         *,
@@ -137,6 +181,7 @@ class RawPipeline:
         max_px: int,
         render_cache_dir: Path | None = None,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+        threads: int = 1,
     ) -> Path:
         dataset_dir, drawings = resolve_dataset(dataset_dir)
         provider_cap = MODEL_ROSTER.get(model)
@@ -165,50 +210,40 @@ class RawPipeline:
         # write_run_metadata's docstring for when a later page's own record differs.
         run_effective_dpi: float | None = None
 
-        for drawing_name, drawing in sorted(drawings.items()):
-            with pymupdf.open(drawing.pdf_path) as document:
-                for page in drawing.pages:
-                    existing = artifacts.read_call_record_if_exists(drawing_name, page.page)
-                    if RunArtifacts.call_succeeded(existing):
-                        pages_scored += 1
-                        run_effective_dpi = run_effective_dpi or existing["render"]["effective_dpi"]
-                        cost_spent_usd += existing["usage"].get("cost_usd") or 0.0
-                        continue
+        call = functools.partial(
+            self._call_and_write,
+            model=model,
+            prompt=config.prompt_text,
+            params=config.generation,
+            max_attempts=max_attempts,
+            artifacts=artifacts,
+        )
 
-                    rendered = renderer.render(
-                        document, drawing_name, page.page, target_long_edge=config.max_px
-                    )
-                    run_effective_dpi = run_effective_dpi or rendered.effective_dpi
+        with ThreadPoolExecutor(max_workers=threads) as executor:
+            for drawing_name, drawing in sorted(drawings.items()):
+                pending: list[_PendingPage] = []
+                with pymupdf.open(drawing.pdf_path) as document:
+                    for page in drawing.pages:
+                        existing = artifacts.read_call_record_if_exists(drawing_name, page.page)
+                        if RunArtifacts.call_succeeded(existing):
+                            pages_scored += 1
+                            run_effective_dpi = (
+                                run_effective_dpi or existing["render"]["effective_dpi"]
+                            )
+                            cost_spent_usd += existing["usage"].get("cost_usd") or 0.0
+                            continue
 
-                    try:
-                        response = self._generate_with_retries(
-                            model=model,
-                            prompt=config.prompt_text,
-                            image_bytes=rendered.png_bytes,
-                            params=config.generation,
-                            max_attempts=max_attempts,
+                        rendered = renderer.render(
+                            document, drawing_name, page.page, target_long_edge=config.max_px
                         )
-                    except ModelClientError as exc:
-                        artifacts.write_call_failure(
-                            drawing=drawing_name,
-                            page=page.page,
-                            source_page=page.source_page,
-                            model=model,
-                            error=str(exc),
-                            attempts=max_attempts,
-                        )
-                        continue
+                        run_effective_dpi = run_effective_dpi or rendered.effective_dpi
+                        pending.append((drawing_name, page, rendered))
 
-                    cost_spent_usd += response.usage.cost_usd or 0.0
+                for cost in executor.map(call, pending):
+                    if cost is None:
+                        continue
+                    cost_spent_usd += cost
                     pages_scored += 1
-                    artifacts.write_call_record(
-                        drawing=drawing_name,
-                        page=page.page,
-                        source_page=page.source_page,
-                        model=model,
-                        response=response,
-                        rendered=rendered,
-                    )
 
         artifacts.write_run_metadata(
             config=config,
