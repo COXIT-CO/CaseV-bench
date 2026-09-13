@@ -30,6 +30,12 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.6",
 ]
+# Only for scripts/*.py, which publish scores to and render the dashboard from the shared
+# `experiments.run_results` research store (src/results_store). Kept out of the base
+# dependencies so the Docker image — which never touches that store — stays lean.
+store = [
+    "psycopg[binary]>=3.2.0,<4.0.0",
+]
 
 [tool.ruff]
 line-length = 100
@@ -41,7 +47,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["core", "tests"]
+files = ["core", "tests", "scripts"]
 
 [[tool.mypy.overrides]]
 module = "pymupdf"
