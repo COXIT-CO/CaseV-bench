@@ -64,7 +64,6 @@ class TestRunArtifacts:
         self.artifacts.write_call_record(
             drawing="d1",
             page=1,
-            source_page=1,
             model="m",
             response=_response(),
             rendered=_rendered(),
@@ -75,9 +74,7 @@ class TestRunArtifacts:
         assert record["render"]["effective_dpi"] == 150.0
 
     def test_a_failed_call_does_not_count_as_succeeded(self) -> None:
-        self.artifacts.write_call_failure(
-            drawing="d1", page=1, source_page=1, model="m", error="boom", attempts=5
-        )
+        self.artifacts.write_call_failure(drawing="d1", page=1, model="m", error="boom", attempts=5)
         record = self.artifacts.read_call_record_if_exists("d1", 1)
         assert not RunArtifacts.call_succeeded(record)
         assert record is not None
@@ -87,7 +84,6 @@ class TestRunArtifacts:
         self.artifacts.write_call_record(
             drawing="d1",
             page=1,
-            source_page=1,
             model="m",
             response=_response(),
             rendered=_rendered(),

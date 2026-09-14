@@ -1,0 +1,144 @@
+# Drift check: fixed prompt, dataset and settings, so only the model can change between runs.
+# Runs go to the `service` schema; the README dashboard is regenerated from that history.
+name: Weekly benchmark
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  # Model list comes from core/config.py.
+  roster:
+    runs-on: ubuntu-latest
+    outputs:
+      models: ${{ steps.roster.outputs.models }}
+    defaults:
+      run:
+        working-directory: src/runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - id: roster
+        run: |
+          models=$(uv run python3 -c "
+          import json
+
+          from core.config import MODEL_ROSTER
+
+          print(json.dumps(sorted(MODEL_ROSTER)))
+          ")
+          echo "models=$models" >> "$GITHUB_OUTPUT"
+
+  # One job per model. fail-fast off so one provider outage doesn't cancel the others.
+  benchmark:
+    needs: roster
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{ fromJson(needs.roster.outputs.models) }}
+    defaults:
+      run:
+        working-directory: src/runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group store  # store group: psycopg for the publish step
+
+      # Explicit run id so every later step can address the same run directory.
+      - id: ctx
+        run: |
+          echo "slug=${MODEL//\//-}" >> "$GITHUB_OUTPUT"
+          echo "run_id=weekly-${MODEL//\//-}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+        env:
+          MODEL: ${{ matrix.model }}
+
+      # Same CLI as local/Docker. Spend is capped on the OpenRouter key, not in the app.
+      - name: Run against the committed dataset
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MODEL: ${{ matrix.model }}
+          RUN_ID: ${{ steps.ctx.outputs.run_id }}
+          DATASET_DIR: ${{ github.workspace }}/dataset
+        run: |
+          uv run casev run \
+            --model "$MODEL" \
+            --dataset-dir "$DATASET_DIR" \
+            --run-id "$RUN_ID" \
+            --out-dir results
+
+      # A partial run is fine locally (resumable) but must fail loudly here.
+      - name: Verify the run completed
+        env:
+          MODEL: ${{ matrix.model }}
+          RUN_ID: ${{ steps.ctx.outputs.run_id }}
+        run: |
+          run_json="results/$RUN_ID/run.json"
+          run_status=$(jq -r '.status' "$run_json")
+          scored=$(jq -r '.pages_scored' "$run_json")
+          total=$(jq -r '.pages_total' "$run_json")
+          echo "status=$run_status pages_scored=$scored pages_total=$total"
+          if [ "$run_status" != "complete" ]; then
+            echo "::error::$MODEL run is '$run_status' ($scored/$total pages scored)"
+            exit 1
+          fi
+
+      - name: Publish the run to the service store
+        env:
+          CASEV_SERVICE_DATABASE_URL: ${{ secrets.SERVICE_DATABASE_URL }}
+          RUN_ID: ${{ steps.ctx.outputs.run_id }}
+        run: |
+          uv run python scripts/publish_run_to_store.py --run-dir "results/$RUN_ID"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekly-benchmark-${{ steps.ctx.outputs.slug }}-${{ github.run_id }}
+          path: src/runner/results/
+          retention-days: 90
+
+  # Runs even if some models failed; a missing week just leaves a gap for that model.
+  dashboard:
+    needs: benchmark
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # only job that pushes
+    defaults:
+      run:
+        working-directory: src/runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group store
+
+      - name: Regenerate the README dashboard
+        env:
+          CASEV_SERVICE_DATABASE_URL: ${{ secrets.SERVICE_DATABASE_URL }}
+        run: |
+          uv run python scripts/render_benchmark_dashboard.py
+
+      # The section carries a timestamp, so a diff most weeks is expected.
+      - name: Commit the README if it changed
+        working-directory: .
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "README unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "chore: refresh weekly benchmark dashboard"
+          git push

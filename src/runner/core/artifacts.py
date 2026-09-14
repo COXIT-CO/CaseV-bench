@@ -61,7 +61,6 @@ class RunArtifacts:
         *,
         drawing: str,
         page: int,
-        source_page: int,
         model: str,
         response: ModelResponse,
         rendered: RenderedPage,
@@ -76,7 +75,6 @@ class RunArtifacts:
         record = {
             "drawing": drawing,
             "page": page,
-            "source_page": source_page,
             "model": model,
             "status": "ok",
             "response_text": response.text,
@@ -93,7 +91,6 @@ class RunArtifacts:
         *,
         drawing: str,
         page: int,
-        source_page: int,
         model: str,
         error: str,
         attempts: int,
@@ -104,7 +101,6 @@ class RunArtifacts:
         record = {
             "drawing": drawing,
             "page": page,
-            "source_page": source_page,
             "model": model,
             "status": "failed",
             "error": error,

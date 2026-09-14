@@ -49,7 +49,6 @@ class RejectedBox:
 @dataclass(frozen=True, slots=True)
 class PageGroundTruth:
     page: int
-    source_page: int
     boxes: tuple[Box, ...]
 
 
@@ -241,7 +240,7 @@ class LocalDatasetSource:
             )
 
         return (
-            PageGroundTruth(page=page_number, source_page=page_number, boxes=tuple(boxes)),
+            PageGroundTruth(page=page_number, boxes=tuple(boxes)),
             rejected,
         )
 

@@ -155,7 +155,6 @@ class RawPipeline:
             artifacts.write_call_failure(
                 drawing=drawing_name,
                 page=page.page,
-                source_page=page.source_page,
                 model=model,
                 error=str(exc),
                 attempts=max_attempts,
@@ -164,7 +163,6 @@ class RawPipeline:
         artifacts.write_call_record(
             drawing=drawing_name,
             page=page.page,
-            source_page=page.source_page,
             model=model,
             response=response,
             rendered=rendered,
