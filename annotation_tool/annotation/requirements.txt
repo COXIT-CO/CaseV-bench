@@ -1,0 +1,5 @@
+# System dependencies (install with apt/yum/dnf):
+# - python3.12-tk (Ubuntu/Debian) or python3-tkinter (other distros)
+# Note: tkinter is required for the GUI but not available via pip
+pillow==11.3.0
+PyMuPDF==1.24.13

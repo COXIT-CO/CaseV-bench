@@ -1,0 +1,48 @@
+name: CI — location-scorer
+
+on:
+  pull_request:
+    branches: [main]
+
+# A newer push to the same PR cancels the in-flight run for that PR. `github.workflow` is part
+# of the key, so this never cancels the app's `ci.yml` run on the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Job name is the branch-protection status context — keep it stable.
+  scorer-library:
+    name: scorer-library
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/packages/location-scorer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The library's declared floor, so `requires-python = ">=3.11"` is enforced rather
+          # than aspirational. The app's backend job stays on 3.12 to match the container runtime.
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: src/packages/location-scorer/pyproject.toml
+
+      # pip alone: the package has no runtime dependencies, so there is nothing to lock, and
+      # installing it this way also proves the claim that it installs standalone.
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: black --check
+        run: black --check src tests
+
+      - name: isort --check
+        run: isort --check-only src tests
+
+      - name: pytest
+        run: pytest

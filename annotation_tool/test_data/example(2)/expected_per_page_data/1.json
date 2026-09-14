@@ -1,0 +1,25 @@
+{
+    "page_number": "Req",
+    "cabinets": [
+        {
+            "identifying_properties": {
+                "subclass_description": "d23r23",
+                "x0": 367,
+                "y0": 200,
+                "x1": 431,
+                "y1": 278
+            },
+            "dimensions_in_inches": {
+                "width": 3,
+                "height": 3,
+                "depth": 3
+            },
+            "ecall_data": {
+                "times_referenced": 3,
+                "rooms": [
+                    "21"
+                ]
+            }
+        }
+    ]
+}

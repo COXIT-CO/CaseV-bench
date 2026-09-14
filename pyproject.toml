@@ -1,0 +1,31 @@
+[project]
+name = "casev-bench"
+version = "0.1.0"
+description = "CaseV-Bench — the public benchmark service and the shared results store."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+# Only what the shared results store needs today: a schema definition and the tool that applies
+# it. The service's own dependencies join this list when it lands (scope 10).
+dependencies = [
+    "sqlalchemy (>=2.0.0,<3.0.0)",
+    "alembic (>=1.14.0,<2.0.0)",
+    "psycopg[binary] (>=3.2.0,<4.0.0)",
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+# Installable so that `pip install -e .` is how CI gets the dependencies, and the versions above
+# stay the single place they are declared. This does **not** make it a distributable: nothing
+# pins a tag of it, and tool branches read `models.py` rather than importing it (ADR 0038).
+[tool.poetry]
+packages = [{ include = "results_store", from = "src" }]
+
+[tool.black]
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
