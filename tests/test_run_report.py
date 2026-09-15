@@ -301,6 +301,56 @@ def test_report_badges_salvaged_and_failed_models(client, engine, tmp_path):
     assert ">no detections</span>" in html
 
 
+# --- what the answers cost -----------------------------------------------------------
+
+
+def _price_run(engine, run_id):
+    """Stamp per-page latency/cost onto the seeded Run's Predictions, the way a live run
+    records them. The failed model is given latency but no cost, so the report has to show a
+    measured latency beside an unmeasured cost on the same row."""
+    priced = {
+        GOOD: [(1200, 0.004), (800, 0.006)],
+        SALVAGED: [(2000, 0.001), (3000, 0.001)],
+        FAILED: [(500, None), (500, None)],
+    }
+    with Session(engine) as session:
+        run = session.get(Run, run_id)
+        for result in run.results:
+            for prediction, (latency_ms, cost) in zip(
+                result.predictions, priced[result.model]
+            ):
+                prediction.latency_ms = latency_ms
+                prediction.cost_usd = cost
+                session.add(prediction)
+        session.commit()
+
+
+def test_report_summary_states_latency_and_cost_per_page(client, engine, tmp_path):
+    run_id = _seed_report_run(engine, tmp_path)
+    _price_run(engine, run_id)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    assert "<th>Latency/page</th><th>Cost/page</th>" in html
+    # The winner: (1200 + 800) / 2 ms per page, $0.010 over two pages.
+    assert "<td>1.0 s</td><td>$0.0050</td>" in html
+    assert "<td>2.5 s</td><td>$0.0010</td>" in html
+    # Latency was measured for the failed model, cost never was — an unpriced page must not
+    # read as a free one.
+    assert "<td>0.5 s</td><td>—</td>" in html
+    # The run total answers "can we afford this over the whole drawing set".
+    assert "Run total $0.0120 over 4 priced model-page(s)" in html
+
+
+def test_report_of_an_unpriced_run_claims_no_cost(client, engine, tmp_path):
+    # A Run from before usage accounting has no figures at all: dashes, and no total.
+    run_id = _seed_report_run(engine, tmp_path)
+    html = client.get(f"/api/runs/{run_id}/report").text
+
+    assert "<th>Latency/page</th><th>Cost/page</th>" in html
+    assert "<td>—</td><td>—</td>" in html
+    assert "Run total" not in html
+
+
 # --- page-major grid -----------------------------------------------------------------
 
 

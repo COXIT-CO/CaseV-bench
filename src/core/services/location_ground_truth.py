@@ -22,8 +22,10 @@ The importer:
 - rejects a box enclosing no area — zero width/height, or inverted coordinates — as
   ``degenerate_box``: nothing can ever match it, so storing it would silently cap the
   Drawing's recall below 1.0 forever (ADR 0031);
-- checks each ``category`` against the fixed singular taxonomy — the label map is the identity
-  (ADR 0023), so an off-taxonomy category is a typo and is reported ``unmapped_label``;
+- resolves each ``category`` to a taxonomy label: the map is the identity (ADR 0023) plus a
+  short table of prose spellings an expert actually writes (``"floor plan"`` for
+  ``floor_plan``), matched case-insensitively; anything else is a typo, reported
+  ``unmapped_label``;
 - **reports** an off-taxonomy category / an unknown page / a gross overflow / a degenerate box
   instead of silently dropping it, each distinct cause once, while still importing everything
   valid.
@@ -53,8 +55,27 @@ OUT_OF_FRAME: ProblemKind = "out_of_frame"
 DEGENERATE_BOX: ProblemKind = "degenerate_box"
 
 # The fixed singular taxonomy (ADR 0023). The label map is the identity, so an expert file that
-# already speaks these names imports with no configuration; any other ``category`` is a typo.
+# already speaks these names imports with no configuration.
 _TAXONOMY: frozenset[str] = frozenset(OBJECT_LABELS)
+
+# Named aliases for taxonomy labels an expert writes as prose rather than as an identifier.
+# Only spellings we have actually seen are listed: an unlisted ``category`` stays an
+# ``unmapped_label`` typo rather than being silently normalized into the nearest label.
+# Lookup is case-insensitive over collapsed whitespace, so "Floor Plan" and "floor  plan"
+# resolve too — capitalization in a human-authored file is noise, not a different name.
+_ALIASES: dict[str, str] = {
+    "floor plan": "floor_plan",
+}
+
+
+def _taxonomy_label(category: object) -> str | None:
+    """The taxonomy label this source ``category`` denotes, or ``None`` when it denotes none."""
+    if category in _TAXONOMY:
+        return str(category)
+    if isinstance(category, str):
+        return _ALIASES.get(" ".join(category.split()).casefold())
+    return None
+
 
 # A box corner may spill past [0, 1] by this fraction (~0.5%) and still be accepted, clamped to
 # the unit square — this absorbs a legitimate flush-to-edge annotation. Beyond it, the box is
@@ -147,7 +168,8 @@ class LocationGroundTruthService:
 
         for obj in document.get("objects", []):
             category = obj.get("category")
-            if category not in _TAXONOMY:
+            label = _taxonomy_label(category)
+            if label is None:
                 report(UNMAPPED_LABEL, f"no taxonomy mapping for label {category!r}")
                 continue
 
@@ -206,7 +228,7 @@ class LocationGroundTruthService:
             self.session.add(
                 LocationGroundTruth(
                     page_id=page.id,
-                    label=category,
+                    label=label,
                     x_min=x_min,
                     y_min=y_min,
                     x_max=x_max,

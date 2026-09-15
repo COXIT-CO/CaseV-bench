@@ -1,6 +1,6 @@
 """Prediction-overlay colouring by ObjectType (ticket 06, ADR 0021).
 
-``color_for_label`` maps each of the four ObjectTypes to a fixed, distinct colour and
+``color_for_label`` maps each ObjectType to a fixed, distinct colour and
 degrades gracefully for an off-taxonomy label. The overlay renderer draws each box in its
 own label's colour (replacing the single prediction colour), so a dense page reads by
 class; a salvaged/edited overlay inherits the same colouring through ``draw_overlay``.

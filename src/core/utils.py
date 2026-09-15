@@ -14,14 +14,17 @@ from core.models.results import LabeledBox, LocationDetection
 DEFAULT_DOWNSAMPLE_PX = 1568
 
 # Fixed, colourblind-distinguishable overlay colour per ObjectType (ADR 0021, ticket 06).
-# Drawn from the Okabe-Ito qualitative palette: each reads clearly on a white drawing and the
-# four stay distinguishable under the common colour-vision deficiencies. Hue now encodes object
+# Drawn from the Okabe-Ito qualitative palette: each reads clearly on a white drawing and they
+# stay distinguishable under the common colour-vision deficiencies. Hue now encodes object
 # type — provenance is no longer contended on the overlay, since the GT visuals are dropped.
+# `floor_plan` takes sky blue rather than the palette's orange: orange and vermillion collapse
+# together under deuteranopia, whereas sky blue stays separable from blue by lightness.
 LABEL_COLORS: dict[str, str] = {
     "cabinet": "#D55E00",  # vermillion
     "countertop": "#0072B2",  # blue
+    "floor_plan": "#56B4E9",  # sky blue
     "elevation": "#009E73",  # bluish green
-    "elevation_callout": "#CC79A7",  # reddish purple
+    "callout": "#CC79A7",  # reddish purple
 }
 
 # Any label outside the fixed taxonomy (e.g. a salvaged box carrying a stray string) still

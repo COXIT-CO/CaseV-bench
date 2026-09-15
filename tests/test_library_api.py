@@ -13,6 +13,7 @@ from sqlmodel import Session, select
 from api.deps import get_drawing_service
 from core.models.run import Run
 from core.services.drawing import DrawingService
+from core.services.model_catalog import DEFAULT_MODEL_CATALOG
 from core.services.pdf_processing import PDFProcessingService
 
 SONNET = "anthropic/claude-sonnet-4.5"
@@ -211,36 +212,43 @@ def test_models_returns_curated_catalog(client):
     body = client.get("/api/models").json()
 
     slugs = {entry["slug"] for entry in body["catalog"]}
-    assert "anthropic/claude-sonnet-4.5" in slugs
+    assert slugs == {slug for slug, _ in DEFAULT_MODEL_CATALOG}
     # Every entry carries the display label the catalog was seeded with.
     for entry in body["catalog"]:
-        assert set(entry) == {"slug", "label"}
+        assert set(entry) == {"slug", "label", "max_reasoning_effort"}
         assert entry["label"]
 
 
 PIXTRAL = "mistralai/pixtral-12b"
 
 
+def _entry(slug: str, label: str) -> dict:
+    """A catalog entry as the API returns it. A pasted slug is unknown to
+    ``MAX_REASONING_EFFORT`` and so reports the top of the band — the same permissiveness that
+    lets an unvalidated slug be added at all."""
+    return {"slug": slug, "label": label, "max_reasoning_effort": "xhigh"}
+
+
 def test_add_model_appears_in_catalog_and_launch_options(client):
-    resp = client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
+    resp = client.post("/api/models", json=_entry(PIXTRAL, "Pixtral 12B"))
     assert resp.status_code == 201
-    assert resp.json() == {"slug": PIXTRAL, "label": "Pixtral 12B"}
+    assert resp.json() == _entry(PIXTRAL, "Pixtral 12B")
 
     # A newly added entry is offered on every future launch (ticket 10): it shows in both
     # the catalog view and the launch-form option set.
     catalog = client.get("/api/models").json()["catalog"]
-    assert {"slug": PIXTRAL, "label": "Pixtral 12B"} in catalog
+    assert _entry(PIXTRAL, "Pixtral 12B") in catalog
     launch_catalog = client.get("/api/runs/launch-options").json()["catalog"]
-    assert {"slug": PIXTRAL, "label": "Pixtral 12B"} in launch_catalog
+    assert _entry(PIXTRAL, "Pixtral 12B") in launch_catalog
 
 
 def test_add_existing_slug_upserts_label(client):
-    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
-    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral (renamed)"})
+    client.post("/api/models", json=_entry(PIXTRAL, "Pixtral 12B"))
+    client.post("/api/models", json=_entry(PIXTRAL, "Pixtral (renamed)"))
 
     catalog = client.get("/api/models").json()["catalog"]
     matching = [e for e in catalog if e["slug"] == PIXTRAL]
-    assert matching == [{"slug": PIXTRAL, "label": "Pixtral (renamed)"}]  # no dupe
+    assert matching == [_entry(PIXTRAL, "Pixtral (renamed)")]  # no dupe
 
 
 def test_add_model_rejects_blank_label(client):
@@ -249,11 +257,11 @@ def test_add_model_rejects_blank_label(client):
 
 
 def test_remove_model_drops_it_from_catalog(client):
-    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
+    client.post("/api/models", json=_entry(PIXTRAL, "Pixtral 12B"))
 
     resp = client.request("DELETE", f"/api/models/{PIXTRAL}")
     assert resp.status_code == 200
-    assert resp.json() == {"slug": PIXTRAL, "label": "Pixtral 12B"}
+    assert resp.json() == _entry(PIXTRAL, "Pixtral 12B")
 
     slugs = {e["slug"] for e in client.get("/api/models").json()["catalog"]}
     assert PIXTRAL not in slugs

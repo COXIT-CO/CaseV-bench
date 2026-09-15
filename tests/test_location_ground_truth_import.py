@@ -125,6 +125,32 @@ def test_off_taxonomy_category_is_reported_not_dropped(session):
     assert "windows" in problem.detail
 
 
+@pytest.mark.parametrize("category", ["floor plan", "Floor Plan", "floor  plan"])
+def test_prose_spelling_of_a_label_is_aliased_onto_the_taxonomy(session, category):
+    # An expert file writes the view type as prose. It imports as the taxonomy identifier,
+    # so the stored answer key speaks one vocabulary regardless of how the source spelled it.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj(category, 1, 0, 0, 100, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.problems == []
+    assert result.created == 1
+    assert [box.label for box in _boxes_by_page(session, drawing)[1]] == ["floor_plan"]
+
+
+def test_a_near_miss_of_an_alias_is_still_reported(session):
+    # The alias table lists spellings we have seen — it is not a fuzzy matcher. A typo of one
+    # stays loud rather than being normalized into the nearest label.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("floorplan", 1, 0, 0, 100, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    assert [problem.kind for problem in result.problems] == [UNMAPPED_LABEL]
+
+
 def test_unknown_page_is_reported_not_dropped(session):
     drawing = make_drawing_with_pages(session, [(1000, 1000)])  # only page 1 exists
     document = {

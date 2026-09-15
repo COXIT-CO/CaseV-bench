@@ -182,6 +182,7 @@ def result_detail(
             downsample_px=run.downsample_px,
             max_tokens=run.max_tokens,
             temperature=run.temperature,
+            reasoning_effort=run.reasoning_effort,
         ),
         location_score=location_score,
         predictions=[_prediction_out(pred) for pred in result.predictions],

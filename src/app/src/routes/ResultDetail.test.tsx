@@ -106,8 +106,9 @@ describe("ResultDetail", () => {
     for (const label of [
       "cabinet",
       "countertop",
+      "floor_plan",
       "elevation",
-      "elevation_callout",
+      "callout",
     ]) {
       expect(within(legend).getByText(label)).toBeInTheDocument();
     }

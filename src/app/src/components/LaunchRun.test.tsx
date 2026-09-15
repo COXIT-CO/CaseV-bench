@@ -7,8 +7,9 @@ import { LAUNCH_OPTIONS } from "@/test/fixtures";
 import { renderWithProviders } from "@/test/render";
 
 // The Advanced knobs (ticket 04): the form pre-fills sensible defaults for the common
-// one-click launch, and lets a developer tune max_tokens + temperature — the latter a number
-// or "provider default" (→ no temperature in the request).
+// one-click launch, and lets a developer tune max_tokens, temperature and reasoning effort.
+// Temperature is a number or "provider default" (→ no temperature in the request), which is
+// the pre-filled choice since a reasoning Model either ignores it or rejects it outright.
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -32,6 +33,13 @@ async function pickModel() {
 
 async function launch() {
   await userEvent.click(screen.getByRole("button", { name: "Launch run" }));
+}
+
+/** The efforts the form currently offers — the band every selected Model accepts. */
+function effortOptions(): string[] {
+  return [...screen.getByLabelText("reasoning effort").children].map(
+    (option) => option.textContent ?? "",
+  );
 }
 
 describe("Launch form Advanced knobs", () => {
@@ -69,8 +77,9 @@ describe("Launch form Advanced knobs", () => {
         expect.objectContaining({
           dpi: 300,
           downsample_px: 1568,
-          max_tokens: 4096,
-          temperature: 0,
+          max_tokens: 16384,
+          temperature: null,
+          reasoning_effort: "medium",
         }),
         expect.anything(),
       ),
@@ -125,6 +134,10 @@ describe("Launch form Advanced knobs", () => {
     const maxTokens = screen.getByLabelText("max_tokens");
     await userEvent.clear(maxTokens);
     await userEvent.type(maxTokens, "8192");
+    // An explicit temperature is reachable only by leaving the pre-filled provider default.
+    await userEvent.click(
+      screen.getByLabelText("Use provider default (omit temperature)"),
+    );
     const temperature = screen.getByLabelText("temperature");
     await userEvent.clear(temperature);
     await userEvent.type(temperature, "0.7");
@@ -139,19 +152,66 @@ describe("Launch form Advanced knobs", () => {
     );
   });
 
-  it("sends no temperature when 'provider default' is chosen", async () => {
+  it("submits the chosen reasoning effort", async () => {
     renderForm();
     await pickModel();
     await userEvent.click(screen.getByText("Advanced"));
-    await userEvent.click(
-      screen.getByLabelText("Use provider default (omit temperature)"),
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("reasoning effort"),
+      "high",
     );
 
     await launch();
 
     await waitFor(() =>
       expect(api.createRun).toHaveBeenCalledWith(
-        expect.objectContaining({ temperature: null }),
+        expect.objectContaining({ reasoning_effort: "high" }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("offers the whole band to a selection that accepts it", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+
+    expect(effortOptions()).toEqual(["low", "medium", "high", "xhigh"]);
+  });
+
+  it("narrows the band to what every selected Model accepts", async () => {
+    // A Run asks every Model the same effort, so adding one that stops at `high` takes xhigh
+    // off the table rather than letting the launch be refused server-side.
+    renderForm();
+    await pickModel();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Gemini 2.5 Flash" }),
+    );
+    await userEvent.click(screen.getByText("Advanced"));
+
+    expect(effortOptions()).toEqual(["low", "medium", "high"]);
+  });
+
+  it("drops an effort the selection no longer allows", async () => {
+    // xhigh chosen first, then a Model that caps at `high` is added. The form must submit the
+    // strongest still-allowed effort, never the stale choice the server would 422.
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+    await userEvent.selectOptions(
+      screen.getByLabelText("reasoning effort"),
+      "xhigh",
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Gemini 2.5 Flash" }),
+    );
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ reasoning_effort: "high" }),
         expect.anything(),
       ),
     );

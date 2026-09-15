@@ -128,6 +128,7 @@ def _done_run(session, prompt_id, drawing_id) -> Run:
         downsample_px=1568,
         max_tokens=1024,
         temperature=0.0,
+        reasoning_effort="low",
     )
     session.add(run)
     session.commit()
@@ -147,7 +148,7 @@ def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp
     assert body["prompt_version"] == 2
     assert body["drawing_name"] == "floorplan"
     assert body["scored"] is True
-    assert body["label_count"] == 4
+    assert body["label_count"] == 5
 
     # The Result view shows the same per-run knobs snapshot the Run recorded (ticket 04).
     assert body["knobs"] == {
@@ -155,6 +156,7 @@ def test_location_result_detail_returns_rates_and_box_counts(client, engine, tmp
         "downsample_px": 1568,
         "max_tokens": 1024,
         "temperature": 0.0,
+        "reasoning_effort": "low",
     }
 
     # Location score shape: micro-averaged P/R/F1 + per-label tp/fp/fn/rates.

@@ -2,7 +2,8 @@
 outputs (spec: Runs & execution; glossary: Run, Result, Prediction; ADR 0006).
 
 A ``Run`` is one execution of ``(prompt version, drawing, N models)``. It
-snapshots the per-run knobs used (DPI, downsample long-edge, max_tokens, temperature)
+snapshots the per-run knobs used (DPI, downsample long-edge, max_tokens, temperature,
+reasoning effort)
 so a result stays reproducible; the knobs are recorded and displayed but are not a
 Leaderboard rank axis (Configuration stays ``(prompt version, model)``; ADR 0018).
 ``temperature`` is ``None`` when the Run runs under the provider default. Each Model's
@@ -59,6 +60,10 @@ class Run(SQLModel, table=True):
     downsample_px: int | None
     max_tokens: int
     temperature: float | None
+    # Nullable only so the additive schema pass can add it to a live table (db.py); every Run
+    # launched since records a value. NULL therefore reads as "launched before the knob
+    # existed, each Model at its own default effort" — which is exactly what happened.
+    reasoning_effort: str | None = None
 
     created_at: datetime = Field(default_factory=_utcnow)
 
@@ -105,6 +110,15 @@ class Prediction(SQLModel, table=True):
     # Path to the prediction-overlay PNG: the detected boxes drawn on the page image
     # (ticket 09). None for a failed prediction.
     overlay_path: str | None = None
+    # What this page cost to produce: wall-clock latency of the model call and OpenRouter's
+    # own usage accounting, both summed across the retry attempt so they measure the *page*
+    # rather than whichever attempt happened to succeed. ``None`` means never measured — a
+    # Prediction from before these columns, or an adapter that returned no usage — and stays
+    # distinct from a genuine zero, which free and BYOK models really do report.
+    latency_ms: int | None = None
+    cost_usd: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
     # A developer's manual JSON override for a location Prediction (ADR 0020, ticket 07): the
     # corrected boxes as a ``LocationResult`` JSON. Never touches ``parsed_json``/``raw_content``
     # and is **invisible to scoring** — the Leaderboard always ranks the model's original output.

@@ -17,7 +17,12 @@ from api.routers.common import (
     KnobsOut,
     LeaderboardDrawing,
 )
-from core.adapters.openrouter import DEFAULT_MAX_TOKENS
+from core.adapters.openrouter import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_REASONING_EFFORT,
+    ReasoningEffort,
+    efforts_for,
+)
 from core.models.drawing import Drawing
 from core.models.prompt import Prompt
 from core.models.run import Run, RunStatus
@@ -84,6 +89,7 @@ class RunCreateRequest(BaseModel):
     downsample_px: int | None = Field(default=DEFAULT_DOWNSAMPLE_PX, gt=0)
     max_tokens: int = Field(default=DEFAULT_MAX_TOKENS, gt=0)
     temperature: float | None = DEFAULT_TEMPERATURE
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
 
 
 class RunCreatedOut(BaseModel):
@@ -191,7 +197,7 @@ def launch_options(session: Session = Depends(get_session)) -> LaunchOptionsResp
             LeaderboardDrawing(id=d.id, name=d.name, page_count=len(d.pages))
             for d in drawings
         ],
-        catalog=[CatalogEntryOut(slug=c.slug, label=c.label) for c in catalog],
+        catalog=[CatalogEntryOut.of(c) for c in catalog],
     )
 
 
@@ -206,6 +212,18 @@ def create_run(
     the source of truth. A bad prompt or an empty selection is a ``400`` (mirrors the Jinja
     launch handler)."""
     slugs = ModelCatalogService.resolve_selection(payload.models, payload.free_text)
+    # A Run asks every Model the same effort, so one that a selected Model does not answer to
+    # is refused here rather than mid-fan-out — where it would land as a per-model error and
+    # leave the Run with Results at mixed settings.
+    allowed = efforts_for(slugs)
+    if payload.reasoning_effort not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"reasoning_effort {payload.reasoning_effort!r} is not accepted by every "
+                f"selected model; this selection allows {', '.join(allowed)}"
+            ),
+        )
     # The chosen Advanced knobs ride on the service so both create_run's snapshot and the
     # background runner's request path read the same values (ticket 04; the runner shares
     # this service's knobs so the two can't drift — RunService.background_runner).
@@ -214,6 +232,7 @@ def create_run(
         downsample_px=payload.downsample_px,
         max_tokens=payload.max_tokens,
         temperature=payload.temperature,
+        reasoning_effort=payload.reasoning_effort,
     )
     try:
         run = service.create_run(payload.prompt_id, payload.drawing_id, slugs)
@@ -251,6 +270,7 @@ def run_detail(
             downsample_px=run.downsample_px,
             max_tokens=run.max_tokens,
             temperature=run.temperature,
+            reasoning_effort=run.reasoning_effort,
         ),
         results=[RunResultOut(id=r.id, model=r.model) for r in run.results],
     )

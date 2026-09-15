@@ -11,12 +11,16 @@ The retired counting form's endpoints are gone rather than shimmed, so a stale c
 loudly on a 404 (ADR 0032; spec-drop-counting: API contract changes).
 """
 
-import pytest
-from sqlmodel import Session
+from pathlib import Path
 
+import pytest
+from sqlmodel import Session, select
+
+from core.models.drawing import Page
 from core.services.drawing import DrawingService
 from core.services.location_ground_truth import LocationGroundTruthService
-from core.services.pdf_processing import PDFProcessingService
+from core.services.pdf_processing import PDFProcessingService, page_image_filename
+from core.utils import ground_truth_overlay_png
 
 COUNTING_URL = "/api/drawings/{id}/counting-ground-truth"
 LOCATION_URL = "/api/drawings/{id}/location-ground-truth"
@@ -257,3 +261,26 @@ def test_gt_overlay_unknown_page_is_404(client, drawing_id):
     response = client.get(GT_OVERLAY_URL.format(id=drawing_id, page=9))
 
     assert response.status_code == 404
+
+
+def test_gt_overlay_uses_full_resolution_image_when_available(
+    client, drawing_id, page_dims, tmp_path
+):
+    # The route should render the overlay from the raw page raster (page_NNNN.png), not
+    # from the cached downsampled preview.
+    from core.services.pdf_processing import page_image_filename
+
+    with Session(client.app.state.engine) as session:
+        page = session.exec(
+            select(Page).where(Page.drawing_id == drawing_id, Page.page_number == 1)
+        ).one()
+        downsampled = Path(page.image_path)
+        native = downsampled.parent / page_image_filename(page.page_number)
+
+        assert downsampled.exists()
+        assert native.exists()
+
+    response = client.get(GT_OVERLAY_URL.format(id=drawing_id, page=1))
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content != downsampled.read_bytes()

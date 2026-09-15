@@ -30,7 +30,12 @@ from sqlmodel import Session, select
 
 from core.models.run import Run, RunStatus
 from core.models.score import Score
-from core.services.results_store import ResultsStoreConfig, ResultsStoreService
+from core.services.results_store import (
+    ResultsStoreConfig,
+    ResultsStoreService,
+    document_cost_usd,
+    document_latency_ms,
+)
 from core.services.run import BackgroundRunner, RunService
 from core.services.scoring import ScoringService
 
@@ -357,6 +362,113 @@ def test_scorer_output_is_stored_whole(
     assert near_miss == pytest.approx(0.4)
     # It survives the trip to a JSONB column as it stands, without a custom encoder.
     assert json.loads(json.dumps(output)) == output
+
+
+class UsageAdapter:
+    """Like ``StubOpenRouterAdapter``, but the response carries OpenRouter's ``usage`` block
+    — the shape a page needs before ``Prediction.cost_usd`` is anything but ``None`` (see
+    ``core.services.run._CallStats``). One page, one call: this file's Drawings are
+    single-page, so this adapter never needs to queue more than one response per model.
+    """
+
+    def __init__(self, usage: dict[str, dict]):
+        self.usage = usage
+
+    def send_image_prompt(
+        self,
+        image_path,
+        model,
+        prompt,
+        max_tokens=None,
+        temperature=None,
+        reasoning_effort=None,
+    ):
+        response = {"choices": [{"message": {"content": PREDICTED_JSON}}]}
+        if model in self.usage:
+            response["usage"] = self.usage[model]
+        return response
+
+
+def test_latency_and_cost_land_on_the_row(
+    session, location_prompt, overlay_root, seed_location_gt, store
+):
+    """The wiring this ticket adds: a page's usage and wall-clock latency reach the shared
+    table beside the metrics that were already publishing."""
+    drawing = seed_pdf_drawing(session)
+    seed_location_gt(session, drawing.id, GT_OBJECTS)
+    adapter = UsageAdapter(
+        {SONNET: {"cost": 0.0042, "prompt_tokens": 1200, "completion_tokens": 80}}
+    )
+    run = _launch(session, adapter, location_prompt, overlay_root, drawing)
+
+    _publish(session, run.id, store)
+
+    row = store.rows[0]
+    assert row.cost_usd == pytest.approx(0.0042)
+    assert row.latency_ms is not None and row.latency_ms >= 0
+
+
+def test_cost_is_none_when_the_provider_reports_no_usage(
+    session, stub_adapter, location_prompt, overlay_root, seed_location_gt, store
+):
+    """``StubOpenRouterAdapter`` returns no ``usage`` block, the same as a provider that
+    omits it. The row must read as unmeasured, not as a free run — free and BYOK models
+    report a genuine cost of 0 and the two must stay tellable apart."""
+    drawing = seed_pdf_drawing(session)
+    seed_location_gt(session, drawing.id, GT_OBJECTS)
+    run = _launch(session, stub_adapter, location_prompt, overlay_root, drawing)
+
+    _publish(session, run.id, store)
+
+    row = store.rows[0]
+    assert row.cost_usd is None
+    # The call still happened, so it still has a latency.
+    assert row.latency_ms is not None
+
+
+class _FakePrediction:
+    def __init__(self, cost_usd=None, latency_ms=None):
+        self.cost_usd = cost_usd
+        self.latency_ms = latency_ms
+
+
+class _FakeResult:
+    def __init__(self, predictions):
+        self.predictions = predictions
+
+
+def test_document_cost_is_the_sum_of_its_pages():
+    """Dollars add across pages regardless of how they were scheduled — a three-page
+    document really did cost the sum of what each page billed."""
+    result = _FakeResult(
+        [
+            _FakePrediction(cost_usd=0.001, latency_ms=100),
+            _FakePrediction(cost_usd=0.002, latency_ms=300),
+            _FakePrediction(cost_usd=0.003, latency_ms=200),
+        ]
+    )
+
+    assert document_cost_usd(result) == pytest.approx(0.006)
+    assert document_latency_ms(result) == 200  # mean of 100, 300, 200
+
+
+def test_document_cost_and_latency_are_none_when_no_page_measured_them():
+    result = _FakeResult([_FakePrediction(), _FakePrediction()])
+
+    assert document_cost_usd(result) is None
+    assert document_latency_ms(result) is None
+
+
+def test_document_cost_sums_only_the_pages_that_reported_it():
+    """A partial Result — one page measured, one never billed — still sums what it has
+    rather than discarding it for being incomplete; an undercount that visibly came from
+    fewer pages is closer to the truth than no number at all."""
+    result = _FakeResult(
+        [_FakePrediction(cost_usd=0.005, latency_ms=150), _FakePrediction()]
+    )
+
+    assert document_cost_usd(result) == pytest.approx(0.005)
+    assert document_latency_ms(result) == 150
 
 
 def test_a_drawing_without_ground_truth_publishes_nothing(

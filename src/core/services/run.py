@@ -17,23 +17,31 @@ boundary):
 
 Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — the
 labeled boxes parsed from the model's JSON plus a prediction-overlay PNG drawn on the
-page image (ticket 09) — or a failure record. The request is a single model-agnostic user
-turn (no prefill; ADR 0019) and the response is parsed, retried once before a failure is
-recorded; a model failure never aborts the Run (spec: Runs 20, 21).
+page image (ticket 09) — or a failure record, and either way what the page cost to produce:
+its wall-clock latency and OpenRouter's usage accounting (``_CallStats``). The request is a
+single model-agnostic user turn (no prefill; ADR 0019) and the response is parsed, retried
+once before a failure is recorded; a model failure never aborts the Run (spec: Runs 20, 21).
 """
 
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TypeVar
 
 from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
-from core.adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
+from core.adapters.openrouter import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_REASONING_EFFORT,
+    OpenRouterAdapter,
+    OpenRouterError,
+    ReasoningEffort,
+)
 from core.config import settings
 from core.models.drawing import Drawing
 from core.models.prompt import Prompt
@@ -46,7 +54,11 @@ from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, salvage_json
 
 # The default temperature a Run pins for reproducibility; a Run may instead set None to
 # run under the provider default, which is omitted from the request payload (ADR 0018/0019).
-DEFAULT_TEMPERATURE = 0.0
+# The provider default (temperature omitted from the payload). A reasoning Model either
+# ignores an explicit temperature or rejects the request outright — one catalog Model does not
+# accept the parameter at all — so pinning 0.0 for every Model bought reproducibility on the
+# Models that never needed it and errors on the ones that did (ADR 0019).
+DEFAULT_TEMPERATURE = None
 
 # How many models may call OpenRouter at once. Bounded so a 3-model run finishes ~3×
 # faster than fully sequential without hammering rate limits (ADR 0006).
@@ -56,6 +68,9 @@ DEFAULT_MAX_CONCURRENCY = 3
 # (ticket 09). A dedicated root (not the page-image dir) since many Results share a Page.
 # Production default under the single data root; tests inject a temp root (ADR-0014).
 DEFAULT_OVERLAY_ROOT = settings.overlays_root
+
+# Token counts stay ints and costs stay floats through accumulation (``_accumulate``).
+_Number = TypeVar("_Number", int, float)
 
 
 def reconcile_orphaned_runs(session: Session) -> int:
@@ -82,13 +97,16 @@ class RunKnobs:
     """The per-run knobs a Run snapshots — recorded and displayed, but not a Leaderboard
     rank axis (Configuration stays ``(prompt version, model)``; ADR 0018). ``temperature``
     of ``None`` means "provider default" and is omitted from the request payload, so one
-    config runs reasoning and older models identically (ADR 0019). Field names match the
-    ``Run`` columns so the snapshot copies by ``asdict``."""
+    config runs reasoning and older models identically (ADR 0019); ``reasoning_effort`` is
+    sent to every Model precisely so they *don't* differ, each Model's own default sitting at
+    a different point of the band. Field names match the ``Run`` columns so the snapshot
+    copies by ``asdict``."""
 
     dpi: int = DEFAULT_DPI
     downsample_px: int | None = DEFAULT_DOWNSAMPLE_PX
     max_tokens: int = DEFAULT_MAX_TOKENS
     temperature: float | None = DEFAULT_TEMPERATURE
+    reasoning_effort: ReasoningEffort | None = DEFAULT_REASONING_EFFORT
 
 
 class _PageRef(NamedTuple):
@@ -320,6 +338,53 @@ class _Interpretation:
     error: str | None = None
 
 
+@dataclass
+class _CallStats:
+    """What one page cost to produce, accumulated across the retry (ADR 0019) so it measures
+    the **page** rather than whichever attempt happened to succeed — a page that needed a
+    second call really did wait twice and really was billed twice.
+
+    Latency is wall clock around the model call alone (the page image is rendered before it),
+    and accrues even for an attempt that raised — the page waited for that too. The rest is
+    OpenRouter's own usage accounting, which every response now carries; a response without
+    it leaves the fields ``None``, which is why they are read defensively. ``None`` throughout
+    means *never measured* and must stay distinct from a real zero, since free and BYOK models
+    report a genuine cost of 0."""
+
+    latency_ms: int | None = None
+    cost_usd: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+
+    def record(self, elapsed_seconds: float, response: dict | None = None) -> None:
+        self.latency_ms = (self.latency_ms or 0) + round(elapsed_seconds * 1000)
+        usage = (response or {}).get("usage")
+        if not isinstance(usage, dict):
+            return
+        self.cost_usd = _accumulate(self.cost_usd, usage.get("cost"), float)
+        self.prompt_tokens = _accumulate(
+            self.prompt_tokens, usage.get("prompt_tokens"), int
+        )
+        self.completion_tokens = _accumulate(
+            self.completion_tokens, usage.get("completion_tokens"), int
+        )
+
+
+def _accumulate(
+    total: _Number | None, value: object, cast: Callable[[object], _Number]
+) -> _Number | None:
+    """Fold one attempt's usage figure into a running total, leaving the total ``None`` while
+    nothing has ever reported the figure. A provider that omits or nulls a field must not
+    turn an unmeasured page into a page measured at zero."""
+    if value is None:
+        return total
+    try:
+        value = cast(value)
+    except (TypeError, ValueError):
+        return total
+    return value if total is None else total + value
+
+
 def _render_page(page: _PageRef, knobs: RunKnobs) -> Path:
     """The image handed to the Model for this page: rendered on demand at the Run's ``(dpi,
     downsample_px)`` from the retained PDF (or the native raster for an image Drawing), cached
@@ -341,21 +406,24 @@ def _predict(
     prompt_text: str,
     knobs: RunKnobs,
     interpret: Callable[[str], _Interpretation],
-) -> tuple[str | None, _Interpretation]:
+) -> tuple[str | None, _Interpretation, _CallStats]:
     """Send the page image + prompt and ``interpret`` the response, retried once whenever
     the first parse isn't cleanly ``ok`` (spec: Runs 20; ADR 0019). A failing OpenRouter
     call is caught like a parse failure rather than propagated, so one model's error doesn't
     abort the Run (spec: Runs 21). ``interpret`` never raises — a malformed body becomes a
     non-clean ``_Interpretation`` whose salvage is shown for display.
 
-    Returns ``(raw_content, interpretation)`` from the clean attempt, else from the last
-    attempt (retaining that attempt's ``raw_content`` for inspection). The single external
-    I/O boundary, kept session-free so the predict routines stay a pure test seam."""
+    Returns ``(raw_content, interpretation, stats)`` — the first two from the clean attempt,
+    else from the last attempt (retaining that attempt's ``raw_content`` for inspection),
+    and the latency/usage of *every* attempt. The single external I/O boundary, kept
+    session-free so the predict routines stay a pure test seam."""
     raw_content: str | None = None
     interp = _Interpretation(clean=False, error="model produced no response")
+    stats = _CallStats()
 
     # Initial attempt plus a single retry; a clean parse short-circuits the retry.
     for _ in range(2):
+        started = time.perf_counter()
         try:
             response = adapter.send_image_prompt(
                 image_path,
@@ -363,21 +431,57 @@ def _predict(
                 prompt_text,
                 max_tokens=knobs.max_tokens,
                 temperature=knobs.temperature,
+                reasoning_effort=knobs.reasoning_effort,
             )
-            raw = response["choices"][0]["message"]["content"]
+            raw, finish_reason = _read_choice(response)
         except Exception as exc:
+            stats.record(time.perf_counter() - started)
             # A raised retry must not discard a salvage the first attempt already produced:
             # only record the error when no earlier attempt returned content, so ``interp``
             # stays paired with ``raw_content`` and the best salvage survives (ADR 0019).
             if raw_content is None:
                 interp = _Interpretation(clean=False, error=str(exc))
             continue
+        stats.record(time.perf_counter() - started, response)
         raw_content = raw
-        interp = interpret(raw)
+        interp = _name_budget_stop(interpret(raw), finish_reason)
         if interp.clean:
             break
 
-    return raw_content, interp
+    return raw_content, interp, stats
+
+
+def _read_choice(response: dict) -> tuple[str | None, str | None]:
+    """The first choice's content and ``finish_reason``. OpenRouter answers ``200`` with an
+    ``error`` body (and no ``choices``) for some upstream failures, which indexing blind
+    reported as the bare message ``'choices'`` — so a body without choices raises carrying
+    whatever OpenRouter did say."""
+    choices = response.get("choices")
+    if not choices:
+        raise OpenRouterError(
+            f"OpenRouter returned no choices: {response.get('error') or response}"
+        )
+    choice = choices[0] or {}
+    return (choice.get("message") or {}).get("content"), choice.get("finish_reason")
+
+
+def _name_budget_stop(
+    interp: _Interpretation, finish_reason: str | None
+) -> _Interpretation:
+    """Attribute a non-clean parse to the token budget when that is what stopped the call.
+    A reasoning Model spends ``max_tokens`` thinking before it answers, so a budget it
+    exhausts yields empty or truncated content — indistinguishable, from the parse error
+    alone, from a Model that simply produced nothing. ``finish_reason`` is the only thing
+    that tells the two apart, and the fix each needs is different."""
+    if interp.clean or finish_reason != "length":
+        return interp
+    return replace(
+        interp,
+        error=(
+            f"{interp.error} — the call stopped at max_tokens, which a reasoning Model "
+            "spends before it answers; raise max_tokens or lower reasoning_effort"
+        ),
+    )
 
 
 def _interpret_location(raw: str) -> _Interpretation:
@@ -421,12 +525,14 @@ def _prediction(
     result_id: int,
     raw_content: str | None,
     interp: _Interpretation,
+    stats: _CallStats,
     overlay_path: str | None = None,
 ) -> Prediction:
     """Build the (unsaved) ``Prediction`` from an interpretation: a scored ``ok`` when clean,
     else an ``error`` that still retains the salvaged ``parsed_json``/overlay — those salvaged
     boxes are still scored (ADR 0027), so ``error`` is a data-quality flag, not an unscored
-    verdict. ``raw_content`` is retained either way (spec: Runs 19, 20)."""
+    verdict. ``raw_content`` and the page's latency/usage are retained either way — a page
+    that failed still took time and still cost money (spec: Runs 19, 20)."""
     status = PredictionStatus.ok if interp.clean else PredictionStatus.error
     return Prediction(
         result_id=result_id,
@@ -437,6 +543,10 @@ def _prediction(
         parsed_json=interp.parsed_json,
         parse_error=None if interp.clean else interp.error,
         overlay_path=overlay_path,
+        latency_ms=stats.latency_ms,
+        cost_usd=stats.cost_usd,
+        prompt_tokens=stats.prompt_tokens,
+        completion_tokens=stats.completion_tokens,
     )
 
 
@@ -457,7 +567,7 @@ def predict_location(
     ``draw_overlay`` (ticket 09) and its path stored, so the salvage is visible in the
     drill-down. Returns an unsaved ``Prediction`` — DB persistence is the caller's."""
     image_path = _render_page(page, knobs)
-    raw_content, interp = _predict(
+    raw_content, interp, stats = _predict(
         adapter, model, image_path, prompt_text, knobs, _interpret_location
     )
 
@@ -471,4 +581,4 @@ def predict_location(
         # Draw on the same image the Model saw so the boxes land on the rendered variant.
         draw_overlay(image_path, interp.detections, path)
         overlay_path = str(path)
-    return _prediction(page, result_id, raw_content, interp, overlay_path)
+    return _prediction(page, result_id, raw_content, interp, stats, overlay_path)

@@ -2,7 +2,7 @@ from typing import Literal, NamedTuple, get_args
 
 from pydantic import BaseModel, Field
 
-ObjectLabel = Literal["cabinet", "countertop", "elevation", "elevation_callout"]
+ObjectLabel = Literal["cabinet", "countertop", "floor_plan", "elevation", "callout"]
 
 # The fixed object taxonomy in canonical order (glossary: ObjectType). Derived from
 # ``ObjectLabel`` so the enum stays the single source of truth for the labels.

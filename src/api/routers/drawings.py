@@ -16,6 +16,7 @@ from api.routers.common import DrawingRef
 from core.models.drawing import Drawing, Page
 from core.services.drawing import SUPPORTED_SUFFIXES, DrawingService
 from core.services.location_ground_truth import LocationGroundTruthService
+from core.services.pdf_processing import page_image_filename
 from core.utils import ground_truth_overlay_png
 
 router = APIRouter(prefix="/api", tags=["drawings"])
@@ -173,6 +174,16 @@ def _require_page_with_image(
     return page
 
 
+def _page_full_resolution_image_path(page: Page) -> Path:
+    """The Page's original full-resolution raster path.
+
+    Ingestion stores the full-resolution page raster as ``page_NNNN.png`` and the
+    cached preview under ``page_NNNN_downsampled.png``. Ground-truth overlay rendering
+    should drive the full-resolution source when available.
+    """
+    return Path(page.image_path).parent / page_image_filename(page.page_number)
+
+
 @router.get("/drawings/{drawing_id}/pages/{page_number}/image")
 def drawing_page_image(
     drawing_id: int,
@@ -202,5 +213,8 @@ def drawing_page_gt_overlay(
     rows = (
         LocationGroundTruthService(session).boxes_by_page(drawing_id).get(page.id, [])
     )
-    png = ground_truth_overlay_png(Path(page.image_path), rows)
+    image_path = _page_full_resolution_image_path(page)
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Page image not found")
+    png = ground_truth_overlay_png(image_path, rows)
     return Response(content=png, media_type="image/png")

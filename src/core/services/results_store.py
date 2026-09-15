@@ -98,6 +98,8 @@ class RunResultRow:
     recall: float
     f1: float
     scorer_output: dict
+    latency_ms: int | None
+    cost_usd: float | None
 
 
 class SharedResultsStore(Protocol):
@@ -160,6 +162,34 @@ def measured_anything(result: Result) -> bool:
     all-or-nothing case is withheld.
     """
     return any(prediction.parsed_json is not None for prediction in result.predictions)
+
+
+def document_cost_usd(result: Result) -> float | None:
+    """What this document cost this model to produce: every page's ``Prediction.cost_usd``
+    summed, since dollars really do add across pages regardless of how they were scheduled.
+
+    ``None`` only when not one page reported usage — the same rule ``_CallStats`` applies at
+    the page level (``core.services.run``), carried up so a document scored by a provider
+    that reports no ``usage`` block reads as *unmeasured* rather than a free run. A partial
+    Result (some pages measured, some not, e.g. a retried page that never got a clean
+    response) still sums what it has: an undercount that is visibly a sum-of-some is closer
+    to the truth than discarding the pages that did report.
+    """
+    costs = [p.cost_usd for p in result.predictions if p.cost_usd is not None]
+    return sum(costs) if costs else None
+
+
+def document_latency_ms(result: Result) -> int | None:
+    """The typical page latency for this document, not the total.
+
+    Pages render up to ``DEFAULT_MAX_CONCURRENCY`` at a time (``core.services.run``), so
+    summing every ``Prediction.latency_ms`` would measure the Run's scheduling more than the
+    model's speed — a four-page document at concurrency 3 does not take four times as long as
+    one page. The mean of the pages that were actually timed is comparable across documents
+    with different page counts, which a sum is not.
+    """
+    latencies = [p.latency_ms for p in result.predictions if p.latency_ms is not None]
+    return round(sum(latencies) / len(latencies)) if latencies else None
 
 
 def config_label(author: str, prompt: Prompt) -> str:
@@ -298,6 +328,8 @@ class ResultsStoreService:
             recall=computed.recall,
             f1=computed.f1,
             scorer_output=computed.scorer_output,
+            latency_ms=document_latency_ms(result),
+            cost_usd=document_cost_usd(result),
         )
 
 
@@ -308,11 +340,11 @@ class ResultsStoreService:
 _INSERT = """
     INSERT INTO experiments.run_results (
         id, model, document_id, config_label, iou_threshold, scorer_version, author,
-        tp, fp, fn, precision, recall, f1, scorer_output
+        tp, fp, fn, precision, recall, f1, scorer_output, latency_ms, cost_usd
     ) VALUES (
         %(id)s, %(model)s, %(document_id)s, %(config_label)s, %(iou_threshold)s,
         %(scorer_version)s, %(author)s, %(tp)s, %(fp)s, %(fn)s, %(precision)s,
-        %(recall)s, %(f1)s, %(scorer_output)s
+        %(recall)s, %(f1)s, %(scorer_output)s, %(latency_ms)s, %(cost_usd)s
     )
 """
 

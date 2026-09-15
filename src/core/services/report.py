@@ -10,8 +10,12 @@ there are no external references, so it opens by double-click over ``file://``. 
 ticket (03), so ticket 02 emits static markup with no script.
 
 Layout is page-major for a newcomer: an ObjectType colour legend, a summary block (headline
-verdict + F1 ranking + coverage note), one section per page (GT column first where present,
-then a column per model), and a per-label breakdown table.
+verdict + F1 ranking + coverage note + what the Run cost), one section per page (GT column
+first where present, then a column per model), and a per-label breakdown table.
+
+The ranking table carries latency and cost per page alongside F1, aggregated from the
+per-page figures each Prediction recorded at run time — so accuracy is read next to what it
+cost, and a model that wins by a point at ten times the price says so.
 
 Per-page and aggregate F1 are recomputed at generation time from the **salvage-inclusive**
 seam ``ScoringService.predicted_boxes_by_page`` (ADR 0027) and the pure ``score_location``
@@ -69,6 +73,52 @@ class _Cell:
     f1: float | None
 
 
+@dataclass(frozen=True)
+class _Usage:
+    """What a model's answers cost across the Run: the mean per page and the run total, over
+    the pages that carry a measurement. All ``None`` when nothing was measured — a Run that
+    predates the columns, or a provider that reported no usage — so the report prints "—"
+    rather than a fabricated zero. Pages are counted separately per figure because latency is
+    recorded even for a call that raised, while cost only exists when a response came back.
+    """
+
+    avg_latency_ms: float | None
+    cost_per_page: float | None
+    total_cost: float | None
+    priced_pages: int
+
+
+def _usage(predictions: list[Prediction]) -> _Usage:
+    """Aggregate a Result's per-page latency/cost. The cost mean divides by the pages actually
+    priced, not by the Run's page count: a model that failed half its pages would otherwise
+    look half as expensive as it is."""
+    latencies = [p.latency_ms for p in predictions if p.latency_ms is not None]
+    costs = [p.cost_usd for p in predictions if p.cost_usd is not None]
+    total_cost = sum(costs) if costs else None
+    return _Usage(
+        avg_latency_ms=sum(latencies) / len(latencies) if latencies else None,
+        cost_per_page=total_cost / len(costs) if costs else None,
+        total_cost=total_cost,
+        priced_pages=len(costs),
+    )
+
+
+def _format_latency(latency_ms: float | None) -> str:
+    if latency_ms is None:
+        return "—"
+    return f"{latency_ms / 1000:.1f} s"
+
+
+def _format_cost(cost: float | None) -> str:
+    """Four decimals, the scale a page of vision inference actually lands on. A cost that is
+    real but rounds away is shown as a bound rather than as free."""
+    if cost is None:
+        return "—"
+    if 0 < cost < 0.0001:
+        return "<$0.0001"
+    return f"${cost:.4f}"
+
+
 @dataclass
 class _ModelReport:
     """One model column across the whole Run: its aggregate rates (``None`` when the Drawing
@@ -87,6 +137,7 @@ class _ModelReport:
     cells_by_page: dict[int, _Cell]
     salvaged: bool
     no_output: bool
+    usage: _Usage
 
 
 def _esc(text: object) -> str:
@@ -216,6 +267,7 @@ class ReportService:
                     cells_by_page=cells,
                     salvaged=any_salvaged,
                     no_output=box_total == 0,
+                    usage=_usage(list(result.predictions)),
                 )
             )
         return reports
@@ -335,6 +387,10 @@ class ReportService:
                 )
             else:
                 cells = "<td>—</td><td>—</td><td>—</td>"
+            cells += (
+                f"<td>{_esc(_format_latency(model.usage.avg_latency_ms))}</td>"
+                f"<td>{_esc(_format_cost(model.usage.cost_per_page))}</td>"
+            )
             rows.append(
                 f"<tr><td>{i + 1}</td>"
                 f'<td class="model">{_esc(model.model)}{star}{badges}</td>'
@@ -348,7 +404,9 @@ class ReportService:
             f"{operating_point}"
             '<table class="ranking"><thead><tr>'
             "<th>#</th><th>Model</th><th>F1</th><th>Precision</th><th>Recall</th>"
+            "<th>Latency/page</th><th>Cost/page</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
+            f"{_render_run_cost(models)}"
             "</section>"
         )
 
@@ -454,6 +512,24 @@ def _render_operating_point(models: list[_ModelReport]) -> str:
     )
 
 
+def _render_run_cost(models: list[_ModelReport]) -> str:
+    """What the whole Run cost, under the per-model means it totals.
+
+    Cost per page is the number that compares models; the total is the one that answers "can
+    we afford to run this over the whole drawing set", so both are stated rather than left to
+    be multiplied by hand. Omitted entirely when no model reported a cost — an unpriced Run
+    should say nothing about money rather than claim it was free.
+    """
+    totals = [m.usage.total_cost for m in models if m.usage.total_cost is not None]
+    if not totals:
+        return ""
+    pages = sum(m.usage.priced_pages for m in models)
+    return (
+        f'<p class="run-cost">Run total {_esc(_format_cost(sum(totals)))} '
+        f"over {_esc(pages)} priced model-page(s)</p>"
+    )
+
+
 def _render_legend() -> str:
     items = "".join(
         f'<li><span class="swatch" style="background:{color}"></span>{_esc(label)}</li>'
@@ -524,6 +600,7 @@ section { margin-bottom: 8px; }
 .verdict { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
 .coverage { color: #555; font-size: 13px; margin: 0; }
 .operating-point { color: #6b6b70; font-size: 12px; margin: 4px 0 0; }
+.run-cost { color: #555; font-size: 13px; margin: 10px 0 0; }
 .summary .ranking { margin-top: 12px; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #ececef; }

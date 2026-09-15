@@ -8,6 +8,9 @@ imported sideways.
 
 from pydantic import BaseModel
 
+from core.adapters.openrouter import efforts_for
+from core.models.model_catalog import ModelCatalogEntry
+
 
 class LeaderboardDrawing(BaseModel):
     """One Drawing in a dropdown/filter surface: id, name, and page count (used by the
@@ -26,10 +29,24 @@ class DrawingRef(BaseModel):
 
 
 class CatalogEntryOut(BaseModel):
-    """One curated model the launch form renders as a checkbox/chip and the catalog lists."""
+    """One curated model the launch form renders as a checkbox/chip and the catalog lists.
+    ``max_reasoning_effort`` is the highest effort this Model answers to, so the form can offer
+    the selection's shared band rather than let a Run be launched that one Model would reject
+    (``efforts_for``)."""
 
     slug: str
     label: str
+    max_reasoning_effort: str
+
+    @classmethod
+    def of(cls, entry: ModelCatalogEntry) -> "CatalogEntryOut":
+        """Build one from a catalog row, deriving the ceiling — so every endpoint that
+        returns a catalog entry reports the same one."""
+        return cls(
+            slug=entry.slug,
+            label=entry.label,
+            max_reasoning_effort=efforts_for([entry.slug])[-1],
+        )
 
 
 class KnobsOut(BaseModel):
@@ -42,3 +59,5 @@ class KnobsOut(BaseModel):
     downsample_px: int | None
     max_tokens: int
     temperature: float | None
+    # Null on a Run launched before the knob existed — see ``Run.reasoning_effort``.
+    reasoning_effort: str | None

@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # optional at construction so importing settings never fails, validated at call time.
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
 
+    # How long one model call may take. Generous because a reasoning Model thinks before it
+    # answers, and a dense drawing is exactly what makes it think longest; the old fixed 120s
+    # cut those calls off mid-thought and the Run recorded a timeout instead of a prediction.
+    openrouter_timeout_seconds: float = 600.0
+
     # --- The shared results store (scope 9, ticket 05) ------------------------------------
     #
     # Deliberately *not* ``database_url_override``: that one is the Lab's own database, which

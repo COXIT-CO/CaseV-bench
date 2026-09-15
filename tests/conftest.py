@@ -23,7 +23,11 @@ from sqlmodel import Session
 
 from api.app import create_app
 from api.deps import get_run_service
-from core.adapters.openrouter import DEFAULT_MAX_TOKENS, get_openrouter_adapter
+from core.adapters.openrouter import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_REASONING_EFFORT,
+    get_openrouter_adapter,
+)
 from core.config import settings
 from core.db import init_db, make_engine
 from core.models.drawing import Drawing, Page
@@ -90,9 +94,17 @@ class StubOpenRouterAdapter:
     each call so tests can assert on what was requested.
     """
 
-    def __init__(self, responses: dict[str, str] | None = None, default: str = "{}"):
+    def __init__(
+        self,
+        responses: dict[str, str] | None = None,
+        default: str = "{}",
+        finish_reason: str = "stop",
+    ):
         self.responses = responses or {}
         self.default = default
+        # What the canned response says stopped the call. ``length`` is the one a test reaches
+        # for: it is how a Model that spent its budget reasoning reports back.
+        self.finish_reason = finish_reason
         self.calls: list[dict] = []
 
     def send_image_prompt(
@@ -102,6 +114,7 @@ class StubOpenRouterAdapter:
         prompt: str,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float | None = None,
+        reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
     ) -> dict:
         self.calls.append(
             {
@@ -110,10 +123,18 @@ class StubOpenRouterAdapter:
                 "prompt": prompt,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
+                "reasoning_effort": reasoning_effort,
             }
         )
         content = self.responses.get(model, self.default)
-        return {"choices": [{"message": {"content": content}}]}
+        return {
+            "choices": [
+                {
+                    "message": {"content": content},
+                    "finish_reason": self.finish_reason,
+                }
+            ]
+        }
 
 
 @pytest.fixture(autouse=True)

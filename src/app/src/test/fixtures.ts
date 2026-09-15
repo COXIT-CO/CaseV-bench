@@ -17,7 +17,7 @@ import type {
 /** A representative `GET /api/meta` payload shared across tests. */
 export const META: ApiMeta = {
   app: "Prompt & Config Lab",
-  labels: ["cabinet", "countertop", "elevation", "elevation_callout"],
+  labels: ["cabinet", "countertop", "floor_plan", "elevation", "callout"],
   drawing_count: 3,
   run_count: 7,
   result_count: 12,
@@ -36,7 +36,7 @@ export const LOCATION_BOARD: LeaderboardResponse = {
   sort: "f1",
   metrics: ["f1", "precision", "recall"],
   drawings: DRAWINGS,
-  label_count: 4,
+  label_count: 5,
   iou_threshold: 0.5,
   canonical_iou: true,
   canonical_iou_threshold: 0.5,
@@ -94,7 +94,7 @@ export const EMPTY_BOARD: LeaderboardResponse = {
   sort: "f1",
   metrics: ["f1", "precision", "recall"],
   drawings: [],
-  label_count: 4,
+  label_count: 5,
   iou_threshold: 0.5,
   canonical_iou: true,
   canonical_iou_threshold: 0.5,
@@ -111,7 +111,7 @@ export const LOCATION_RESULT: ResultDetailResponse = {
   drawing_id: 3,
   drawing_name: "floorplan",
   scored: true,
-  label_count: 4,
+  label_count: 5,
   knobs: { dpi: 600, downsample_px: 2000, max_tokens: 8192, temperature: null },
   iou_threshold: 0.5,
   canonical_iou: true,
@@ -121,10 +121,51 @@ export const LOCATION_RESULT: ResultDetailResponse = {
     recall: 0.81,
     f1: 0.84,
     per_label: [
-      { label: "cabinet", tp: 22, fp: 3, fn: 2, precision: 0.88, recall: 0.92, f1: 0.9 },
-      { label: "countertop", tp: 14, fp: 2, fn: 4, precision: 0.88, recall: 0.78, f1: 0.82 },
-      { label: "elevation", tp: 9, fp: 1, fn: 1, precision: 0.9, recall: 0.9, f1: 0.9 },
-      { label: "elevation_callout", tp: 11, fp: 4, fn: 2, precision: 0.73, recall: 0.85, f1: 0.79 },
+      {
+        label: "cabinet",
+        tp: 22,
+        fp: 3,
+        fn: 2,
+        precision: 0.88,
+        recall: 0.92,
+        f1: 0.9,
+      },
+      {
+        label: "countertop",
+        tp: 14,
+        fp: 2,
+        fn: 4,
+        precision: 0.88,
+        recall: 0.78,
+        f1: 0.82,
+      },
+      {
+        label: "floor_plan",
+        tp: 5,
+        fp: 1,
+        fn: 0,
+        precision: 0.83,
+        recall: 1.0,
+        f1: 0.91,
+      },
+      {
+        label: "elevation",
+        tp: 9,
+        fp: 1,
+        fn: 1,
+        precision: 0.9,
+        recall: 0.9,
+        f1: 0.9,
+      },
+      {
+        label: "callout",
+        tp: 11,
+        fp: 4,
+        fn: 2,
+        precision: 0.73,
+        recall: 0.85,
+        f1: 0.79,
+      },
     ],
   },
   predictions: [
@@ -282,9 +323,21 @@ export const LAUNCH_OPTIONS: LaunchOptionsResponse = {
     { id: 5, name: "prj0002", page_count: 2 },
   ],
   catalog: [
-    { slug: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
-    { slug: "openai/gpt-5-mini", label: "GPT-5 mini" },
-    { slug: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    {
+      slug: "anthropic/claude-sonnet-4.5",
+      label: "Claude Sonnet 4.5",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "openai/gpt-5-mini",
+      label: "GPT-5 mini",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "google/gemini-2.5-flash",
+      label: "Gemini 2.5 Flash",
+      max_reasoning_effort: "high" as const,
+    },
   ],
 };
 
@@ -397,7 +450,10 @@ export const DRAWING_DETAIL: DrawingDetailResponse = {
 export const LOCATION_IMPORT_RESULT: LocationImportResponse = {
   created: 37,
   problems: [
-    { kind: "unmapped_label", detail: "no taxonomy mapping for label 'windows'" },
+    {
+      kind: "unmapped_label",
+      detail: "no taxonomy mapping for label 'windows'",
+    },
     {
       kind: "unknown_page",
       detail: "object references page 9, which drawing 3 does not have",
@@ -408,9 +464,21 @@ export const LOCATION_IMPORT_RESULT: LocationImportResponse = {
 /** The curated model catalog for the Library Models view. */
 export const MODELS: ModelsResponse = {
   catalog: [
-    { slug: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
-    { slug: "openai/gpt-5-mini", label: "GPT-5 mini" },
-    { slug: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    {
+      slug: "anthropic/claude-sonnet-4.5",
+      label: "Claude Sonnet 4.5",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "openai/gpt-5-mini",
+      label: "GPT-5 mini",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "google/gemini-2.5-flash",
+      label: "Gemini 2.5 Flash",
+      max_reasoning_effort: "high" as const,
+    },
   ],
 };
 

@@ -9,7 +9,14 @@ import time
 
 from conftest import LOCATION_BOXES_JSON, seed_location_drawing_id
 
+from core.adapters.openrouter import DEFAULT_MAX_TOKENS, DEFAULT_REASONING_EFFORT
+from core.services.model_catalog import DEFAULT_MODEL_CATALOG
+
 SONNET = "anthropic/claude-sonnet-4.5"
+# Two roster Models with different effort ceilings: Qwen takes the whole band, the Gemini line
+# stops at ``high``.
+QWEN = "qwen/qwen3.8-max"
+GEMINI_FLASH = "google/gemini-3.7-flash"
 
 
 def _launch(client, prompt_id, drawing_id, **body) -> dict:
@@ -27,7 +34,7 @@ def test_launch_options_lists_prompts_drawings_and_catalog(client, engine):
     assert any(p["family"] == "default" for p in body["prompts"])
     assert body["drawings"][0] == {"id": 1, "name": "sample", "page_count": 1}
     slugs = {c["slug"] for c in body["catalog"]}
-    assert SONNET in slugs
+    assert slugs == {slug for slug, _ in DEFAULT_MODEL_CATALOG}
 
 
 def test_launch_options_empty_drawings_when_none_uploaded(client):
@@ -61,6 +68,7 @@ def test_create_run_returns_queued_run_and_detail_carries_knobs(
         "downsample_px",
         "max_tokens",
         "temperature",
+        "reasoning_effort",
     }
     assert [r["model"] for r in detail["results"]] == [SONNET]
 
@@ -113,6 +121,99 @@ def test_create_run_provider_default_temperature_is_omitted(
     assert stub_adapter.calls[-1]["temperature"] is None
 
 
+def test_create_run_snapshots_and_sends_reasoning_effort(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
+    # The chosen effort is snapshotted on the Run and is what every Model was asked for.
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {SONNET: LOCATION_BOXES_JSON}
+
+    run_id = _launch(
+        client,
+        location_prompt.id,
+        drawing_id,
+        models=[SONNET],
+        reasoning_effort="high",
+    ).json()["id"]
+    _poll_status(client, run_id)
+
+    knobs = client.get(f"/api/runs/{run_id}").json()["knobs"]
+    assert knobs["reasoning_effort"] == "high"
+    assert stub_adapter.calls[-1]["reasoning_effort"] == "high"
+
+
+def test_create_run_allows_xhigh_when_every_selected_model_accepts_it(
+    client, engine, stub_adapter, location_prompt, temp_overlay_run_service
+):
+    drawing_id = seed_location_drawing_id(engine)
+    stub_adapter.responses = {QWEN: LOCATION_BOXES_JSON}
+
+    resp = _launch(
+        client,
+        location_prompt.id,
+        drawing_id,
+        models=[QWEN],
+        reasoning_effort="xhigh",
+    )
+
+    assert resp.status_code == 201
+    run_id = resp.json()["id"]
+    _poll_status(client, run_id)
+    assert client.get(f"/api/runs/{run_id}").json()["knobs"]["reasoning_effort"] == (
+        "xhigh"
+    )
+    assert stub_adapter.calls[-1]["reasoning_effort"] == "xhigh"
+
+
+def test_create_run_rejects_an_effort_one_selected_model_cannot_answer(
+    client, engine, location_prompt, temp_overlay_run_service
+):
+    # The Gemini line stops at ``high``. Queuing this would leave the Run with Results at two
+    # different settings — the comparability the single knob exists to protect — so it is
+    # refused at the edge rather than surfacing as one model's error mid-fan-out.
+    drawing_id = seed_location_drawing_id(engine)
+
+    resp = _launch(
+        client,
+        location_prompt.id,
+        drawing_id,
+        models=[QWEN, GEMINI_FLASH],
+        reasoning_effort="xhigh",
+    )
+
+    assert resp.status_code == 422
+    assert "xhigh" in resp.json()["detail"]
+
+
+def test_create_run_rejects_an_effort_outside_the_vocabulary(
+    client, engine, location_prompt, temp_overlay_run_service
+):
+    # ``max`` exists on one Model only and is not in the band at all.
+    drawing_id = seed_location_drawing_id(engine)
+
+    resp = _launch(
+        client,
+        location_prompt.id,
+        drawing_id,
+        models=[QWEN],
+        reasoning_effort="max",
+    )
+
+    assert resp.status_code == 422
+
+
+def test_launch_options_report_each_model_effort_ceiling(client, engine):
+    # What the form needs to offer the selection's shared band instead of letting a Run be
+    # launched that one Model would reject.
+    seed_location_drawing_id(engine)
+
+    catalog = client.get("/api/runs/launch-options").json()["catalog"]
+    ceilings = {c["slug"]: c["max_reasoning_effort"] for c in catalog}
+
+    assert ceilings[GEMINI_FLASH] == "high"
+    assert ceilings[QWEN] == "xhigh"
+
+
 def test_create_run_defaults_knobs_when_advanced_untouched(
     client, engine, stub_adapter, location_prompt, temp_overlay_run_service
 ):
@@ -126,8 +227,11 @@ def test_create_run_defaults_knobs_when_advanced_untouched(
     knobs = client.get(f"/api/runs/{run_id}").json()["knobs"]
     assert knobs["dpi"] == 300
     assert knobs["downsample_px"] == 1568
-    assert knobs["max_tokens"] == 4096
-    assert knobs["temperature"] == 0.0
+    assert knobs["max_tokens"] == DEFAULT_MAX_TOKENS
+    # The pre-filled temperature is the provider default: an explicit one is what a reasoning
+    # Model rejects, and one catalog Model does not accept the parameter at all.
+    assert knobs["temperature"] is None
+    assert knobs["reasoning_effort"] == DEFAULT_REASONING_EFFORT
 
 
 def test_create_run_snapshots_dpi_and_downsample(

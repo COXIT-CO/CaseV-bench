@@ -74,7 +74,7 @@ def test_leaderboard_api_ranks_scored_rows(
     # Filter surface: the ranking metrics and the drawings dropdown.
     assert body["sort"] == "f1"
     assert body["metrics"] == ["f1", "precision", "recall"]
-    assert body["label_count"] == 4
+    assert body["label_count"] == 5
     assert body["drawing_id"] == drawing_id
     assert {"id": drawing_id, "name": "sample", "page_count": 1} in body["drawings"]
 

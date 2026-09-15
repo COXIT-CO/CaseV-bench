@@ -8,6 +8,7 @@ aborting the Run or affecting other models.
 from conftest import LOCATION_BOXES_JSON, seed_location_drawing
 from sqlmodel import select
 
+from core.adapters.openrouter import DEFAULT_MAX_TOKENS
 from core.models.results import LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, RunStatus
 from core.services.run import RunService
@@ -30,9 +31,10 @@ def test_run_persists_results_and_predictions(
     assert run.total_units == 4  # 2 models * 2 pages
     assert run.progress == 4
     # The per-run knobs are snapshotted on the Run and are what the adapter was called with.
-    assert run.max_tokens == 4096
+    assert run.max_tokens == DEFAULT_MAX_TOKENS
     assert stub_adapter.calls[0]["max_tokens"] == run.max_tokens
     assert stub_adapter.calls[0]["temperature"] == run.temperature
+    assert stub_adapter.calls[0]["reasoning_effort"] == run.reasoning_effort
     # No prefill argument survives — the request is a single model-agnostic turn (ADR 0019).
     assert "prefill_json" not in stub_adapter.calls[0]
 

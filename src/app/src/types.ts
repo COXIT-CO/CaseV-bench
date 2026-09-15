@@ -172,6 +172,9 @@ export interface LaunchPrompt {
 export interface CatalogEntry {
   slug: string;
   label: string;
+  /** The highest effort this Model answers to, so the form can offer the selection's shared
+   * band rather than let a Run be launched that one Model would reject. */
+  max_reasoning_effort: ReasoningEffort;
 }
 
 /** `GET /api/runs/launch-options` — everything the launch form needs (spec §A.4). */
@@ -180,6 +183,11 @@ export interface LaunchOptionsResponse {
   drawings: LeaderboardDrawing[];
   catalog: CatalogEntry[];
 }
+
+/** The reasoning effort a Run asks of every Model, weakest first. A Run asks every selected
+ * Model the same thing, so the form offers only the band all of them accept — see
+ * `max_reasoning_effort` on `CatalogEntry`. */
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 /** `POST /api/runs` body: curated slugs + a free-text escape hatch, resolved server-side,
  * plus the Advanced knobs (tickets 04/05). `dpi`/`downsample_px`/`max_tokens` are pre-filled;
@@ -194,6 +202,7 @@ export interface RunCreateRequest {
   downsample_px: number | null;
   max_tokens: number;
   temperature: number | null;
+  reasoning_effort: ReasoningEffort;
 }
 
 /** `DELETE /api/runs/{id}` → the collateral the cascade removed (ADR-0016): the Run itself
@@ -245,6 +254,7 @@ export interface RunKnobs {
   downsample_px: number | null;
   max_tokens: number;
   temperature: number | null;
+  reasoning_effort: ReasoningEffort | null;
 }
 
 /** `GET /api/runs/{id}` — header + fixed-knobs snapshot + result rows (spec §A.4). */
