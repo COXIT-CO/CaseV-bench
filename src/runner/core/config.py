@@ -10,14 +10,16 @@ from core.scoring import ScorerWrapper
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "object_location_v1.md"
 
+DEFAULT_MAX_PX = 5000
+
 # Model roster: slug -> max long-edge in pixels for rendered pages sent to that provider. Read by
 # casev run for per-model image caps, and by the weekly benchmark workflow to build its job matrix.
 MODEL_ROSTER: dict[str, int] = {
-    "google/gemini-3.5-flash": 2576,
-    "qwen/qwen3.8-max": 2576,
+    "google/gemini-3.8-flash": DEFAULT_MAX_PX,
+    "anthropic/claude-fable-5.1": DEFAULT_MAX_PX,
+    "openai/gpt-6-astra": DEFAULT_MAX_PX,
 }
 
-DEFAULT_MAX_PX = 2576
 DEFAULT_TEMPERATURE = 0.0
 DEFAULT_MAX_OUTPUT_TOKENS = 50000
 

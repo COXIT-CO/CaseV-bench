@@ -57,7 +57,7 @@ Useful `run` flags:
 | `--model` | *(required)* | OpenRouter model slug |
 | `--run-id` | `<model>__<date>` | Explicit run id, for deterministic resume/reruns |
 | `--out-dir` | `results` | Where run directories are written |
-| `--max-px` | `2576` | Target long edge in pixels, if the model isn't in `MODEL_ROSTER` (`core/config.py`) |
+| `--max-px` | `5000` | Target long edge in pixels, if the model isn't in `MODEL_ROSTER` (`core/config.py`) |
 | `--threads` | `1` | Pages to send to the model concurrently |
 
 A run that's already partially written (matching `run-id`) resumes: pages already scored
