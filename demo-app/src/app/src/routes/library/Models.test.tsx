@@ -44,7 +44,16 @@ describe("Models catalog", () => {
 
   it("adds a model with its slug and label, then shows it after the refetch", async () => {
     const user = userEvent.setup();
-    const added = { slug: "mistralai/pixtral-12b", label: "Pixtral 12B", max_reasoning_effort: "high" as const };
+    // What the form actually sends to the API — just slug + label, no reasoning effort.
+    const addModelPayload = {
+      slug: "mistralai/pixtral-12b",
+      label: "Pixtral 12B",
+    };
+    // What the server returns after adding — a full CatalogEntry.
+    const added = {
+      ...addModelPayload,
+      max_reasoning_effort: "high" as const,
+    };
     // First render shows the seeded three; after the add the refetch includes the new entry.
     vi.mocked(api.models)
       .mockResolvedValueOnce(MODELS)
@@ -62,7 +71,10 @@ describe("Models catalog", () => {
 
     // The slug/label are trimmed before they reach the API.
     await waitFor(() =>
-      expect(api.addModel).toHaveBeenCalledWith(added, expect.anything()),
+      expect(api.addModel).toHaveBeenCalledWith(
+        addModelPayload,
+        expect.anything(),
+      ),
     );
     expect(await screen.findByText("Pixtral 12B")).toBeInTheDocument();
   });
