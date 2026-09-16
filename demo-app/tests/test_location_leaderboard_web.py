@@ -1,0 +1,113 @@
+"""End-to-end check that a location Result scores on the location path (ticket 11),
+through the live Run flow and the JSON drill-down. The Jinja Leaderboard board (ticket 02)
+and Result detail (ticket 03) were both retired — the location board lives in the React
+SPA against ``GET /api/leaderboard`` (see
+``tests/test_location_leaderboard_api.py``) and the drill-down against
+``GET /api/results/{id}`` (see ``tests/test_result_detail_api.py``). Here we assert the
+run-then-read path yields an IoU@0.5 P/R/F1 score."""
+
+import json
+import time
+
+from conftest import seed_page_images
+from sqlmodel import Session, select
+
+from api.deps import get_run_service
+from core.models.drawing import Drawing, Page
+from core.models.prompt import Prompt
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.services.run import RunService
+
+SONNET = "anthropic/claude-sonnet-4.5"
+BOXES_JSON = json.dumps(
+    [
+        {
+            "label": "cabinet",
+            "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4},
+        }
+    ]
+)
+
+
+def _seed_drawing(engine, tmp_path) -> int:
+    with Session(engine) as session:
+        drawing = Drawing(name="sample")
+        session.add(drawing)
+        session.commit()
+        session.refresh(drawing)
+        (image_path,) = seed_page_images(tmp_path / str(drawing.id), n_pages=1)
+        session.add(
+            Page(
+                drawing_id=drawing.id,
+                page_number=1,
+                image_path=str(image_path),
+                width_px=100,
+                height_px=100,
+                native_width_pt=100.0,
+                native_height_pt=100.0,
+            )
+        )
+        session.commit()
+        return drawing.id
+
+
+def _location_prompt_id(engine) -> int:
+    with Session(engine) as session:
+        return session.exec(select(Prompt)).first().id
+
+
+def _import_gt(engine, drawing_id) -> None:
+    with Session(engine) as session:
+        LocationGroundTruthService(session).import_objects(
+            drawing_id,
+            {
+                "objects": [
+                    {
+                        "id": "a",
+                        "category": "cabinet",
+                        "page": 1,
+                        "bbox": {"x": 10, "y": 10, "width": 30, "height": 30},
+                    }
+                ],
+            },
+        )
+
+
+def _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id):
+    app.dependency_overrides[get_run_service] = lambda: RunService(
+        Session(engine), stub_adapter, overlay_root=tmp_path / "overlays"
+    )
+    stub_adapter.responses = {SONNET: BOXES_JSON}
+    launched = client.post(
+        "/api/runs",
+        json={
+            "prompt_id": _location_prompt_id(engine),
+            "drawing_id": drawing_id,
+            "models": [SONNET],
+        },
+    )
+    run_id = launched.json()["id"]
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        if client.get(f"/api/runs/{run_id}/status").json()["status"] == "done":
+            return
+        time.sleep(0.02)
+    raise AssertionError("run did not finish in time")
+
+
+def test_location_result_detail_shows_iou_score(
+    app, client, engine, stub_adapter, tmp_path
+):
+    drawing_id = _seed_drawing(engine, tmp_path)
+    _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
+    _import_gt(engine, drawing_id)
+
+    with Session(engine) as session:
+        from core.models.run import Result
+
+        result_id = session.exec(select(Result)).first().id
+    detail = client.get(f"/api/results/{result_id}")
+    assert detail.status_code == 200
+    body = detail.json()
+    # A location Result is scored on IoU@0.5 P/R/F1.
+    assert body["location_score"] is not None
