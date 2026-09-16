@@ -1,7 +1,7 @@
 """Model catalog & selection — seed the curated model list and turn a form
 submission into the plain slug list a Run consumes (ticket 04).
 
-The curated slugs are seeded into SQLite (ADR 0007: SQLite is the sole store; known
+The roster slugs are seeded into SQLite (ADR 0007: SQLite is the sole store; known
 code-time data is seeded, like the prompt ``.md`` files). ``resolve_selection`` is a
 pure function over form input — checked seeded slugs plus a free-text escape hatch —
 so it needs no database and is trivially testable.
@@ -13,11 +13,15 @@ from sqlmodel import Session, select
 
 from core.models.model_catalog import ModelCatalogEntry
 
-# The curated seed: known vision-capable OpenRouter slugs (the POC's three).
+# The fixed benchmark roster (ADR 0049): one vision model per provider, chosen on
+# grounded-detection evidence rather than general chat ability. Changing this list
+# invalidates cross-model comparison and requires a full re-run of the corpus.
 DEFAULT_MODEL_CATALOG: list[tuple[str, str]] = [
-    ("anthropic/claude-sonnet-4.5", "Claude Sonnet 4.5"),
-    ("openai/gpt-5-mini", "GPT-5 mini"),
-    ("google/gemini-2.5-flash", "Gemini 2.5 Flash"),
+    ("qwen/qwen3.8-max", "Qwen3.8-Max"),
+    ("google/gemini-3.7-flash", "Gemini 3.7 Flash"),
+    ("openai/gpt-5.6-sol", "GPT-5.6 Sol"),
+    ("anthropic/claude-opus-5", "Claude Opus 5"),
+    ("x-ai/grok-4.6", "Grok 4.6"),
 ]
 
 # Free-text may be pasted comma-, newline-, or whitespace-separated; slugs have no

@@ -15,7 +15,7 @@ root. See [`docs/adr/`](docs/adr/) for the decision record and
 src/
   app/    React + Vite + TypeScript SPA (the Prompt & Config Lab)   → ADR-0010
   api/    FastAPI web layer — routers/ + thin wiring, no business logic
-  core/   Domain engine — services, adapters, models, prompts, db, config, cli
+  core/   Domain engine — services, adapters, models, prompts, db, config, cli, audits
 data/     Local data root (CASEV_DATA_ROOT); only data/input/ fixtures are tracked
 docs/     ADRs, specs, runbooks, glossary
 tests/    pytest suite (JSON-API contract + service tests)
@@ -44,6 +44,15 @@ poetry install --with dev --no-root
 `--no-root` because the project ships as a `pythonpath` source tree (`pyproject` sets
 `pythonpath = ["src"]`), not an installed package.
 
+This step fetches `location-scorer` from a pinned git tag
+([ADR-0028](docs/adr/0028-extract-location-scorer-library.md)), so it needs network access to
+GitHub. If Poetry's bundled git client fails the TLS handshake (`CERTIFICATE_VERIFY_FAILED`
+behind a proxy or on a Python without a system trust store), rerun it through your own `git`:
+
+```bash
+POETRY_SYSTEM_GIT_CLIENT=true poetry install --with dev --no-root
+```
+
 **Frontend**:
 
 ```bash
@@ -59,6 +68,26 @@ OPENROUTER_API_KEY=sk-or-...
 
 or export it in your shell. A missing key fails only at the moment a run is launched, with a
 clear message — importing the app and running the tests never need it.
+
+**Shared results store** (optional): a completed Run can also append its per-model scores to
+the team's shared `experiments.run_results` table, so results produced by different tools can
+be compared. It is **off unless both** of these are set:
+
+```
+CASEV_EXPERIMENTS_DATABASE_URL=postgresql://experiments_rw:...@.../casev_bench
+CASEV_EXPERIMENTS_AUTHOR=achumak
+```
+
+The credential is `experiments_rw` from the team password manager — it holds `SELECT, INSERT`
+and nothing else, so a mistake here cannot damage anyone's results. `CASEV_EXPERIMENTS_AUTHOR`
+is who the rows record as their producer and the namespace every `config_label` this Lab
+writes is prefixed with; there is no default, because a wrong author is worse than no row.
+Note this is *not* `CASEV_DATABASE_URL`, which is the Lab's own database and stays SQLite.
+
+Publishing is best-effort and never fails a Run: an unreachable store costs the record of an
+experiment, never the experiment. The table's shape is declared on `main`
+(`src/results_store/models.py`), which this branch reads and never imports — see
+[ADR 0038](docs/adr/0038-shared-results-store.md).
 
 ## Running in dev
 
@@ -98,6 +127,20 @@ docker run --rm -p 8000:8000 \
 The `-v …:/data` mount is the local stand-in for the Railway Volume: state written there
 survives `docker rm` and a re-run, exactly as it survives a redeploy in production. The
 container defaults `CASEV_DATA_ROOT=/data`.
+
+## Auditing a store
+
+Read-only data checks an operator runs against whatever store `CASEV_DATA_ROOT` points at —
+a local checkout, the container mount, or the production Volume over `railway ssh`:
+
+```bash
+PYTHONPATH=src poetry run python -m core.audit
+```
+
+It **exits non-zero when it finds anything**, so it can gate a migration. Currently one check:
+location ground-truth boxes that enclose no area
+([ADR-0031](docs/adr/0031-strict-gt-lenient-predictions.md)) — such a box can never be matched,
+so it silently caps a Drawing's recall below 1.0.
 
 ## Running the tests
 

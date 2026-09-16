@@ -41,6 +41,31 @@ class Settings(BaseSettings):
     # optional at construction so importing settings never fails, validated at call time.
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
 
+    # How long one model call may take. Generous because a reasoning Model thinks before it
+    # answers, and a dense drawing is exactly what makes it think longest; the old fixed 120s
+    # cut those calls off mid-thought and the Run recorded a timeout instead of a prediction.
+    openrouter_timeout_seconds: float = 600.0
+
+    # --- The shared results store (scope 9, ticket 05) ------------------------------------
+    #
+    # Deliberately *not* ``database_url_override``: that one is the Lab's own database, which
+    # stays SQLite. This is a second, foreign database the Lab only ever appends to, holding
+    # the ``experiments_rw`` credential (SELECT, INSERT and nothing else). Two names because
+    # they are two databases with two lifetimes; pointing either at the other is a mistake the
+    # separate names make hard to commit.
+    #
+    # Both unset is the normal local state: publishing is then simply off and the Lab behaves
+    # exactly as it did before ticket 05. Nothing here can fail a Run.
+    experiments_database_url: str | None = Field(
+        default=None, alias="CASEV_EXPERIMENTS_DATABASE_URL"
+    )
+    # Who the shared table records as the producer of a row, and the namespace every
+    # ``config_label`` this Lab writes is prefixed with. There is no default: a wrong author is
+    # worse than no row, since provenance in the shared table would then be a guess.
+    experiments_author: str | None = Field(
+        default=None, alias="CASEV_EXPERIMENTS_AUTHOR"
+    )
+
     @property
     def drawings_root(self) -> Path:
         """Where ingested page images are cached."""

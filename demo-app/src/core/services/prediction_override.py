@@ -15,8 +15,7 @@ override:
   (``overlay_to_png_bytes``), caching nothing. Returns ``None`` when there is no edit, so the
   overlay route falls back to the cached run-time PNG.
 
-The edit is **location-only** (a redraw means boxes; counting has no overlay) and **per-page**
-(per Prediction).
+The edit is **per-page** (per Prediction).
 """
 
 from pathlib import Path
@@ -25,7 +24,6 @@ from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Task
 from core.models.results import LocationResult
 from core.models.run import Prediction, Result, Run
 from core.services.pdf_processing import render_run_page
@@ -34,12 +32,11 @@ from core.utils import overlay_to_png_bytes
 
 class PredictionOverrideError(ValueError):
     """A rejected override, carrying a precise message the route surfaces as a ``400``:
-    malformed JSON, a label outside the taxonomy, an out-of-range coordinate, or an edit aimed
-    at a counting Prediction (editing is location-only)."""
+    malformed JSON, a label outside the taxonomy, or an out-of-range coordinate."""
 
 
 class PredictionOverrideService:
-    """Session-scoped set/clear of a location Prediction's manual JSON override (ADR 0020)."""
+    """Session-scoped set/clear of a Prediction's manual JSON override (ADR 0020)."""
 
     def __init__(self, session: Session):
         self.session = session
@@ -49,9 +46,9 @@ class PredictionOverrideService:
     ) -> Prediction:
         """Validate ``payload`` as a ``LocationResult`` and persist it as this Prediction's
         edit, leaving the model's original output untouched. Raises ``PredictionOverrideError``
-        (invalid JSON / bad label / out-of-range coord / counting Prediction) with nothing
-        persisted, or ``LookupError`` when no such Prediction exists."""
-        prediction, _ = self._location_prediction(result_id, page_number)
+        (invalid JSON / bad label / out-of-range coord) with nothing persisted, or
+        ``LookupError`` when no such Prediction exists."""
+        prediction = self._prediction(result_id, page_number)
         try:
             validated = LocationResult.model_validate_json(payload)
         except ValidationError as exc:
@@ -66,9 +63,8 @@ class PredictionOverrideService:
 
     def revert(self, result_id: int, page_number: int) -> Prediction:
         """Clear the override, restoring the model's output and its cached overlay. A no-op on
-        an already-unedited Prediction. Raises ``LookupError`` / ``PredictionOverrideError``
-        like ``set_override``."""
-        prediction, _ = self._location_prediction(result_id, page_number)
+        an already-unedited Prediction. Raises ``LookupError`` like ``set_override``."""
+        prediction = self._prediction(result_id, page_number)
         prediction.edited_json = None
         self.session.add(prediction)
         self.session.commit()
@@ -81,11 +77,14 @@ class PredictionOverrideService:
         Re-renders the page at the Run's ``(dpi, downsample_px)`` — reusing the run's cached
         render — and draws the edited boxes through the shared renderer, caching nothing.
         """
-        prediction, run = self._location_prediction(result_id, page_number)
+        prediction = self._prediction(result_id, page_number)
         if not prediction.edited_json:
             return None
         page = self.session.get(Page, prediction.page_id)
         drawing = self.session.get(Drawing, page.drawing_id)
+        # The only step that needs the Run: the re-render has to reuse the knobs the Run
+        # rendered at, or the edited overlay would not line up with the cached one.
+        run = self.session.get(Run, self.session.get(Result, result_id).run_id)
         image_path = render_run_page(
             Path(page.image_path).parent,
             prediction.page_number,
@@ -98,12 +97,9 @@ class PredictionOverrideService:
         ).detections
         return overlay_to_png_bytes(image_path, detections)
 
-    def _location_prediction(
-        self, result_id: int, page_number: int
-    ) -> tuple[Prediction, Run]:
-        """Fetch the (Prediction, Run) for a (Result, page), enforcing location-only editing.
-        Raises ``LookupError`` when no Prediction exists at that path (→ 404) and
-        ``PredictionOverrideError`` when the Run is a counting Run (→ 400)."""
+    def _prediction(self, result_id: int, page_number: int) -> Prediction:
+        """The Prediction at a (Result, page). Raises ``LookupError`` when there is none at
+        that path (→ 404)."""
         prediction = self.session.exec(
             select(Prediction).where(
                 Prediction.result_id == result_id,
@@ -114,13 +110,7 @@ class PredictionOverrideService:
             raise LookupError(
                 f"no prediction for result {result_id} page {page_number}"
             )
-        result = self.session.get(Result, result_id)
-        run = self.session.get(Run, result.run_id)
-        if run.task != Task.location:
-            raise PredictionOverrideError(
-                "editing is only available for location predictions"
-            )
-        return prediction, run
+        return prediction
 
 
 def _first_error(exc: ValidationError) -> str:

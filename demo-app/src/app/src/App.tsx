@@ -13,7 +13,7 @@ import { Drawings } from "@/routes/library/Drawings";
 import { Models } from "@/routes/library/Models";
 
 // Client-side routes (spec §B.2). The AppShell is the layout route; feature screens
-// render into its <Outlet/>. Detail routes (/runs/:id, /prompts/:task/:family,
+// render into its <Outlet/>. Detail routes (/runs/:id, /prompts/:family,
 // /library/drawings/:id) are wired in as their slices land.
 export function App() {
   return (
@@ -24,7 +24,7 @@ export function App() {
         <Route path="runs" element={<Runs />} />
         <Route path="runs/:id" element={<RunDetail />} />
         <Route path="prompts" element={<Prompts />} />
-        <Route path="prompts/:task/:family" element={<PromptHistory />} />
+        <Route path="prompts/:family" element={<PromptHistory />} />
         <Route path="library">
           <Route index element={<Navigate to="/library/drawings" replace />} />
           <Route path="drawings" element={<Drawings />} />

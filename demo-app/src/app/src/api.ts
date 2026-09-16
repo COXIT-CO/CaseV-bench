@@ -1,8 +1,6 @@
 import type {
   ApiMeta,
   CatalogEntry,
-  CountingGroundTruthResponse,
-  CountingGtSaveRequest,
   DrawingDeleted,
   DrawingDetailResponse,
   DrawingsResponse,
@@ -79,8 +77,8 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** PUT a JSON body and parse the JSON response, surfacing the same `{detail}` envelope as
- * `postJson` (spec §A.0). Used by the idempotent upserts (e.g. saving counting ground
- * truth). */
+ * `postJson` (spec §A.0). Used by the idempotent upserts (e.g. setting a Prediction's box
+ * override). */
 async function putJson<T>(path: string, body: unknown): Promise<T> {
   let response: Response;
   try {
@@ -155,19 +153,38 @@ export const api = {
   meta: () => getJson<ApiMeta>("/api/meta"),
 
   /**
-   * The ranked Leaderboard for a Task, filtered by Drawing and ranked by a metric
-   * (spec §A.2). Params map 1:1 to the URL query the SPA mirrors; `null` values are
-   * omitted so the server applies its defaults ("All drawings", the task's default sort).
+   * The ranked Leaderboard, filtered by Drawing/prompt and ranked by a metric (spec §A.2).
+   * Params map 1:1 to the URL query the SPA mirrors; `null` values are omitted so the server
+   * applies its defaults ("All drawings", the default sort). With every filter at its default
+   * the query is empty, so the `?` is dropped rather than sent bare.
    */
-  leaderboard: ({ task, drawing_id, sort }: LeaderboardParams) => {
-    const query = new URLSearchParams({ task });
+  leaderboard: ({
+    drawing_id,
+    prompt_family,
+    prompt_version,
+    sort,
+    iou_threshold,
+  }: LeaderboardParams) => {
+    const query = new URLSearchParams();
     if (drawing_id !== null) query.set("drawing_id", String(drawing_id));
+    if (prompt_family !== null) query.set("prompt_family", prompt_family);
+    if (prompt_version !== null)
+      query.set("prompt_version", String(prompt_version));
     if (sort !== null) query.set("sort", sort);
-    return getJson<LeaderboardResponse>(`/api/leaderboard?${query}`);
+    if (iou_threshold !== null)
+      query.set("iou_threshold", String(iou_threshold));
+    const suffix = query.size > 0 ? `?${query}` : "";
+    return getJson<LeaderboardResponse>(`/api/leaderboard${suffix}`);
   },
 
-  /** One Result's drill-down: header refs, the score block, and the per-page predictions (spec §A.3). */
-  result: (id: number) => getJson<ResultDetailResponse>(`/api/results/${id}`),
+  /** One Result's drill-down: header refs, the score block, and the per-page predictions
+   * (spec §A.3). `iouThreshold` re-scores at an exploratory operating point; omitted, the
+   * canonical Score is returned and persisted as usual. */
+  result: (id: number, iouThreshold: number | null = null) =>
+    getJson<ResultDetailResponse>(
+      `/api/results/${id}` +
+        (iouThreshold !== null ? `?iou_threshold=${iouThreshold}` : ""),
+    ),
 
   /** Set a location Prediction's manual JSON override — the corrected boxes as a
    * `LocationResult` string (ADR 0020, ticket 07). The server validates against the taxonomy
@@ -208,7 +225,7 @@ export const api = {
   runStatus: (id: number) =>
     getJson<RunStatusResponse>(`/api/runs/${id}/status`),
 
-  /** Prompt families grouped by Task, each with its latest version + count (spec §A.5). */
+  /** Every prompt family with its latest version + count (spec §A.5). */
   prompts: () => getJson<PromptsResponse>("/api/prompts"),
 
   /** Author a new family's v1; a duplicate family surfaces the service `400` (spec §A.5). */
@@ -217,31 +234,27 @@ export const api = {
 
   /** A family's immutable version history, newest-first, each version's text included so
    * compare/read needs no follow-up fetch (spec §A.5). */
-  promptHistory: (task: string, family: string) =>
-    getJson<PromptHistoryResponse>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}`,
-    ),
+  promptHistory: (family: string) =>
+    getJson<PromptHistoryResponse>(`/api/prompts/${encodeURIComponent(family)}`),
 
   /** "Edit" = append the next immutable version to a family (ADR 0009, spec §A.5). */
-  appendPromptVersion: (task: string, family: string, text: string) =>
+  appendPromptVersion: (family: string, text: string) =>
     postJson<PromptVersionRef>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions`,
+      `/api/prompts/${encodeURIComponent(family)}/versions`,
       { text },
     ),
 
   /** Permanently delete one immutable version, cascading the Runs that pinned it; returns the
    * collateral counts removed as the delete's receipt (ADR-0016, ticket 09). */
-  deletePromptVersion: (task: string, family: string, version: number) =>
+  deletePromptVersion: (family: string, version: number) =>
     deleteJson<PromptDeleted>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}/versions/${version}`,
+      `/api/prompts/${encodeURIComponent(family)}/versions/${version}`,
     ),
 
   /** Permanently delete a whole family — every version and every Run pinning any of them;
    * returns the collateral counts removed as the delete's receipt (ADR-0016, ticket 09). */
-  deletePromptFamily: (task: string, family: string) =>
-    deleteJson<PromptDeleted>(
-      `/api/prompts/${encodeURIComponent(task)}/${encodeURIComponent(family)}`,
-    ),
+  deletePromptFamily: (family: string) =>
+    deleteJson<PromptDeleted>(`/api/prompts/${encodeURIComponent(family)}`),
 
   /** The Library catalog of Drawings with page counts, newest-first (spec §A.6). */
   drawings: () => getJson<DrawingsResponse>("/api/drawings"),
@@ -279,27 +292,12 @@ export const api = {
    * embedded `/` is preserved by the `:path` route, so it must not be URL-encoded. */
   removeModel: (slug: string) => deleteJson<CatalogEntry>(`/api/models/${slug}`),
 
-  /** Pre-fill: one Drawing's counting-GT totals per taxonomy label (spec §A.6). */
-  countingGroundTruth: (id: number) =>
-    getJson<CountingGroundTruthResponse>(
-      `/api/drawings/${id}/counting-ground-truth`,
-    ),
-
-  /** Upsert one Drawing's counting-GT totals; returns the saved totals (spec §A.6). */
-  saveCountingGroundTruth: (id: number, totals: CountingGtSaveRequest) =>
-    putJson<CountingGroundTruthResponse>(
-      `/api/drawings/${id}/counting-ground-truth`,
-      totals,
-    ),
-
   /** Import a Drawing's LocationGroundTruth from a native `objects` JSON upload (multipart),
    * surfacing the importer's problem report (spec §A.6). The file needs no configuration — the
-   * label map is the identity and each object states its page (ADR 0022). With `deriveCounting`
-   * the import also writes the counting GT from the accepted boxes (default off — ADR 0025). */
-  importLocationGroundTruth: (id: number, file: File, deriveCounting: boolean) => {
+   * label map is the identity and each object states its page (ADR 0022). */
+  importLocationGroundTruth: (id: number, file: File) => {
     const form = new FormData();
     form.append("file", file);
-    form.append("derive_counting", String(deriveCounting));
     return postForm<LocationImportResponse>(
       `/api/drawings/${id}/location-ground-truth`,
       form,

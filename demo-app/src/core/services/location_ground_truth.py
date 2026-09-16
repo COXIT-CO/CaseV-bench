@@ -19,42 +19,90 @@ The importer:
 - validates each box falls within its page: a corner spilling over ``[0, 1]`` within a small
   tolerance (a flush-to-edge annotation) is clamped and accepted; a gross overflow is reported
   ``out_of_frame`` and that box skipped (per-box, not a whole-file reject);
-- checks each ``category`` against the fixed singular taxonomy — the label map is the identity
-  (ADR 0023), so an off-taxonomy category is a typo and is reported ``unmapped_label``;
-- **reports** an off-taxonomy category / an unknown page / a gross overflow instead of silently
-  dropping it, each distinct cause once, while still importing everything valid.
+- rejects a box enclosing no area — zero width/height, or inverted coordinates — as
+  ``degenerate_box``: nothing can ever match it, so storing it would silently cap the
+  Drawing's recall below 1.0 forever (ADR 0031);
+- resolves each ``category`` to a taxonomy label: the map is the identity (ADR 0023) plus a
+  short table of prose spellings an expert actually writes (``"floor plan"`` for
+  ``floor_plan``), matched case-insensitively; anything else is a typo, reported
+  ``unmapped_label``;
+- **reports** an off-taxonomy category / an unknown page / a gross overflow / a degenerate box
+  instead of silently dropping it, each distinct cause once, while still importing everything
+  valid.
 
 ``project_id`` is ignored — the Drawing the import was launched from is authoritative.
 Re-importing a Drawing replaces its existing location ground truth so an import is the whole
 truth for that Drawing rather than an append.
 """
 
-from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
 from sqlmodel import Session, select
 
-from core.models.drawing import Page
+from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
 from core.models.results import OBJECT_LABELS
-from core.services.counting_ground_truth import CountingGroundTruthService
 
-# The three reasons an object can't be imported (reported, never silently dropped).
-ProblemKind = Literal["unmapped_label", "unknown_page", "out_of_frame"]
+# The four reasons an object can't be imported (reported, never silently dropped).
+ProblemKind = Literal[
+    "unmapped_label", "unknown_page", "out_of_frame", "degenerate_box"
+]
 UNMAPPED_LABEL: ProblemKind = "unmapped_label"
 UNKNOWN_PAGE: ProblemKind = "unknown_page"
 OUT_OF_FRAME: ProblemKind = "out_of_frame"
+DEGENERATE_BOX: ProblemKind = "degenerate_box"
 
 # The fixed singular taxonomy (ADR 0023). The label map is the identity, so an expert file that
-# already speaks these names imports with no configuration; any other ``category`` is a typo.
+# already speaks these names imports with no configuration.
 _TAXONOMY: frozenset[str] = frozenset(OBJECT_LABELS)
+
+# Named aliases for taxonomy labels an expert writes as prose rather than as an identifier.
+# Only spellings we have actually seen are listed: an unlisted ``category`` stays an
+# ``unmapped_label`` typo rather than being silently normalized into the nearest label.
+# Lookup is case-insensitive over collapsed whitespace, so "Floor Plan" and "floor  plan"
+# resolve too — capitalization in a human-authored file is noise, not a different name.
+_ALIASES: dict[str, str] = {
+    "floor plan": "floor_plan",
+}
+
+
+def _taxonomy_label(category: object) -> str | None:
+    """The taxonomy label this source ``category`` denotes, or ``None`` when it denotes none."""
+    if category in _TAXONOMY:
+        return str(category)
+    if isinstance(category, str):
+        return _ALIASES.get(" ".join(category.split()).casefold())
+    return None
+
 
 # A box corner may spill past [0, 1] by this fraction (~0.5%) and still be accepted, clamped to
 # the unit square — this absorbs a legitimate flush-to-edge annotation. Beyond it, the box is
 # reported ``out_of_frame`` and skipped: a sign the file was authored against the wrong frame.
 _FRAME_TOLERANCE = 0.005
+
+
+def _degeneracy_reason(width: float, height: float) -> str | None:
+    """The named reason a box with these extents encloses no area, or ``None`` when it is
+    well-formed. Prose, meant to be read by whoever has to find the box in their source data.
+
+    A zero-area or inverted box can never be matched by any prediction, so storing one would
+    make it a permanent false negative that caps the Drawing's recall below 1.0 with nothing
+    in the numbers explaining why — an answer-key defect, not a scoring outcome (ADR 0031).
+
+    Takes extents rather than corners so it serves all three callers: a source box's native
+    ``[width, height]``, where a negative extent is exactly ``x_min > x_max`` on that axis;
+    the same box's extents after clamping to the page frame; and a stored row's normalized
+    ``x_max - x_min`` in the audit.
+    """
+    reasons = []
+    for extent, axis, dimension in ((width, "x", "width"), (height, "y", "height")):
+        if extent == 0:
+            reasons.append(f"zero {dimension}")
+        elif extent < 0:
+            reasons.append(f"inverted {axis} coordinates (negative {dimension})")
+    return " and ".join(reasons) if reasons else None
 
 
 @dataclass(frozen=True)
@@ -69,33 +117,37 @@ class LocationImportResult:
     problems: list[ImportProblem] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class DegenerateBoxFinding:
+    """One stored GT box that encloses no area, located well enough to fix at source.
+
+    Rows written before the import guard existed are still in the store, so the audit reads
+    what is there rather than replaying an import.
+    """
+
+    drawing_id: int
+    drawing_name: str
+    page_number: int
+    box_id: int
+    label: str
+    reason: str
+
+
 class LocationGroundTruthService:
     def __init__(self, session: Session):
         self.session = session
 
     def import_objects(
-        self, drawing_id: int, document: Mapping, derive_counting: bool = False
+        self, drawing_id: int, document: Mapping
     ) -> LocationImportResult:
         """Import a parsed native ``objects`` document as this Drawing's LocationGroundTruth.
 
         Replaces any existing ground truth for the Drawing. Returns the count created and a
-        list of problems (off-taxonomy categories / unknown pages / gross overflows) that were
-        reported, not imported. ``project_id`` in the document is ignored — ``drawing_id`` is
-        authoritative.
-
-        With ``derive_counting`` set (off by default — ADR 0025), the accepted boxes are
-        tallied per label and written as this Drawing's counting GT through the existing
-        ``CountingGroundTruthService`` — a convenience writer, never a silent coupling. Only
-        the labels these boxes actually cover are written: a taxonomy label with no accepted
-        box is left untouched, not asserted as zero, since an objects file need not localize
-        every object type and ADR 0025 keeps "boxes" and "count" from silently equating
-        (counting totals may legitimately include objects that were not localized). Left off
-        (the default), the import touches only ``LocationGroundTruth`` and any existing
-        counting total is preserved.
+        list of problems (off-taxonomy categories / unknown pages / gross overflows /
+        degenerate boxes) that were reported, not imported. ``project_id`` in the document is
+        ignored — ``drawing_id`` is authoritative.
         """
         result = LocationImportResult()
-        # Accepted boxes per label, so an opt-in caller can derive counting GT from them.
-        tallies: Counter[str] = Counter()
 
         pages_by_number = {
             page.page_number: page
@@ -116,7 +168,8 @@ class LocationGroundTruthService:
 
         for obj in document.get("objects", []):
             category = obj.get("category")
-            if category not in _TAXONOMY:
+            label = _taxonomy_label(category)
+            if label is None:
                 report(UNMAPPED_LABEL, f"no taxonomy mapping for label {category!r}")
                 continue
 
@@ -132,6 +185,18 @@ class LocationGroundTruthService:
 
             bbox = obj["bbox"]
             x, y, w, h = bbox["x"], bbox["y"], bbox["width"], bbox["height"]
+            # Before the frame check: an inverted box can also fall outside the unit square
+            # once normalized, and ``out_of_frame`` would send the author hunting the wrong
+            # defect.
+            degeneracy = _degeneracy_reason(w, h)
+            if degeneracy is not None:
+                report(
+                    DEGENERATE_BOX,
+                    f"a box on page {page_number} has {degeneracy}, "
+                    f"so it encloses no area, and was skipped",
+                )
+                continue
+
             corners = (
                 x / page.native_width_pt,
                 y / page.native_height_pt,
@@ -147,10 +212,23 @@ class LocationGroundTruthService:
                 continue
 
             x_min, y_min, x_max, y_max = (min(1.0, max(0.0, c)) for c in corners)
+            # Clamping can collapse a well-formed box: one lying entirely outside an edge but
+            # within the tolerance has both corners pulled onto that edge. What is about to be
+            # stored is what has to be non-degenerate, so the check runs on the clamped extents
+            # too, not only on the source ones.
+            collapsed = _degeneracy_reason(x_max - x_min, y_max - y_min)
+            if collapsed is not None:
+                report(
+                    DEGENERATE_BOX,
+                    f"a box on page {page_number} lies outside the page edge and "
+                    f"collapses to {collapsed} once clamped to the frame; it was skipped",
+                )
+                continue
+
             self.session.add(
                 LocationGroundTruth(
                     page_id=page.id,
-                    label=category,
+                    label=label,
                     x_min=x_min,
                     y_min=y_min,
                     x_max=x_max,
@@ -158,16 +236,8 @@ class LocationGroundTruthService:
                 )
             )
             result.created += 1
-            tallies[category] += 1
 
         self.session.commit()
-
-        if derive_counting:
-            # Upsert a total only for the labels these boxes cover; a label with no accepted
-            # box is left as-is rather than zeroed, so we never fabricate a "zero of this
-            # object" answer the boxes did not state (ADR 0025).
-            CountingGroundTruthService(self.session).save(drawing_id, dict(tallies))
-
         return result
 
     def boxes_by_page(self, drawing_id: int) -> dict[int, list[LocationGroundTruth]]:
@@ -183,6 +253,36 @@ class LocationGroundTruthService:
         for row in rows:
             grouped.setdefault(row.page_id, []).append(row)
         return grouped
+
+    def find_degenerate_boxes(self) -> list[DegenerateBoxFinding]:
+        """Every stored GT box across **all** Drawings that encloses no area.
+
+        The import guard only stops new ones; this answers whether any already-imported
+        Drawing holds one. An empty list is the meaningful "none found" result — after the
+        port to ``location-scorer`` such a box raises at score time (ADR 0031), so a clean
+        store is what makes the port's parity run trustworthy.
+        """
+        rows = self.session.exec(
+            select(LocationGroundTruth, Page, Drawing)
+            .join(Page, LocationGroundTruth.page_id == Page.id)
+            .join(Drawing, Page.drawing_id == Drawing.id)
+            .order_by(Drawing.id, Page.page_number, LocationGroundTruth.id)
+        ).all()
+        findings = []
+        for box, page, drawing in rows:
+            reason = _degeneracy_reason(box.x_max - box.x_min, box.y_max - box.y_min)
+            if reason is not None:
+                findings.append(
+                    DegenerateBoxFinding(
+                        drawing_id=drawing.id,
+                        drawing_name=drawing.name,
+                        page_number=page.page_number,
+                        box_id=box.id,
+                        label=box.label,
+                        reason=reason,
+                    )
+                )
+        return findings
 
     def _clear_existing(self, pages) -> None:
         page_ids = [page.id for page in pages]

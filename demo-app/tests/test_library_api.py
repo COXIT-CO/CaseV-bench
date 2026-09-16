@@ -3,7 +3,7 @@
 pixel dims), the cached page-image PNG route re-mounted under ``/api``, and the ``/models``
 curated catalog. Ingestion reuses ``DrawingService`` unchanged — only the web layer differs.
 
-Ground-truth entry (counting form, native objects import) is ticket 07 and is not covered here; the
+Ground-truth entry (the native objects import) is ticket 07 and is not covered here; the
 Drawing detail is only the entry point it hangs off.
 """
 
@@ -11,36 +11,26 @@ import pytest
 from sqlmodel import Session, select
 
 from api.deps import get_drawing_service
-from core.models.prompt import Prompt, Task
-from core.models.run import Result, Run
+from core.models.run import Run
 from core.services.drawing import DrawingService
+from core.services.model_catalog import DEFAULT_MODEL_CATALOG
 from core.services.pdf_processing import PDFProcessingService
 
 SONNET = "anthropic/claude-sonnet-4.5"
 
 
-def _add_run(engine, drawing_id: int, model: str = SONNET) -> int:
-    """Attach a done Run (with one Result) to a Drawing so the delete has collateral. The
-    counting prompt family is seeded on startup, so a Run can pin it directly."""
-    with Session(engine) as session:
-        prompt = session.exec(
-            select(Prompt).where(Prompt.task == Task.counting)
-        ).first()
-        run = Run(
-            task=Task.counting,
-            prompt_id=prompt.id,
-            drawing_id=drawing_id,
-            dpi=200,
-            downsample_px=1600,
-            max_tokens=4096,
-            temperature=0.0,
-        )
-        session.add(run)
-        session.commit()
-        session.refresh(run)
-        session.add(Result(run_id=run.id, model=model))
-        session.commit()
-        return run.id
+@pytest.fixture
+def add_run(engine, location_prompt, seed_location_run):
+    """Attach a done Run (with one Result) to a Drawing so the delete has collateral. No
+    model is ever called — the Run row itself is all the collateral counts need."""
+
+    def _add(drawing_id: int, model: str = SONNET) -> int:
+        with Session(engine) as session:
+            return seed_location_run(
+                session, location_prompt.id, drawing_id, models=(model,)
+            ).id
+
+    return _add
 
 
 @pytest.fixture
@@ -165,8 +155,8 @@ def test_detail_returns_pages_with_pixel_dims_and_image_urls(
     assert body["result_count"] == 0
 
 
-def test_detail_reports_delete_collateral_counts(client, engine, ingested_drawing_id):
-    _add_run(engine, ingested_drawing_id)
+def test_detail_reports_delete_collateral_counts(client, ingested_drawing_id, add_run):
+    add_run(ingested_drawing_id)
 
     body = client.get(f"/api/drawings/{ingested_drawing_id}").json()
 
@@ -176,9 +166,9 @@ def test_detail_reports_delete_collateral_counts(client, engine, ingested_drawin
 
 
 def test_delete_drawing_cascades_and_returns_counts(
-    client, engine, ingested_drawing_id, delete_capable_service, tmp_path
+    client, engine, ingested_drawing_id, add_run, delete_capable_service, tmp_path
 ):
-    _add_run(engine, ingested_drawing_id)
+    add_run(ingested_drawing_id)
     page_dir = tmp_path / "drawings" / str(ingested_drawing_id)
     assert page_dir.is_dir()  # ingestion rendered the page images here
 
@@ -222,36 +212,43 @@ def test_models_returns_curated_catalog(client):
     body = client.get("/api/models").json()
 
     slugs = {entry["slug"] for entry in body["catalog"]}
-    assert "anthropic/claude-sonnet-4.5" in slugs
+    assert slugs == {slug for slug, _ in DEFAULT_MODEL_CATALOG}
     # Every entry carries the display label the catalog was seeded with.
     for entry in body["catalog"]:
-        assert set(entry) == {"slug", "label"}
+        assert set(entry) == {"slug", "label", "max_reasoning_effort"}
         assert entry["label"]
 
 
 PIXTRAL = "mistralai/pixtral-12b"
 
 
+def _entry(slug: str, label: str) -> dict:
+    """A catalog entry as the API returns it. A pasted slug is unknown to
+    ``MAX_REASONING_EFFORT`` and so reports the top of the band — the same permissiveness that
+    lets an unvalidated slug be added at all."""
+    return {"slug": slug, "label": label, "max_reasoning_effort": "xhigh"}
+
+
 def test_add_model_appears_in_catalog_and_launch_options(client):
-    resp = client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
+    resp = client.post("/api/models", json=_entry(PIXTRAL, "Pixtral 12B"))
     assert resp.status_code == 201
-    assert resp.json() == {"slug": PIXTRAL, "label": "Pixtral 12B"}
+    assert resp.json() == _entry(PIXTRAL, "Pixtral 12B")
 
     # A newly added entry is offered on every future launch (ticket 10): it shows in both
     # the catalog view and the launch-form option set.
     catalog = client.get("/api/models").json()["catalog"]
-    assert {"slug": PIXTRAL, "label": "Pixtral 12B"} in catalog
+    assert _entry(PIXTRAL, "Pixtral 12B") in catalog
     launch_catalog = client.get("/api/runs/launch-options").json()["catalog"]
-    assert {"slug": PIXTRAL, "label": "Pixtral 12B"} in launch_catalog
+    assert _entry(PIXTRAL, "Pixtral 12B") in launch_catalog
 
 
 def test_add_existing_slug_upserts_label(client):
-    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
-    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral (renamed)"})
+    client.post("/api/models", json=_entry(PIXTRAL, "Pixtral 12B"))
+    client.post("/api/models", json=_entry(PIXTRAL, "Pixtral (renamed)"))
 
     catalog = client.get("/api/models").json()["catalog"]
     matching = [e for e in catalog if e["slug"] == PIXTRAL]
-    assert matching == [{"slug": PIXTRAL, "label": "Pixtral (renamed)"}]  # no dupe
+    assert matching == [_entry(PIXTRAL, "Pixtral (renamed)")]  # no dupe
 
 
 def test_add_model_rejects_blank_label(client):
@@ -260,11 +257,11 @@ def test_add_model_rejects_blank_label(client):
 
 
 def test_remove_model_drops_it_from_catalog(client):
-    client.post("/api/models", json={"slug": PIXTRAL, "label": "Pixtral 12B"})
+    client.post("/api/models", json=_entry(PIXTRAL, "Pixtral 12B"))
 
     resp = client.request("DELETE", f"/api/models/{PIXTRAL}")
     assert resp.status_code == 200
-    assert resp.json() == {"slug": PIXTRAL, "label": "Pixtral 12B"}
+    assert resp.json() == _entry(PIXTRAL, "Pixtral 12B")
 
     slugs = {e["slug"] for e in client.get("/api/models").json()["catalog"]}
     assert PIXTRAL not in slugs

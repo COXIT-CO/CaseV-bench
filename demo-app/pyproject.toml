@@ -17,7 +17,16 @@ dependencies = [
     "uvicorn[standard] (>=0.51.0,<0.52.0)",
     "sqlmodel (>=0.0.39,<0.0.40)",
     "python-multipart (>=0.0.20,<0.0.21)",
-    "pydantic-settings (>=2.0,<3.0)"
+    "pydantic-settings (>=2.0,<3.0)",
+    # Location scoring, consumed as a pinned release tag exactly like any external team
+    # would (ADR-0028) — not the sibling path under src/packages, which would make this
+    # app the one place a scorer change could silently move published numbers. Bumping is
+    # a deliberate edit here plus a lockfile change, visible in the diff.
+    "location-scorer @ git+https://github.com/COXIT-CO/CaseV-bench.git@location-scorer-v0.1.0#subdirectory=src/packages/location-scorer",
+    # The shared results store is Postgres and the Lab writes to it with its own INSERT
+    # (scope 9, ticket 05) — so a driver is needed even though the Lab's own database stays
+    # SQLite. Binary wheels, since no developer laptop should need libpq to run the Lab.
+    "psycopg[binary] (>=3.2,<4.0)",
 ]
 
 
@@ -37,13 +46,16 @@ testpaths = ["tests"]
 # 3.14 write `except A, B:` without parentheses, so black would strip them — output that is a
 # SyntaxError on 3.11–3.13. Listing the whole supported set forces black to emit code valid on
 # all of them (parens kept) and makes local + CI formatting deterministic (ADR-0017).
+
 [tool.black]
 target-version = ["py311", "py312", "py313", "py314"]
+force-exclude = "^/src/packages/"
 
 # Keep isort's multi-line import formatting compatible with black, so the two CI checks
 # (isort --check + black --check, ADR-0017) never disagree on a wrapped import.
 [tool.isort]
 profile = "black"
+extend_skip_glob = ["src/packages/*"]
 
 [dependency-groups]
 dev = [

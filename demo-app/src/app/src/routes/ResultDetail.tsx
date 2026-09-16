@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { KnobsSnapshot } from "@/components/KnobsSnapshot";
@@ -19,29 +19,36 @@ import {
   useRevertPredictionOverride,
   useSetPredictionOverride,
 } from "@/hooks/queries";
-import { formatExactMatch, formatRate } from "@/lib/format";
+import { formatRate } from "@/lib/format";
+import { IOU_CHOICES, parseIouThreshold } from "@/lib/iou";
 import { cn } from "@/lib/utils";
 import type {
-  CountingScore,
   LocationScore,
   ResultDetailResponse,
   ResultPrediction,
-  Task,
 } from "@/types";
 
 // The Result drill-down (ADR 0011, spec §A.3): why a Result scored as it did. A header with
-// the Configuration refs, the Score block (counting or location shape), and the per-page
-// Predictions — plus, for location, the prediction overlay grid (the model's boxes on each
-// page), shown whether or not the Result is scored (ticket 01). The unscored state (no ground
-// truth) additionally shows a prominent CTA toward ground-truth entry.
+// the Configuration refs, the Score block, the prediction overlay grid (the model's boxes on
+// each page, shown whether or not the Result is scored — ticket 01), and the per-page
+// Predictions. The unscored state (no ground truth) additionally shows a prominent CTA toward
+// ground-truth entry.
 
 export function ResultDetail() {
   const { id } = useParams();
   const resultId = Number(id);
+  // The drill-down honours the same `?iou_threshold=` the Leaderboard writes, so following a
+  // row from an exploratory board lands on the matching view instead of silently snapping
+  // back to the canonical numbers.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const iouThreshold = parseIouThreshold(searchParams.get("iou_threshold"));
 
   // A non-numeric :id never matched a real Result; treat it as a not-found, not a fetch.
   const valid = Number.isInteger(resultId);
-  const { data, isLoading, isError, error } = useResult(valid ? resultId : 0);
+  const { data, isLoading, isError, error } = useResult(
+    valid ? resultId : 0,
+    iouThreshold,
+  );
 
   if (!valid) {
     return (
@@ -73,14 +80,22 @@ export function ResultDetail() {
       <Header result={data} />
       <KnobsSnapshot knobs={data.knobs} />
       {data.scored ? (
-        <ScoreBlock result={data} />
+        <ScoreBlock
+          result={data}
+          iouThreshold={iouThreshold}
+          onIouChange={(next) => {
+            const params = new URLSearchParams(searchParams);
+            if (next === null) params.delete("iou_threshold");
+            else params.set("iou_threshold", String(next));
+            setSearchParams(params);
+          }}
+        />
       ) : (
         <UnscoredCta drawingId={data.drawing_id} />
       )}
-      {data.task === "location" && <PredictionOverlayGrid result={data} />}
+      <PredictionOverlayGrid result={data} />
       <PredictionsSection
         resultId={data.result_id}
-        task={data.task}
         predictions={data.predictions}
       />
     </Shell>
@@ -151,17 +166,65 @@ function UnscoredCta({ drawingId }: { drawingId: number }) {
   );
 }
 
-function ScoreBlock({ result }: { result: ResultDetailResponse }) {
+function ScoreBlock({
+  result,
+  iouThreshold,
+  onIouChange,
+}: {
+  result: ResultDetailResponse;
+  iouThreshold: number | null;
+  onIouChange: (next: number | null) => void;
+}) {
   return (
     <div className="mb-6 rounded-lg border bg-card p-5">
-      {result.location_score ? (
-        <LocationScoreBlock score={result.location_score} />
-      ) : result.counting_score ? (
-        <CountingScoreBlock
-          score={result.counting_score}
-          labelCount={result.label_count}
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <label
+          htmlFor="rd-iou"
+          className="text-xs font-medium text-muted-foreground"
+        >
+          IoU
+        </label>
+        <select
+          id="rd-iou"
+          value={iouThreshold === null ? "" : String(iouThreshold)}
+          onChange={(e) => onIouChange(parseIouThreshold(e.target.value))}
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="">Default</option>
+          {IOU_CHOICES.map((t) => (
+            <option key={t} value={t}>
+              {t.toFixed(1)}
+            </option>
+          ))}
+        </select>
+      </div>
+      {!result.canonical_iou && (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]"
+        >
+          <span className="font-medium">
+            Exploring at IoU {result.iou_threshold.toFixed(2)}
+          </span>
+          <span className="text-muted-foreground">
+            Not saved, and not this Result&apos;s published score — that stays at
+            IoU {result.canonical_iou_threshold.toFixed(2)}.
+          </span>
+          <button
+            type="button"
+            onClick={() => onIouChange(null)}
+            className="ml-auto rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Back to default
+          </button>
+        </div>
+      )}
+      {result.location_score && (
+        <LocationScoreBlock
+          score={result.location_score}
+          iouThreshold={result.iou_threshold}
         />
-      ) : null}
+      )}
     </div>
   );
 }
@@ -193,81 +256,13 @@ function Stat({
   );
 }
 
-function CountingScoreBlock({
+function LocationScoreBlock({
   score,
-  labelCount,
+  iouThreshold,
 }: {
-  score: CountingScore;
-  labelCount: number;
+  score: LocationScore;
+  iouThreshold: number;
 }) {
-  return (
-    <>
-      <div className="mb-5 flex gap-9">
-        <Stat
-          label="Total abs. error"
-          value={String(score.total_absolute_error)}
-          emphasis={score.total_absolute_error === 0}
-        />
-        <Stat
-          label="Exact matches"
-          value={formatExactMatch(score.exact_match_count, labelCount)}
-        />
-      </div>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Label</TableHead>
-              <TableHead className="text-right">Predicted (summed)</TableHead>
-              <TableHead className="text-right">Ground truth</TableHead>
-              <TableHead className="text-right">Abs. error</TableHead>
-              <TableHead className="text-right">Exact?</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {score.per_label.map((ls) => (
-              <TableRow key={ls.label} className="hover:bg-transparent">
-                <TableCell className="font-medium">{ls.label}</TableCell>
-                <TableCell className="text-right font-mono">
-                  {ls.predicted}
-                </TableCell>
-                <TableCell className="text-right font-mono">{ls.gt}</TableCell>
-                <TableCell
-                  className={cn(
-                    "text-right font-mono",
-                    ls.absolute_error === 0 ? "text-success" : "text-danger",
-                  )}
-                >
-                  {ls.absolute_error}
-                </TableCell>
-                <TableCell className="text-right">
-                  <ExactBadge exact={ls.exact_match} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </>
-  );
-}
-
-function ExactBadge({ exact }: { exact: boolean }) {
-  return (
-    <span
-      className={cn(
-        "rounded px-2 py-0.5 text-[11px] font-semibold",
-        exact
-          ? "bg-success-subtle text-success"
-          : "bg-danger-subtle text-danger",
-      )}
-    >
-      {exact ? "yes" : "no"}
-    </span>
-  );
-}
-
-function LocationScoreBlock({ score }: { score: LocationScore }) {
   return (
     <>
       <div className="mb-4 flex gap-9">
@@ -276,7 +271,7 @@ function LocationScoreBlock({ score }: { score: LocationScore }) {
         <Stat label="F1" value={formatRate(score.f1)} emphasis />
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        IoU@0.5, matched per page then micro-averaged.
+        IoU@{iouThreshold.toFixed(2)}, matched per page then micro-averaged.
       </p>
       <div className="overflow-x-auto">
         <Table>
@@ -350,9 +345,9 @@ function overlaySrc(resultId: number, pred: ResultPrediction): string {
 }
 
 /** The per-page prediction overlays: the model's labeled boxes on each page, served from the
- * cached prediction-overlay route. The only Location overlay now (ticket 01) — shown for
- * every Location Result, scored or not. Clicking a card opens the in-app lightbox (ticket
- * 08) navigable across every viewable overlay in the Result. */
+ * cached prediction-overlay route. The only overlay now (ticket 01) — shown for every Result,
+ * scored or not. Clicking a card opens the in-app lightbox (ticket 08) navigable across every
+ * viewable overlay in the Result. */
 function PredictionOverlayGrid({ result }: { result: ResultDetailResponse }) {
   // The viewable overlays, in page order — the set the lightbox pages through. Failed pages
   // with no cached overlay are excluded (they show a placeholder, not a clickable image).
@@ -468,11 +463,9 @@ function EditedBadge() {
 
 function PredictionsSection({
   resultId,
-  task,
   predictions,
 }: {
   resultId: number;
-  task: Task;
   predictions: ResultPrediction[];
 }) {
   return (
@@ -483,7 +476,6 @@ function PredictionsSection({
           <PredictionCard
             key={pred.page_number}
             resultId={resultId}
-            task={task}
             pred={pred}
           />
         ))}
@@ -494,18 +486,14 @@ function PredictionsSection({
 
 function PredictionCard({
   resultId,
-  task,
   pred,
 }: {
   resultId: number;
-  task: Task;
   pred: ResultPrediction;
 }) {
   const [editing, setEditing] = React.useState(false);
   const failed = pred.status === "error";
   const edited = pred.edited_json !== null;
-  // Edit & redraw is Location-only (a redraw means boxes; counting has no overlay) — ADR 0020.
-  const editable = task === "location";
   // A salvaged error still carries best-effort parsed JSON (ADR 0019); once edited, the shown
   // JSON is the developer's override instead — with an "edited", not "salvaged", caption.
   const salvaged = !edited && failed && pred.parsed_json !== null;
@@ -520,7 +508,7 @@ function PredictionCard({
           {edited && <EditedBadge />}
         </span>
         <div className="flex items-center gap-2">
-          {editable && !editing && (
+          {!editing && (
             <Button
               variant="outline"
               size="sm"
@@ -530,7 +518,7 @@ function PredictionCard({
               Edit JSON
             </Button>
           )}
-          {editable && edited && !editing && (
+          {edited && !editing && (
             <RevertButton resultId={resultId} pageNumber={pred.page_number} />
           )}
           <span

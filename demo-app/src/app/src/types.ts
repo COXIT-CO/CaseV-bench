@@ -2,9 +2,6 @@
 // Pydantic response models so the client stays honest about what the API returns. Feature
 // types (LeaderboardRow, ResultDetail, …) are added by their own slices.
 
-/** The two Tasks the harness scores. */
-export type Task = "counting" | "location";
-
 /** Run lifecycle status. */
 export type RunStatus = "queued" | "running" | "done" | "failed";
 
@@ -14,7 +11,6 @@ export type PredictionStatus = "ok" | "error";
 /** `GET /api/meta` — the slice-0 proof payload (src/web/api.py::ApiMeta). */
 export interface ApiMeta {
   app: string;
-  tasks: Task[];
   labels: string[];
   drawing_count: number;
   run_count: number;
@@ -30,10 +26,8 @@ export interface LeaderboardDrawing {
 
 /**
  * One Leaderboard line: a prompt-version × model Configuration outcome
- * (src/web/api.py::LeaderboardRowOut). Counting rows carry `total_absolute_error` +
- * `exact_match_count`; location rows carry `precision`/`recall`/`f1`; the unused set is
- * `null`. Unscored rows (no ground truth) have `rank: null` and null metrics, already
- * pinned last by the service.
+ * (src/web/api.py::LeaderboardRowOut), carrying `precision`/`recall`/`f1`. Unscored rows
+ * (no ground truth) have `rank: null` and null metrics, already pinned last by the service.
  */
 export interface LeaderboardRow {
   rank: number | null;
@@ -45,48 +39,45 @@ export interface LeaderboardRow {
   drawing_id: number;
   drawing_name: string;
   scored: boolean;
-  total_absolute_error: number | null;
-  exact_match_count: number | null;
   precision: number | null;
   recall: number | null;
   f1: number | null;
 }
 
-/** `GET /api/leaderboard` — the ranked board plus the filter surface (spec §A.2). */
+/** `GET /api/leaderboard` — the ranked board plus the filter surface (spec §A.2). The
+ * server echoes the resolved `prompt_family`/`prompt_version` it filtered on (ticket 04). */
 export interface LeaderboardResponse {
-  task: Task;
   drawing_id: number | null;
+  prompt_family: string | null;
+  prompt_version: number | null;
   sort: string;
   metrics: string[];
   drawings: LeaderboardDrawing[];
   label_count: number;
+  /** The operating point this board was ranked at, echoed by the server. */
+  iou_threshold: number;
+  /** False when the board is exploratory — the rates are real, but nothing was persisted
+   * and they are not the numbers the benchmark publishes. */
+  canonical_iou: boolean;
+  /** CaseV's one published operating point, always reported so a client never hardcodes it. */
+  canonical_iou_threshold: number;
   rows: LeaderboardRow[];
 }
 
-/** The filter/sort state the Leaderboard mirrors into the URL (spec §B.3). */
+/** The filter/sort state the Leaderboard mirrors into the URL (spec §B.3). `prompt_version`
+ * is only meaningful with a `prompt_family` — the API rejects a version without one (ticket 04). */
 export interface LeaderboardParams {
-  task: Task;
   drawing_id: number | null;
+  prompt_family: string | null;
+  prompt_version: number | null;
   sort: string | null;
+  /** Exploration only. `null` means the canonical operating point, which is the only one
+   * whose scores the server persists. */
+  iou_threshold: number | null;
 }
 
-/** One label's counting breakdown in the Result drill-down (src/web/api.py::CountingLabelDetail). */
-export interface CountingLabelDetail {
-  label: string;
-  predicted: number;
-  gt: number;
-  absolute_error: number;
-  exact_match: boolean;
-}
-
-/** A counting Result's Score block: the two ranked aggregates + the per-label rows. */
-export interface CountingScore {
-  total_absolute_error: number;
-  exact_match_count: number;
-  per_label: CountingLabelDetail[];
-}
-
-/** One label's location breakdown: the IoU@0.5 tally + its derived rates. */
+/** One label's location breakdown: the matched tally + its derived rates, at the
+ * enclosing response's `iou_threshold`. */
 export interface LocationLabelDetail {
   label: string;
   tp: number;
@@ -125,13 +116,12 @@ export interface ResultPrediction {
 
 /**
  * `GET /api/results/{id}` — the Result drill-down (spec §A.3, src/web/api.py::ResultDetailResponse).
- * Exactly one of `counting_score` / `location_score` is set, per the Run's Task; both are
- * `null` when the Drawing has no ground truth (unscored, distinct from scored-zero).
+ * `location_score` is `null` when the Drawing has no ground truth (unscored, distinct from
+ * scored-zero).
  */
 export interface ResultDetailResponse {
   result_id: number;
   model: string;
-  task: Task;
   prompt_family: string;
   prompt_version: number;
   run_id: number;
@@ -140,7 +130,9 @@ export interface ResultDetailResponse {
   scored: boolean;
   label_count: number;
   knobs: RunKnobs;
-  counting_score: CountingScore | null;
+  iou_threshold: number;
+  canonical_iou: boolean;
+  canonical_iou_threshold: number;
   location_score: LocationScore | null;
   predictions: ResultPrediction[];
 }
@@ -155,7 +147,6 @@ export function isTerminalRunStatus(status: RunStatus | undefined): boolean {
 /** One line of the run history list (`GET /api/runs`, spec §A.4). */
 export interface RunListItem {
   id: number;
-  task: Task;
   status: RunStatus;
   progress: number;
   total_units: number;
@@ -170,10 +161,9 @@ export interface RunHistoryResponse {
   runs: RunListItem[];
 }
 
-/** One selectable prompt version in the launch form; its `task` drives the Run's Task. */
+/** One selectable prompt version in the launch form. */
 export interface LaunchPrompt {
   id: number;
-  task: Task;
   family: string;
   version: number;
 }
@@ -182,6 +172,9 @@ export interface LaunchPrompt {
 export interface CatalogEntry {
   slug: string;
   label: string;
+  /** The highest effort this Model answers to, so the form can offer the selection's shared
+   * band rather than let a Run be launched that one Model would reject. */
+  max_reasoning_effort: ReasoningEffort;
 }
 
 /** `GET /api/runs/launch-options` — everything the launch form needs (spec §A.4). */
@@ -190,6 +183,11 @@ export interface LaunchOptionsResponse {
   drawings: LeaderboardDrawing[];
   catalog: CatalogEntry[];
 }
+
+/** The reasoning effort a Run asks of every Model, weakest first. A Run asks every selected
+ * Model the same thing, so the form offers only the band all of them accept — see
+ * `max_reasoning_effort` on `CatalogEntry`. */
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 /** `POST /api/runs` body: curated slugs + a free-text escape hatch, resolved server-side,
  * plus the Advanced knobs (tickets 04/05). `dpi`/`downsample_px`/`max_tokens` are pre-filled;
@@ -204,6 +202,7 @@ export interface RunCreateRequest {
   downsample_px: number | null;
   max_tokens: number;
   temperature: number | null;
+  reasoning_effort: ReasoningEffort;
 }
 
 /** `DELETE /api/runs/{id}` → the collateral the cascade removed (ADR-0016): the Run itself
@@ -218,7 +217,6 @@ export interface RunDeleted {
 export interface RunCreated {
   id: number;
   status: RunStatus;
-  task: Task;
   total_units: number;
 }
 
@@ -231,7 +229,6 @@ export interface RunResult {
 /** The run header + live progress on the detail page. */
 export interface RunRef {
   id: number;
-  task: Task;
   status: RunStatus;
   progress: number;
   total_units: number;
@@ -257,6 +254,7 @@ export interface RunKnobs {
   downsample_px: number | null;
   max_tokens: number;
   temperature: number | null;
+  reasoning_effort: ReasoningEffort | null;
 }
 
 /** `GET /api/runs/{id}` — header + fixed-knobs snapshot + result rows (spec §A.4). */
@@ -276,24 +274,17 @@ export interface RunStatusResponse {
   results: RunResult[];
 }
 
-/** One family in the Task-grouped Prompts list (src/web/api.py::PromptFamilyOut): its
- * name, newest version, and version count. */
+/** One family in the Prompts list (src/web/api.py::PromptFamilyOut): its name, newest
+ * version, and version count. */
 export interface PromptFamily {
   name: string;
   latest_version: number;
   count: number;
 }
 
-/** All of one Task's prompt families (Task-scoping, ADR 0009). */
-export interface PromptGroup {
-  task: Task;
-  families: PromptFamily[];
-}
-
-/** `GET /api/prompts` — the fixed Task taxonomy + each Task's families (spec §A.5). */
+/** `GET /api/prompts` — every prompt family, flat (spec §A.5, ADR 0032). */
 export interface PromptsResponse {
-  tasks: Task[];
-  groups: PromptGroup[];
+  families: PromptFamily[];
 }
 
 /** One immutable version in a family's history; `text` rides along so compare/read needs
@@ -308,19 +299,18 @@ export interface PromptVersion {
   result_count: number;
 }
 
-/** `GET /api/prompts/{task}/{family}` — the family's versions newest-first (spec §A.5). The
+/** `GET /api/prompts/{family}` — the family's versions newest-first (spec §A.5). The
  * family-level `run_count`/`result_count` are the whole-family delete's collateral (the Runs
  * + Results pinning any version), so the "delete family" confirm states the blast radius up
  * front (ADR-0016, ticket 09). */
 export interface PromptHistoryResponse {
-  task: Task;
   family: string;
   versions: PromptVersion[];
   run_count: number;
   result_count: number;
 }
 
-/** `DELETE /api/prompts/{task}/{family}` or `…/versions/{version}` → the collateral the
+/** `DELETE /api/prompts/{family}` or `…/versions/{version}` → the collateral the
  * cascade removed (ADR-0016, ticket 09): the Runs + Results that pinned the deleted
  * version(s) — the delete's receipt, the same `(runs, results)` shape the Run and Drawing
  * deletes return. */
@@ -329,16 +319,14 @@ export interface PromptDeleted {
   results: number;
 }
 
-/** `POST /api/prompts` body: author a new family's v1 for a Task. */
+/** `POST /api/prompts` body: author a new family's v1. */
 export interface PromptCreateRequest {
-  task: Task;
   family: string;
   text: string;
 }
 
 /** The just-written version returned from create/append, so the SPA routes to it. */
 export interface PromptVersionRef {
-  task: Task;
   family: string;
   version: number;
 }
@@ -398,30 +386,12 @@ export interface ModelUpsertRequest {
   label: string;
 }
 
-/** One taxonomy label's counting total in the GT form (src/web/api.py::CountingGtLabel):
- * `value` is `null` when the label has not been entered yet, distinct from an entered 0. */
-export interface CountingGtLabel {
-  name: string;
-  value: number | null;
-}
-
-/** `GET`/`PUT /api/drawings/{id}/counting-ground-truth` — the per-label totals in the fixed
- * taxonomy order (spec §A.6). The same shape pre-fills the form and returns the saved totals,
- * so a save can seed the query cache directly. */
-export interface CountingGroundTruthResponse {
-  drawing_id: number;
-  labels: CountingGtLabel[];
-}
-
-/** `PUT /api/drawings/{id}/counting-ground-truth` body: one integer per taxonomy label, all
- * required (a missing/non-integer total is a `400`). */
-export type CountingGtSaveRequest = Record<string, number>;
-
 /** One object the native import reported rather than silently dropped: an off-taxonomy
- * category, a reference to a page the Drawing lacks, or a box that grossly overflows its
- * page's native frame (src/api/routers/ground_truth.py::ImportProblemOut). */
+ * category, a reference to a page the Drawing lacks, a box that grossly overflows its page's
+ * native frame, or one enclosing no area — zero width/height or inverted coordinates
+ * (src/api/routers/ground_truth.py::ImportProblemOut). */
 export interface LocationImportProblem {
-  kind: "unmapped_label" | "unknown_page" | "out_of_frame";
+  kind: "unmapped_label" | "unknown_page" | "out_of_frame" | "degenerate_box";
   detail: string;
 }
 

@@ -15,7 +15,7 @@ import { useRuns } from "@/hooks/queries";
 import type { RunListItem } from "@/types";
 
 // The Runs history (ADR 0011, spec §A.4/§B.2): every launched Run listed newest-first with
-// its task, prompt, drawing, status, and `progress / total` counter — each row opening its
+// its prompt, drawing, status, and `progress / total` counter — each row opening its
 // detail page. "Launch run" opens the shared launch Dialog (also the Leaderboard's CTA).
 
 export function Runs() {
@@ -58,7 +58,6 @@ function RunTable({ runs }: { runs: RunListItem[] }) {
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-20">Run</TableHead>
-            <TableHead>Task</TableHead>
             <TableHead>Prompt</TableHead>
             <TableHead>Drawing</TableHead>
             <TableHead>Status</TableHead>
@@ -82,7 +81,6 @@ function RunTable({ runs }: { runs: RunListItem[] }) {
               className="cursor-pointer"
             >
               <TableCell className="font-mono text-xs">#{run.id}</TableCell>
-              <TableCell className="capitalize">{run.task}</TableCell>
               <TableCell>
                 <span className="font-medium">{run.prompt_family}</span>{" "}
                 <span className="font-mono text-[11.5px] text-muted-foreground">

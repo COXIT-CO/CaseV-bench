@@ -60,7 +60,7 @@ describe("Runs history", () => {
     // The running row shows its status badge and its progress / total.
     expect(screen.getByText("running")).toBeInTheDocument();
     expect(screen.getByText("3 / 6")).toBeInTheDocument();
-    expect(screen.getByText("cabinet-count-v2")).toBeInTheDocument();
+    expect(screen.getByText("boxes")).toBeInTheDocument();
   });
 
   it("opens the run detail when a row is clicked", async () => {
@@ -83,7 +83,6 @@ describe("Runs history", () => {
     vi.mocked(api.createRun).mockResolvedValue({
       id: 900,
       status: "queued",
-      task: "counting",
       total_units: 4,
     });
     renderRuns();

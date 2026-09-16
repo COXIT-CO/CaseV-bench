@@ -1,8 +1,7 @@
 """HTTP contract for editable prediction JSON (ADR 0020, ticket 07): ``PUT``/``DELETE``
 ``/api/results/{id}/pages/{n}/prediction`` set and revert a location Prediction's manual
 override, the overlay route redraws from it, and the Score never moves. Invalid input is a
-precise ``400`` with nothing persisted; a counting Prediction is a ``400`` (location-only);
-an unknown (Result, page) is a ``404``.
+precise ``400`` with nothing persisted; an unknown (Result, page) is a ``404``.
 """
 
 from conftest import seed_page_images
@@ -10,7 +9,7 @@ from sqlmodel import Session
 
 from core.models.drawing import Drawing, Page
 from core.models.location_ground_truth import LocationGroundTruth
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.results import BoundingBox, LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 
@@ -50,12 +49,11 @@ def _seed_location(engine, tmp_path) -> int:
                 page_id=page.id, label=CAB, x_min=0.0, y_min=0.0, x_max=0.5, y_max=0.5
             )
         )
-        prompt = Prompt(task=Task.location, family="boxes", version=1, text="find")
+        prompt = Prompt(family="boxes", version=1, text="find")
         session.add(prompt)
         session.commit()
         session.refresh(prompt)
         run = Run(
-            task=Task.location,
             prompt_id=prompt.id,
             drawing_id=drawing.id,
             status=RunStatus.done,
@@ -82,59 +80,6 @@ def _seed_location(engine, tmp_path) -> int:
                 status=PredictionStatus.ok,
                 raw_content=original.model_dump_json(),
                 parsed_json=original.model_dump_json(),
-            )
-        )
-        session.commit()
-        return result.id
-
-
-def _seed_counting(engine) -> int:
-    with Session(engine) as session:
-        drawing = Drawing(name="kitchen")
-        session.add(drawing)
-        session.commit()
-        session.refresh(drawing)
-        page = Page(
-            drawing_id=drawing.id,
-            page_number=1,
-            image_path="/tmp/page.png",
-            width_px=100,
-            height_px=100,
-        )
-        session.add(page)
-        session.commit()
-        session.refresh(page)
-        prompt = Prompt(task=Task.counting, family="strict", version=1, text="count")
-        session.add(prompt)
-        session.commit()
-        session.refresh(prompt)
-        run = Run(
-            task=Task.counting,
-            prompt_id=prompt.id,
-            drawing_id=drawing.id,
-            status=RunStatus.done,
-            progress=1,
-            total_units=1,
-            dpi=150,
-            downsample_px=1568,
-            max_tokens=1024,
-            temperature=0.0,
-        )
-        session.add(run)
-        session.commit()
-        session.refresh(run)
-        result = Result(run_id=run.id, model="m")
-        session.add(result)
-        session.commit()
-        session.refresh(result)
-        session.add(
-            Prediction(
-                result_id=result.id,
-                page_id=page.id,
-                page_number=1,
-                status=PredictionStatus.ok,
-                raw_content='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
-                parsed_json='{"cabinet": 1, "countertop": 0, "elevation": 0, "elevation_callout": 0}',
             )
         )
         session.commit()
@@ -205,15 +150,6 @@ def test_invalid_override_is_400_and_nothing_persisted(client, engine, tmp_path)
     # Nothing was persisted — the drill-down still shows no edit.
     detail = client.get(f"/api/results/{result_id}").json()
     assert detail["predictions"][0]["edited_json"] is None
-
-
-def test_counting_prediction_rejects_the_edit(client, engine):
-    result_id = _seed_counting(engine)
-    resp = client.put(
-        f"/api/results/{result_id}/pages/1/prediction",
-        json={"edited_json": _edited(_detection(0.1, 0.1, 0.2, 0.2))},
-    )
-    assert resp.status_code == 400
 
 
 def test_unknown_prediction_is_404(client, engine, tmp_path):

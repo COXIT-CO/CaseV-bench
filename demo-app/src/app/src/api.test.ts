@@ -46,7 +46,7 @@ describe("api client", () => {
   });
 
   it("createRun() POSTs a JSON body and returns the created run", async () => {
-    const created = { id: 7, status: "queued", task: "counting", total_units: 4 };
+    const created = { id: 7, status: "queued", total_units: 4 };
     mockFetch({ ok: true, json: () => Promise.resolve(created) });
 
     const body = {

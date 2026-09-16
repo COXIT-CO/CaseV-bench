@@ -10,30 +10,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useLeaderboard } from "@/hooks/queries";
+import { useLeaderboard, usePromptHistory, usePrompts } from "@/hooks/queries";
 import {
+  METRIC_COLUMNS,
   UNSCORED_CELL,
-  formatExactMatch,
   formatRate,
-  metricColumns,
   metricLabel,
 } from "@/lib/format";
+import { IOU_CHOICES, parseIouThreshold } from "@/lib/iou";
 import { cn } from "@/lib/utils";
-import type { LeaderboardRow, Task } from "@/types";
+import type { LeaderboardRow } from "@/types";
 
-// The Landing page (ADR 0011, spec §A.2/§B.3): every Result ranked best-first for the
-// chosen Task, filtered by Drawing and ranked by a metric — all mirrored into the URL so
-// a board link is shareable. The service ranks; this screen renders, it does not re-rank.
-
-const TASKS: { value: Task; label: string }[] = [
-  { value: "counting", label: "Counting" },
-  { value: "location", label: "Location" },
-];
-
-/** The `?task=` value, defaulting to `counting` for anything but `location` (spec §A.2). */
-function parseTask(raw: string | null): Task {
-  return raw === "location" ? "location" : "counting";
-}
+// The Landing page (ADR 0011, spec §A.2/§B.3): every Result ranked best-first, filtered by
+// Drawing and prompt and ranked by a metric — all mirrored into the URL so a board link is
+// shareable. The service ranks; this screen renders, it does not re-rank.
 
 /** The `?drawing_id=` value as a number, or `null` for "All drawings"/garbage. */
 function parseDrawingId(raw: string | null): number | null {
@@ -42,19 +32,49 @@ function parseDrawingId(raw: string | null): number | null {
   return Number.isInteger(id) ? id : null;
 }
 
+/** The `?prompt_family=` value, or `null` for "All prompts"/empty. */
+function parsePromptFamily(raw: string | null): string | null {
+  return raw === null || raw === "" ? null : raw;
+}
+
+/** The `?prompt_version=` value as a positive integer, or `null` for "All versions"/garbage. */
+function parsePromptVersion(raw: string | null): number | null {
+  if (raw === null || raw === "") return null;
+  const version = Number(raw);
+  return Number.isInteger(version) && version > 0 ? version : null;
+}
+
 export function Leaderboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const task = parseTask(searchParams.get("task"));
   const drawingId = parseDrawingId(searchParams.get("drawing_id"));
+  const promptFamily = parsePromptFamily(searchParams.get("prompt_family"));
+  // A version is only meaningful with a family (versions are per-family; the API 400s a
+  // bare version), so a stray version without a family is ignored, not sent.
+  const promptVersion = promptFamily
+    ? parsePromptVersion(searchParams.get("prompt_version"))
+    : null;
   const sort = searchParams.get("sort");
+  const iouThreshold = parseIouThreshold(searchParams.get("iou_threshold"));
 
   const { data, isLoading, isError, error } = useLeaderboard({
-    task,
     drawing_id: drawingId,
+    prompt_family: promptFamily,
+    prompt_version: promptVersion,
     sort,
+    iou_threshold: iouThreshold,
   });
+
+  // The family dropdown lists the prompt families; the version dropdown is populated from
+  // the chosen family's history.
+  const { data: promptsData } = usePrompts();
+  const familyOptions = promptsData?.families ?? [];
+  const { data: historyData } = usePromptHistory(
+    promptFamily ?? "",
+    promptFamily !== null,
+  );
+  const versionOptions = historyData?.versions ?? [];
 
   // Reflect a filter change into the URL query so the board is shareable and back/forward
   // work (spec §B.3). `null`/"all" drops the param so the server applies its default.
@@ -67,17 +87,15 @@ export function Leaderboard() {
     setSearchParams(next);
   }
 
-  // Switching Task swaps both the ranking metrics and the score columns; the old Task's
-  // `sort` is meaningless here, so drop it and let the new Task's default apply.
-  function selectTask(next: Task) {
-    if (next !== task) patchParams({ task: next, sort: null });
-  }
-
-  const columns = metricColumns(task);
   // The rank-by options + resolved sort come from the server (it already fell back an
-  // unknown metric to the Task default), so the dropdown always mirrors the live board.
+  // unknown metric to the default), so the dropdown always mirrors the live board.
   const metrics = data?.metrics ?? [];
   const activeSort = data?.sort ?? "";
+
+  // The board is exploratory whenever the server says the threshold in force is not the
+  // canonical one. Read off the response rather than off `iouThreshold`, so the banner can
+  // never claim an operating point the numbers were not actually computed at.
+  const exploring = data ? !data.canonical_iou : false;
 
   return (
     <section className="mx-auto max-w-[1400px]">
@@ -91,76 +109,149 @@ export function Leaderboard() {
         <LaunchRunDialog />
       </header>
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div
-          role="tablist"
-          aria-label="Task"
-          className="inline-flex items-center gap-0.5 rounded-lg border bg-card p-0.5"
+      {/* One left-aligned bar of filters — the Task tablist that used to sit opposite them
+          is gone with the task itself (ADR 0032), and nothing replaces it. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <label
+          htmlFor="lb-drawing"
+          className="text-xs font-medium text-muted-foreground"
         >
-          {TASKS.map((t) => (
-            <button
-              key={t.value}
-              role="tab"
-              aria-selected={task === t.value}
-              onClick={() => selectTask(t.value)}
-              className={cn(
-                "rounded-md px-3.5 py-1.5 text-[13px] font-semibold transition-colors",
-                task === t.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
+          Drawing
+        </label>
+        <select
+          id="lb-drawing"
+          value={drawingId ?? "all"}
+          onChange={(e) =>
+            patchParams({
+              drawing_id: e.target.value === "all" ? null : e.target.value,
+            })
+          }
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="all">All drawings</option>
+          {data?.drawings.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
           ))}
-        </div>
+        </select>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label
-            htmlFor="lb-drawing"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Drawing
-          </label>
-          <select
-            id="lb-drawing"
-            value={drawingId ?? "all"}
-            onChange={(e) =>
-              patchParams({
-                drawing_id: e.target.value === "all" ? null : e.target.value,
-              })
-            }
-            className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="all">All drawings</option>
-            {data?.drawings.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+        <label
+          htmlFor="lb-prompt-family"
+          className="ml-1 text-xs font-medium text-muted-foreground"
+        >
+          Prompt
+        </label>
+        <select
+          id="lb-prompt-family"
+          value={promptFamily ?? "all"}
+          onChange={(e) =>
+            // Changing family clears the version — versions are per-family (ticket 04).
+            patchParams({
+              prompt_family: e.target.value === "all" ? null : e.target.value,
+              prompt_version: null,
+            })
+          }
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="all">All prompts</option>
+          {familyOptions.map((f) => (
+            <option key={f.name} value={f.name}>
+              {f.name}
+            </option>
+          ))}
+        </select>
 
-          <label
-            htmlFor="lb-sort"
-            className="ml-1 text-xs font-medium text-muted-foreground"
-          >
-            Rank by
-          </label>
-          <select
-            id="lb-sort"
-            value={activeSort}
-            onChange={(e) => patchParams({ sort: e.target.value })}
-            disabled={metrics.length === 0}
-            className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {metrics.map((m) => (
-              <option key={m} value={m}>
-                {metricLabel(m)}
-              </option>
-            ))}
-          </select>
-        </div>
+        <label
+          htmlFor="lb-prompt-version"
+          className="text-xs font-medium text-muted-foreground"
+        >
+          Version
+        </label>
+        <select
+          id="lb-prompt-version"
+          value={promptVersion ?? "all"}
+          onChange={(e) =>
+            patchParams({
+              prompt_version: e.target.value === "all" ? null : e.target.value,
+            })
+          }
+          disabled={promptFamily === null || versionOptions.length === 0}
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="all">All versions</option>
+          {versionOptions.map((v) => (
+            <option key={v.version} value={v.version}>
+              v{v.version}
+            </option>
+          ))}
+        </select>
+
+        <label
+          htmlFor="lb-sort"
+          className="ml-1 text-xs font-medium text-muted-foreground"
+        >
+          Rank by
+        </label>
+        <select
+          id="lb-sort"
+          value={activeSort}
+          onChange={(e) => patchParams({ sort: e.target.value })}
+          disabled={metrics.length === 0}
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {metrics.map((m) => (
+            <option key={m} value={m}>
+              {metricLabel(m)}
+            </option>
+          ))}
+        </select>
+
+        <label
+          htmlFor="lb-iou"
+          className="ml-1 text-xs font-medium text-muted-foreground"
+        >
+          IoU
+        </label>
+        <select
+          id="lb-iou"
+          value={iouThreshold === null ? "" : String(iouThreshold)}
+          onChange={(e) =>
+            patchParams({ iou_threshold: e.target.value || null })
+          }
+          className="rounded-md border bg-card px-2.5 py-1.5 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="">Default</option>
+          {IOU_CHOICES.map((t) => (
+            <option key={t} value={t}>
+              {t.toFixed(1)}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {exploring ? (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]"
+        >
+          <span className="font-medium">
+            Exploring at IoU {data?.iou_threshold.toFixed(2)}
+          </span>
+          <span className="text-muted-foreground">
+            These rates are not the benchmark&apos;s published numbers and nothing
+            was saved. The scored history is unchanged at IoU{" "}
+            {data?.canonical_iou_threshold.toFixed(2)}.
+          </span>
+          <button
+            type="button"
+            onClick={() => patchParams({ iou_threshold: null })}
+            className="ml-auto rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Back to default
+          </button>
+        </div>
+      ) : null}
 
       {isLoading ? (
         <LoadingBlock rows={8} />
@@ -181,7 +272,7 @@ export function Leaderboard() {
                   <TableHead className="w-14">Rank</TableHead>
                   <TableHead>Prompt</TableHead>
                   <TableHead>Model</TableHead>
-                  {columns.map((col) => (
+                  {METRIC_COLUMNS.map((col) => (
                     <TableHead key={col.key} className="text-right">
                       {col.header}
                     </TableHead>
@@ -194,9 +285,14 @@ export function Leaderboard() {
                   <BoardRow
                     key={row.result_id}
                     row={row}
-                    columns={columns}
-                    labelCount={data.label_count}
-                    onOpen={() => navigate(`/results/${row.result_id}`)}
+                    onOpen={() =>
+                      navigate(
+                        `/results/${row.result_id}` +
+                          (iouThreshold !== null
+                            ? `?iou_threshold=${iouThreshold}`
+                            : ""),
+                      )
+                    }
                   />
                 ))}
               </TableBody>
@@ -209,17 +305,9 @@ export function Leaderboard() {
 }
 
 /** The metric cell text for one column, or `—` when the row is unscored (spec §C.2). */
-function metricText(
-  row: LeaderboardRow,
-  key: string,
-  labelCount: number,
-): string {
+function metricText(row: LeaderboardRow, key: string): string {
   if (!row.scored) return UNSCORED_CELL;
   switch (key) {
-    case "total_absolute_error":
-      return String(row.total_absolute_error);
-    case "exact_match_count":
-      return formatExactMatch(row.exact_match_count ?? 0, labelCount);
     case "precision":
       return formatRate(row.precision ?? 0);
     case "recall":
@@ -233,13 +321,9 @@ function metricText(
 
 function BoardRow({
   row,
-  columns,
-  labelCount,
   onOpen,
 }: {
   row: LeaderboardRow;
-  columns: ReturnType<typeof metricColumns>;
-  labelCount: number;
   onOpen: () => void;
 }) {
   const isLeader = row.rank === 1;
@@ -275,7 +359,7 @@ function BoardRow({
         </div>
       </TableCell>
       <TableCell className="font-mono text-xs">{row.model}</TableCell>
-      {columns.map((col) => (
+      {METRIC_COLUMNS.map((col) => (
         <TableCell
           key={col.key}
           className={cn(
@@ -285,7 +369,7 @@ function BoardRow({
               : row.scored && "text-foreground",
           )}
         >
-          {metricText(row, col.key, labelCount)}
+          {metricText(row, col.key)}
         </TableCell>
       ))}
       <TableCell className="text-[12.5px] text-muted-foreground">

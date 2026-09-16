@@ -93,6 +93,17 @@ def test_unknown_api_path_404s_as_json_not_the_shell(spa_client):
     assert "<div id=" not in response.text
 
 
+@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+def test_unknown_api_path_404s_for_write_methods_too(spa_client, method):
+    # A retired write endpoint (the counting ground-truth pair, ADR 0032) must read as gone,
+    # not as a method the path merely does not support — the SPA catch-all is GET-only, so
+    # without a method-complete /api catch-all these would answer 405.
+    response = spa_client.request(method, "/api/does-not-exist", json={})
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Not found"}
+
+
 def test_missing_build_is_a_helpful_hint_not_a_crash(engine, tmp_path):
     # Build output isn't committed, so a fresh checkout has no dist. The app must still boot
     # and serve the JSON API; only the SPA route degrades to a build hint.

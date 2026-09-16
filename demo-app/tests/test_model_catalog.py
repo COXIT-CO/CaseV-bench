@@ -14,17 +14,17 @@ import pytest
 
 from core.services.model_catalog import DEFAULT_MODEL_CATALOG, ModelCatalogService
 
-SONNET = "anthropic/claude-sonnet-4.5"
-GPT = "openai/gpt-5-mini"
-GEMINI = "google/gemini-2.5-flash"
+OPUS = "anthropic/claude-opus-5"
+GPT = "openai/gpt-5.6-sol"
+GEMINI = "google/gemini-3.7-flash"
 
 
 def test_resolve_selection_includes_free_text_slug():
     slugs = ModelCatalogService.resolve_selection(
-        selected_slugs=[SONNET, GPT],
+        selected_slugs=[OPUS, GPT],
         free_text="mistralai/pixtral-12b",
     )
-    assert slugs == [SONNET, GPT, "mistralai/pixtral-12b"]
+    assert slugs == [OPUS, GPT, "mistralai/pixtral-12b"]
 
 
 def test_resolve_selection_dedupes_and_ignores_blanks_and_separators():
@@ -73,12 +73,12 @@ def test_add_existing_slug_upserts_the_label(session):
     service.seed_defaults()
 
     # Re-adding a known slug re-labels it rather than erroring or duplicating (ticket 10).
-    service.add(SONNET, "Claude (renamed)")
+    service.add(OPUS, "Claude (renamed)")
 
     catalog = service.list_catalog()
-    assert [e.slug for e in catalog].count(SONNET) == 1  # no duplicate row
+    assert [e.slug for e in catalog].count(OPUS) == 1  # no duplicate row
     labels = {e.slug: e.label for e in catalog}
-    assert labels[SONNET] == "Claude (renamed)"
+    assert labels[OPUS] == "Claude (renamed)"
 
 
 def test_add_trims_and_rejects_blank_slug_or_label(session):

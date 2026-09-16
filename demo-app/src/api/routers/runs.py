@@ -6,6 +6,7 @@ on the in-process background runner (ADR 0006); the SPA polls status and stops w
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -16,12 +17,18 @@ from api.routers.common import (
     KnobsOut,
     LeaderboardDrawing,
 )
-from core.adapters.openrouter import DEFAULT_MAX_TOKENS
+from core.adapters.openrouter import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_REASONING_EFFORT,
+    ReasoningEffort,
+    efforts_for,
+)
 from core.models.drawing import Drawing
 from core.models.prompt import Prompt
-from core.models.run import Run
+from core.models.run import Run, RunStatus
 from core.services.model_catalog import ModelCatalogService
 from core.services.pdf_processing import DEFAULT_DPI
+from core.services.report import ReportService
 from core.services.run import DEFAULT_TEMPERATURE, RunKnobs, RunService
 from core.utils import DEFAULT_DOWNSAMPLE_PX
 
@@ -31,10 +38,9 @@ router = APIRouter(prefix="/api", tags=["runs"])
 class RunHistoryItem(BaseModel):
     """One row of the run history list: the launch tuple plus live progress, denormalized
     with the prompt family/version and drawing name so the list renders without follow-up
-    fetches (``Run #id — task — status (progress n / total)``)."""
+    fetches (``Run #id — status (progress n / total)``)."""
 
     id: int
-    task: str
     status: str
     progress: int
     total_units: int
@@ -49,10 +55,9 @@ class RunHistoryResponse(BaseModel):
 
 
 class LaunchPrompt(BaseModel):
-    """One selectable prompt version; its ``task`` drives the launched Run's Task."""
+    """One selectable prompt version the launch form offers."""
 
     id: int
-    task: str
     family: str
     version: int
 
@@ -70,9 +75,9 @@ class LaunchOptionsResponse(BaseModel):
 
 class RunCreateRequest(BaseModel):
     """The launch body. The server resolves ``models`` (curated) + ``free_text`` into the
-    final slug list as the source of truth, and runs against the prompt's own Task. The
-    Advanced knobs default to the common one-click launch: ``dpi``/``downsample_px``/
-    ``max_tokens`` pre-filled and ``temperature`` at ``0.0``. ``temperature: null`` selects the
+    final slug list as the source of truth. The Advanced knobs default to the common
+    one-click launch: ``dpi``/``downsample_px``/``max_tokens`` pre-filled and
+    ``temperature`` at ``0.0``. ``temperature: null`` selects the
     provider default (omitted from the payload); ``downsample_px: null`` sends full-resolution
     images (no downsample) (tickets 04/05, ADR 0018/0019)."""
 
@@ -84,6 +89,7 @@ class RunCreateRequest(BaseModel):
     downsample_px: int | None = Field(default=DEFAULT_DOWNSAMPLE_PX, gt=0)
     max_tokens: int = Field(default=DEFAULT_MAX_TOKENS, gt=0)
     temperature: float | None = DEFAULT_TEMPERATURE
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
 
 
 class RunCreatedOut(BaseModel):
@@ -91,7 +97,6 @@ class RunCreatedOut(BaseModel):
 
     id: int
     status: str
-    task: str
     total_units: int
 
 
@@ -116,7 +121,6 @@ class RunRef(BaseModel):
     """The run header + live progress the detail page renders."""
 
     id: int
-    task: str
     status: str
     progress: int
     total_units: int
@@ -163,7 +167,6 @@ def list_runs(session: Session = Depends(get_session)) -> RunHistoryResponse:
         runs=[
             RunHistoryItem(
                 id=run.id,
-                task=run.task.value,
                 status=run.status.value,
                 progress=run.progress,
                 total_units=run.total_units,
@@ -179,24 +182,22 @@ def list_runs(session: Session = Depends(get_session)) -> RunHistoryResponse:
 
 @router.get("/runs/launch-options", response_model=LaunchOptionsResponse)
 def launch_options(session: Session = Depends(get_session)) -> LaunchOptionsResponse:
-    """The launch form's option set. Every prompt version is offered; the chosen prompt's
-    own Task drives the Run, so there is no separate task picker (mirrors the Jinja page).
-    """
+    """The launch form's option set: every prompt version, every Drawing, and the curated
+    model catalog (mirrors the Jinja page)."""
     prompts = session.exec(
-        select(Prompt).order_by(Prompt.task, Prompt.family, Prompt.version.desc())
+        select(Prompt).order_by(Prompt.family, Prompt.version.desc())
     ).all()
     drawings = session.exec(select(Drawing).order_by(Drawing.created_at.desc())).all()
     catalog = ModelCatalogService(session).list_catalog()
     return LaunchOptionsResponse(
         prompts=[
-            LaunchPrompt(id=p.id, task=p.task.value, family=p.family, version=p.version)
-            for p in prompts
+            LaunchPrompt(id=p.id, family=p.family, version=p.version) for p in prompts
         ],
         drawings=[
             LeaderboardDrawing(id=d.id, name=d.name, page_count=len(d.pages))
             for d in drawings
         ],
-        catalog=[CatalogEntryOut(slug=c.slug, label=c.label) for c in catalog],
+        catalog=[CatalogEntryOut.of(c) for c in catalog],
     )
 
 
@@ -204,19 +205,25 @@ def launch_options(session: Session = Depends(get_session)) -> LaunchOptionsResp
 def create_run(
     payload: RunCreateRequest,
     request: Request,
-    session: Session = Depends(get_session),
     service: RunService = Depends(get_run_service),
 ) -> RunCreatedOut:
     """Insert the queued Run and return at once; the fan-out runs on an in-process
-    background task the SPA then polls (ADR 0006). The Run's Task is the chosen prompt's
-    own Task; the slug list is resolved server-side as the source of truth. A bad prompt
-    or an empty selection is a ``400`` (mirrors the Jinja launch handler)."""
-    prompt = session.get(Prompt, payload.prompt_id)
-    if prompt is None:
-        raise HTTPException(
-            status_code=400, detail=f"no prompt with id {payload.prompt_id}"
-        )
+    background task the SPA then polls (ADR 0006). The slug list is resolved server-side as
+    the source of truth. A bad prompt or an empty selection is a ``400`` (mirrors the Jinja
+    launch handler)."""
     slugs = ModelCatalogService.resolve_selection(payload.models, payload.free_text)
+    # A Run asks every Model the same effort, so one that a selected Model does not answer to
+    # is refused here rather than mid-fan-out — where it would land as a per-model error and
+    # leave the Run with Results at mixed settings.
+    allowed = efforts_for(slugs)
+    if payload.reasoning_effort not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"reasoning_effort {payload.reasoning_effort!r} is not accepted by every "
+                f"selected model; this selection allows {', '.join(allowed)}"
+            ),
+        )
     # The chosen Advanced knobs ride on the service so both create_run's snapshot and the
     # background runner's request path read the same values (ticket 04; the runner shares
     # this service's knobs so the two can't drift — RunService.background_runner).
@@ -225,18 +232,16 @@ def create_run(
         downsample_px=payload.downsample_px,
         max_tokens=payload.max_tokens,
         temperature=payload.temperature,
+        reasoning_effort=payload.reasoning_effort,
     )
     try:
-        run = service.create_run(
-            prompt.task, payload.prompt_id, payload.drawing_id, slugs
-        )
+        run = service.create_run(payload.prompt_id, payload.drawing_id, slugs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     service.background_runner(request.app.state.engine).submit(run.id)
     return RunCreatedOut(
         id=run.id,
         status=run.status.value,
-        task=run.task.value,
         total_units=run.total_units,
     )
 
@@ -254,7 +259,6 @@ def run_detail(
     return RunDetailResponse(
         run=RunRef(
             id=run.id,
-            task=run.task.value,
             status=run.status.value,
             progress=run.progress,
             total_units=run.total_units,
@@ -266,6 +270,7 @@ def run_detail(
             downsample_px=run.downsample_px,
             max_tokens=run.max_tokens,
             temperature=run.temperature,
+            reasoning_effort=run.reasoning_effort,
         ),
         results=[RunResultOut(id=r.id, model=r.model) for r in run.results],
     )
@@ -300,4 +305,30 @@ def run_status(
         progress=run.progress,
         total_units=run.total_units,
         results=[RunResultOut(id=r.id, model=r.model) for r in run.results],
+    )
+
+
+_TERMINAL_STATUSES = {RunStatus.done, RunStatus.failed}
+
+
+@router.get("/runs/{run_id}/report")
+def run_report(run_id: int, session: Session = Depends(get_session)) -> Response:
+    """Stream a single, self-contained HTML comparison of this Run's models as a download
+    (ADR 0026, ticket 02). Assembled synchronously in-request from the Run's Results — no
+    ``Report`` entity, no stored file. Enabled only for a **terminal** (``done``/``failed``)
+    Run, with no GT gating: a non-terminal Run is a ``400``; an unknown Run a ``404``. The
+    file opens by double-click (every image base64-inlined, all CSS inlined, no network).
+    """
+    run = session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"no run with id {run_id}")
+    if run.status not in _TERMINAL_STATUSES:
+        raise HTTPException(
+            status_code=400, detail="report is available once the run is done or failed"
+        )
+    report = ReportService(session).build(run)
+    return Response(
+        content=report.html,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{report.filename}"'},
     )

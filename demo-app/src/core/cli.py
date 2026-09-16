@@ -3,9 +3,7 @@
 The CLI drives the *same* shared services as the UI and writes to the same SQLite store,
 so a CLI run and an equivalent UI run are the same Run / Results / Predictions in the one
 store, with no second source of truth to drift. Its args map onto that model: a PDF to
-ingest as a Drawing, a Task, the models, and which prompt version to pin. The legacy
-``object_counting`` / ``object_location`` task names still parse so existing invocations
-keep working.
+ingest as a Drawing, the models, and which prompt version to pin.
 
 ``execute_cli_run`` is the injectable seam: it takes an open ``Session`` and an
 ``OpenRouterAdapter`` so a test can drive the whole path against a temp DB with a stubbed
@@ -20,7 +18,7 @@ from sqlmodel import Session
 
 from core.adapters.openrouter import HttpxOpenRouterAdapter, OpenRouterAdapter
 from core.db import init_db, make_engine
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.models.run import PredictionStatus, Run
 from core.services.drawing import DEFAULT_CACHE_ROOT, DrawingService
 from core.services.model_catalog import ModelCatalogService
@@ -37,19 +35,10 @@ DEFAULT_MODELS = [
     "google/gemini-2.5-flash",
 ]
 
-# Accept the current Task names and the POC's ``object_*`` spellings, both mapped to the
-# canonical Task the shared services speak.
-TASK_ALIASES = {
-    "counting": Task.counting,
-    "object_counting": Task.counting,
-    "location": Task.location,
-    "object_location": Task.location,
-}
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run object counting / location detection over a PDF's pages, "
+        description="Run object location detection over a PDF's pages, "
         "persisting to the shared SQLite store."
     )
     parser.add_argument("--project", default="prj0001")
@@ -58,7 +47,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--name", default=None, help="Drawing name (defaults to the PDF stem)."
     )
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
-    parser.add_argument("--task", choices=sorted(TASK_ALIASES), default="counting")
     parser.add_argument(
         "--prompt-family",
         default="default",
@@ -80,28 +68,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.pdf_path = Path(f"data/input/{args.project}.pdf")
     if args.name is None:
         args.name = args.pdf_path.stem
-    args.task = TASK_ALIASES[args.task]
 
     return args
 
 
-def resolve_prompt(
-    session: Session, task: Task, family: str, version: int | None
-) -> Prompt:
-    """The prompt version a Run pins: an explicit ``version`` within ``(task, family)``,
-    or the family's latest when none is given. Raises if it doesn't exist."""
+def resolve_prompt(session: Session, family: str, version: int | None) -> Prompt:
+    """The prompt version a Run pins: an explicit ``version`` within ``family``, or the
+    family's latest when none is given. Raises if it doesn't exist."""
     service = PromptService(session)
     if version is None:
-        prompt = service.latest(task, family)
+        prompt = service.latest(family)
         if prompt is None:
-            raise ValueError(
-                f"no {task.value} prompt family {family!r} to run; author one first"
-            )
+            raise ValueError(f"no prompt family {family!r} to run; author one first")
         return prompt
 
-    prompt = service.get(task, family, version)
+    prompt = service.get(family, version)
     if prompt is None:
-        raise ValueError(f"no {task.value} prompt {family!r} v{version}")
+        raise ValueError(f"no prompt {family!r} v{version}")
     return prompt
 
 
@@ -111,7 +94,6 @@ def execute_cli_run(
     *,
     pdf_path: Path,
     name: str,
-    task: Task,
     models: list[str],
     prompt_family: str = DEFAULT_FAMILY,
     prompt_version: int | None = None,
@@ -122,11 +104,11 @@ def execute_cli_run(
     shared services — landing the same rows a UI run produces. Returns the finished Run.
     """
     drawing = DrawingService(session, cache_root=cache_root).ingest(pdf_path, name=name)
-    prompt = resolve_prompt(session, task, prompt_family, prompt_version)
+    prompt = resolve_prompt(session, prompt_family, prompt_version)
     slugs = ModelCatalogService.resolve_selection(models)
 
     run = RunService(session, adapter, overlay_root=overlay_root).launch(
-        task, prompt.id, drawing.id, slugs
+        prompt.id, drawing.id, slugs
     )
     _print_summary(run)
     return run
@@ -134,7 +116,7 @@ def execute_cli_run(
 
 def _print_summary(run: Run) -> None:
     """A concise post-run report to stdout — the CLI's view of what landed in the DB."""
-    print(f"\nRun {run.id}: {run.task.value} — {run.status.value}")
+    print(f"\nRun {run.id}: {run.status.value}")
     print(
         f"drawing {run.drawing_id}, prompt {run.prompt_id}, {run.progress}/{run.total_units} units"
     )
@@ -165,7 +147,6 @@ def main(argv: list[str] | None = None) -> None:
             adapter,
             pdf_path=args.pdf_path,
             name=args.name,
-            task=args.task,
             models=args.models,
             prompt_family=args.prompt_family,
             prompt_version=args.prompt_version,

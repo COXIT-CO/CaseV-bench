@@ -107,10 +107,7 @@ function Header({
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="mb-2 text-xl font-semibold tracking-tight">
-            Run #{detail.run.id}{" "}
-            <span className="align-middle text-sm font-normal capitalize text-muted-foreground">
-              {detail.run.task}
-            </span>
+            Run #{detail.run.id}
           </h1>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-[12.5px] text-muted-foreground">
@@ -130,6 +127,10 @@ function Header({
             <StatusBadge status={status} />
             {progress} / {total}
           </span>
+          {/* A downloadable, standalone HTML comparison of this Run's models (ADR 0026):
+              enabled only for a terminal Run, no GT gating. A plain download anchor to the
+              streaming endpoint — the server names the file via Content-Disposition. */}
+          {terminal && <DownloadReportButton runId={detail.run.id} />}
           {/* Only a terminal Run may be deleted: a still-running Run's BackgroundRunner is
               writing Results/overlays, which a mid-flight cascade would race, and its
               result count (the confirm's collateral) isn't final yet. */}
@@ -139,6 +140,20 @@ function Header({
         </div>
       </div>
     </>
+  );
+}
+
+/** Download the standalone HTML run report (ADR 0026, ticket 02). A plain anchor to
+ * `GET /api/runs/:id/report`, which streams the file as an attachment; `download` lets the
+ * browser fall back to a sensible name if the Content-Disposition filename is ever absent. No
+ * fetch/mutation — the report is assembled and named server-side and saved by the browser. */
+function DownloadReportButton({ runId }: { runId: number }) {
+  return (
+    <Button asChild variant="outline" size="sm">
+      <a href={`/api/runs/${runId}/report`} download>
+        Download report
+      </a>
+    </Button>
   );
 }
 

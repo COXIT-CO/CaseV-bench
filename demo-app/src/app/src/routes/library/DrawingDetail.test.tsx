@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DrawingDetail } from "@/routes/library/DrawingDetail";
 import { renderWithProviders } from "@/test/render";
-import { COUNTING_GT, DRAWING_DETAIL } from "@/test/fixtures";
+import { DRAWING_DETAIL } from "@/test/fixtures";
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -14,9 +14,7 @@ vi.mock("@/api", async () => {
     api: {
       drawing: vi.fn(),
       deleteDrawing: vi.fn(),
-      // The detail now embeds the ground-truth entry, which pre-fills the counting totals.
-      countingGroundTruth: vi.fn(),
-      saveCountingGroundTruth: vi.fn(),
+      // The detail embeds the ground-truth entry, whose importer calls this.
       importLocationGroundTruth: vi.fn(),
     },
   };
@@ -37,8 +35,6 @@ describe("DrawingDetail", () => {
   beforeEach(() => {
     vi.mocked(api.drawing).mockReset();
     vi.mocked(api.deleteDrawing).mockReset();
-    vi.mocked(api.countingGroundTruth).mockReset();
-    vi.mocked(api.countingGroundTruth).mockResolvedValue(COUNTING_GT);
   });
 
   it("renders the page thumbnails with pixel dimensions and image URLs", async () => {
@@ -156,15 +152,15 @@ describe("DrawingDetail", () => {
     );
   });
 
-  it("mounts the ground-truth entry points (counting form + location import)", async () => {
+  it("mounts the location-import ground-truth entry point, and only that one", async () => {
     vi.mocked(api.drawing).mockResolvedValue(DRAWING_DETAIL);
     renderDetail();
 
     expect(
       await screen.findByRole("heading", { name: "Ground truth" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Counting totals")).toBeInTheDocument();
     expect(screen.getByText("Location boxes (JSON import)")).toBeInTheDocument();
+    expect(screen.queryByText("Counting totals")).not.toBeInTheDocument();
   });
 
   it("scrolls to the ground-truth section when linked with the #ground-truth hash", async () => {

@@ -36,9 +36,7 @@ def list_models(
     """The curated model catalog (spec §A.6). The free-text escape hatch is a client-side
     input resolved at Run launch, not part of this list."""
     catalog = service.list_catalog()
-    return ModelsResponse(
-        catalog=[CatalogEntryOut(slug=e.slug, label=e.label) for e in catalog]
-    )
+    return ModelsResponse(catalog=[CatalogEntryOut.of(e) for e in catalog])
 
 
 @router.post("/models", response_model=CatalogEntryOut, status_code=201)
@@ -54,7 +52,7 @@ def add_model(
         entry = service.add(payload.slug, payload.label)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return CatalogEntryOut(slug=entry.slug, label=entry.label)
+    return CatalogEntryOut.of(entry)
 
 
 @router.delete("/models/{slug:path}", response_model=CatalogEntryOut)
@@ -70,4 +68,4 @@ def remove_model(
         removed = service.remove(slug)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    return CatalogEntryOut(slug=removed.slug, label=removed.label)
+    return CatalogEntryOut.of(removed)

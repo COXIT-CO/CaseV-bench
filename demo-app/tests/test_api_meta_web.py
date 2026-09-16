@@ -3,7 +3,6 @@ the Vite -> JSON -> shadcn pipeline end to end. Since the ticket-08 cutover the 
 the data half of the web surface; the SPA serving half is covered in test_spa_serving.py.
 """
 
-from core.models.prompt import Task
 from core.models.results import OBJECT_LABELS
 
 
@@ -13,7 +12,6 @@ def test_api_meta_returns_app_facts(client):
     assert response.status_code == 200
     body = response.json()
     assert body["app"] == "Prompt & Config Lab"
-    assert body["tasks"] == [t.value for t in Task]
     assert body["labels"] == list(OBJECT_LABELS)
     # A fresh test DB has no domain rows yet; the counts come straight off the DB.
     assert body["drawing_count"] == 0

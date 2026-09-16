@@ -1,18 +1,17 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ResultDetailResponse } from "@/types";
 import { ResultDetail } from "@/routes/ResultDetail";
 import { renderWithProviders } from "@/test/render";
 import {
-  COUNTING_RESULT,
   EDITED_LOCATION_RESULT,
+  FAILED_PAGE_LOCATION_RESULT,
   LOCATION_RESULT,
   SALVAGED_LOCATION_RESULT,
   UNSCORED_LOCATION_RESULT,
-  UNSCORED_RESULT,
 } from "@/test/fixtures";
 
 // Mock the API so the drill-down resolves to a known payload per Result.
@@ -47,33 +46,13 @@ describe("ResultDetail", () => {
     vi.mocked(api.revertPredictionOverride).mockReset();
   });
 
-  it("renders the counting score headline, per-label rows, and header refs", async () => {
-    vi.mocked(api.result).mockResolvedValue(COUNTING_RESULT);
-    renderDetail();
-
-    await screen.findByRole("heading", { name: "Result #42" });
-    // Counting headline: total abs. error + exact matches as n / total.
-    expect(screen.getByText("Total abs. error")).toBeInTheDocument();
-    expect(screen.getByText("3 / 4")).toBeInTheDocument();
-    // A per-label row shows predicted / gt / abs-error.
-    const row = screen.getByText("cabinet").closest("tr")!;
-    expect(within(row).getByText("24")).toBeInTheDocument();
-    expect(within(row).getByText("22")).toBeInTheDocument();
-    // Header refs link to the Run and the Drawing.
-    expect(screen.getByRole("link", { name: /Run #812/ })).toHaveAttribute(
-      "href",
-      "/runs/812",
-    );
-    expect(screen.getByRole("link", { name: /Drawing: prj0001/ })).toBeInTheDocument();
-  });
-
   it("shows a failed page's parse error and a successful page's parsed JSON", async () => {
-    vi.mocked(api.result).mockResolvedValue(COUNTING_RESULT);
-    renderDetail();
+    vi.mocked(api.result).mockResolvedValue(FAILED_PAGE_LOCATION_RESULT);
+    renderDetail("/results/45");
 
     await screen.findByText("Per-page predictions");
     // The ok page's parsed JSON is pretty-printed in a mono block.
-    expect(screen.getByText(/"cabinet": 24/)).toBeInTheDocument();
+    expect(screen.getByText(/"label": "cabinet"/)).toBeInTheDocument();
     // The failed page surfaces its parse error distinctly.
     expect(screen.getByText("response was not valid JSON")).toBeInTheDocument();
     // Every page also exposes its raw model output (the failed page's raw text here).
@@ -81,7 +60,7 @@ describe("ResultDetail", () => {
     expect(screen.getByText("not json")).toBeInTheDocument();
   });
 
-  it("renders the location score shape with P/R/F1 and per-label tp/fp/fn", async () => {
+  it("renders the score shape with P/R/F1, per-label tp/fp/fn, and header refs", async () => {
     vi.mocked(api.result).mockResolvedValue(LOCATION_RESULT);
     renderDetail("/results/90");
 
@@ -89,16 +68,25 @@ describe("ResultDetail", () => {
     expect(screen.getByText("Precision")).toBeInTheDocument();
     expect(screen.getByText("Recall")).toBeInTheDocument();
     expect(
-      screen.getByText(/IoU@0.5, matched per page then micro-averaged/),
+      screen.getByText(/IoU@0.50, matched per page then micro-averaged/),
     ).toBeInTheDocument();
-    // The counting columns are never shown for a location Result.
+    // One Score shape: the counting block is gone, not branched around (ADR 0032).
     expect(screen.queryByText("Total abs. error")).not.toBeInTheDocument();
+    expect(screen.queryByText("Exact matches")).not.toBeInTheDocument();
     // "cabinet" now also appears in the overlay legend (ticket 06); scope to the score row.
     const row = screen
       .getAllByText("cabinet")
       .map((el) => el.closest("tr"))
       .find((tr): tr is HTMLTableRowElement => tr !== null)!;
     expect(within(row).getByText("22")).toBeInTheDocument(); // tp
+    // Header refs link to the Run and the Drawing.
+    expect(screen.getByRole("link", { name: /Run #12/ })).toHaveAttribute(
+      "href",
+      "/runs/12",
+    );
+    expect(
+      screen.getByRole("link", { name: /Drawing: floorplan/ }),
+    ).toBeInTheDocument();
   });
 
   it("shows the prediction-only overlay grid for a scored location Result", async () => {
@@ -118,8 +106,9 @@ describe("ResultDetail", () => {
     for (const label of [
       "cabinet",
       "countertop",
+      "floor_plan",
       "elevation",
-      "elevation_callout",
+      "callout",
     ]) {
       expect(within(legend).getByText(label)).toBeInTheDocument();
     }
@@ -141,8 +130,8 @@ describe("ResultDetail", () => {
   });
 
   it("renders the unscored state with a ground-truth CTA and no score block", async () => {
-    vi.mocked(api.result).mockResolvedValue(UNSCORED_RESULT);
-    renderDetail("/results/43");
+    vi.mocked(api.result).mockResolvedValue(UNSCORED_LOCATION_RESULT);
+    renderDetail("/results/44");
 
     await screen.findByText("No ground truth for this drawing yet");
     // The CTA points at the Drawing's ground-truth entry.
@@ -151,7 +140,7 @@ describe("ResultDetail", () => {
       "/library/drawings/3#ground-truth",
     );
     // No score headline is shown, but the predictions are still inspectable.
-    expect(screen.queryByText("Total abs. error")).not.toBeInTheDocument();
+    expect(screen.queryByText("Precision")).not.toBeInTheDocument();
     expect(screen.getByText("Per-page predictions")).toBeInTheDocument();
   });
 
@@ -318,16 +307,6 @@ describe("ResultDetail", () => {
     );
   });
 
-  it("never offers JSON editing on a counting result", async () => {
-    vi.mocked(api.result).mockResolvedValue(COUNTING_RESULT);
-    renderDetail();
-
-    await screen.findByText("Per-page predictions");
-    expect(
-      screen.queryByRole("button", { name: "Edit JSON" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("surfaces an API error through the shared error block", async () => {
     vi.mocked(api.result).mockRejectedValue(new Error("boom"));
     renderDetail();
@@ -335,5 +314,106 @@ describe("ResultDetail", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("boom"),
     );
+  });
+});
+
+describe("ResultDetail IoU knob", () => {
+  // The exploratory twin of LOCATION_RESULT: same Result, re-scored at 0.3 by the server,
+  // which is what makes the loose boxes count.
+  const EXPLORED: ResultDetailResponse = {
+    ...LOCATION_RESULT,
+    iou_threshold: 0.3,
+    canonical_iou: false,
+    location_score: {
+      ...LOCATION_RESULT.location_score!,
+      precision: 0.94,
+      recall: 0.91,
+      f1: 0.92,
+    },
+  };
+
+  // Surfaces the live URL so the knob can be asserted to mirror into it, the way the
+  // Leaderboard's filters do (spec §B.3) — that mirroring is what makes an exploratory view
+  // shareable and back/forward-able.
+  function UrlProbe() {
+    const loc = useLocation();
+    return <div data-testid="url">{loc.pathname + loc.search}</div>;
+  }
+
+  function renderKnob(route: string) {
+    return renderWithProviders(
+      <>
+        <Routes>
+          <Route path="/results/:id" element={<ResultDetail />} />
+        </Routes>
+        <UrlProbe />
+      </>,
+      { route },
+    );
+  }
+
+  beforeEach(() => {
+    vi.mocked(api.result).mockReset();
+  });
+
+  it("requests the threshold from the URL and labels the rates with it", async () => {
+    vi.mocked(api.result).mockResolvedValue(EXPLORED);
+    renderDetail("/results/90?iou_threshold=0.3");
+
+    await screen.findByRole("heading", { name: "Result #90" });
+    expect(api.result).toHaveBeenCalledWith(90, 0.3);
+    expect(
+      screen.getByText(/IoU@0.30, matched per page then micro-averaged/),
+    ).toBeInTheDocument();
+    // The banner names what the exploration is deviating *from*, read off the response
+    // rather than hardcoded, and says plainly that nothing was stored.
+    expect(screen.getByRole("status")).toHaveTextContent("Exploring at IoU 0.30");
+    expect(screen.getByRole("status")).toHaveTextContent("IoU 0.50");
+  });
+
+  it("defaults to the canonical point and shows no exploring banner", async () => {
+    vi.mocked(api.result).mockResolvedValue(LOCATION_RESULT);
+    renderDetail("/results/90");
+
+    await screen.findByRole("heading", { name: "Result #90" });
+    expect(api.result).toHaveBeenCalledWith(90, null);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("re-scores from the dropdown and mirrors the choice into the URL", async () => {
+    vi.mocked(api.result).mockImplementation(async (_id, threshold) =>
+      threshold === 0.3 ? EXPLORED : LOCATION_RESULT,
+    );
+    renderKnob("/results/90");
+    await screen.findByRole("heading", { name: "Result #90" });
+
+    await userEvent.selectOptions(screen.getByLabelText("IoU"), "0.3");
+
+    await waitFor(() => expect(api.result).toHaveBeenCalledWith(90, 0.3));
+    expect(screen.getByTestId("url")).toHaveTextContent(
+      "/results/90?iou_threshold=0.3",
+    );
+    // The rendered rates really came back re-scored, not just the request re-issued: the
+    // subtitle and banner both track the new operating point.
+    await waitFor(() =>
+      expect(
+        screen.getByText(/IoU@0.30, matched per page then micro-averaged/),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Exploring at IoU 0.30");
+  });
+
+  it("returns to the canonical point from the banner", async () => {
+    vi.mocked(api.result).mockImplementation(async (_id, threshold) =>
+      threshold === 0.3 ? EXPLORED : LOCATION_RESULT,
+    );
+    renderKnob("/results/90?iou_threshold=0.3");
+    await screen.findByRole("heading", { name: "Result #90" });
+
+    await userEvent.click(screen.getByRole("button", { name: /back to default/i }));
+
+    await waitFor(() => expect(api.result).toHaveBeenCalledWith(90, null));
+    expect(screen.getByTestId("url")).toHaveTextContent("/results/90");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

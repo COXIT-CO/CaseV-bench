@@ -13,7 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { useCreateRun, useLaunchOptions } from "@/hooks/queries";
 import { cn } from "@/lib/utils";
-import type { CatalogEntry, LaunchOptionsResponse } from "@/types";
+import type {
+  CatalogEntry,
+  LaunchOptionsResponse,
+  ReasoningEffort,
+} from "@/types";
 
 // The launch→watch loop's entry point (spec §A.4, §B.2). One `LaunchRunForm` reused as a
 // Dialog wired to the Leaderboard's "Launch run" CTA and to the Runs page. The server
@@ -82,7 +86,11 @@ function MissingPrerequisites({ options }: { options: LaunchOptionsResponse }) {
           </Button>
         )}
         {needsDrawing && (
-          <Button asChild size="sm" variant={needsPrompt ? "outline" : "default"}>
+          <Button
+            asChild
+            size="sm"
+            variant={needsPrompt ? "outline" : "default"}
+          >
             <Link to="/library/drawings">Upload a drawing</Link>
           </Button>
         )}
@@ -98,8 +106,27 @@ const SELECT_CLASS =
 // form matches the server's `RunKnobs` defaults (tickets 04/05, ADR 0018).
 const DEFAULT_DPI = 300;
 const DEFAULT_DOWNSAMPLE_PX = 1568;
-const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 16384;
 const DEFAULT_TEMPERATURE = 0;
+const REASONING_EFFORTS: ReasoningEffort[] = ["low", "medium", "high", "xhigh"];
+const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
+
+/** The efforts every selected Model accepts — the band the form may offer. Mirrors the
+ * server's `efforts_for`, which refuses anything outside it; a slug not in the catalog (the
+ * free-text hatch) is unconstrained there and so does not narrow the band here either. */
+function allowedEfforts(
+  catalog: CatalogEntry[],
+  selected: Set<string>,
+): ReasoningEffort[] {
+  const ceiling = catalog
+    .filter((entry) => selected.has(entry.slug))
+    .reduce(
+      (lowest, entry) =>
+        Math.min(lowest, REASONING_EFFORTS.indexOf(entry.max_reasoning_effort)),
+      REASONING_EFFORTS.length - 1,
+    );
+  return REASONING_EFFORTS.slice(0, ceiling + 1);
+}
 
 function LaunchRunFields({
   options,
@@ -113,14 +140,18 @@ function LaunchRunFields({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [freeText, setFreeText] = React.useState("");
   // The Advanced knobs, pre-filled and collapsed. `providerDefault` sends `temperature: null`
-  // so a reasoning Model that rejects an explicit temperature still runs; `downsample` off
-  // sends `downsample_px: null` (full resolution, no downsample).
+  // so a reasoning Model that rejects an explicit temperature still runs — the default, since
+  // one catalog Model rejects the parameter outright; `downsample` off sends
+  // `downsample_px: null` (full resolution, no downsample).
   const [dpi, setDpi] = React.useState(DEFAULT_DPI);
   const [downsample, setDownsample] = React.useState(true);
   const [downsamplePx, setDownsamplePx] = React.useState(DEFAULT_DOWNSAMPLE_PX);
   const [maxTokens, setMaxTokens] = React.useState(DEFAULT_MAX_TOKENS);
   const [temperature, setTemperature] = React.useState(DEFAULT_TEMPERATURE);
-  const [providerDefault, setProviderDefault] = React.useState(false);
+  const [providerDefault, setProviderDefault] = React.useState(true);
+  const [reasoningEffort, setReasoningEffort] = React.useState(
+    DEFAULT_REASONING_EFFORT,
+  );
   const createRun = useCreateRun();
 
   function toggle(slug: string) {
@@ -135,6 +166,14 @@ function LaunchRunFields({
   // At least one model is required; the curated selection and the free-text hatch both
   // count. The server re-resolves the slug list as the source of truth on launch.
   const hasModel = selected.size > 0 || freeText.trim().length > 0;
+
+  // Selecting a Model can narrow the band under a choice already made — adding one that stops
+  // at `high` to an `xhigh` run. Derive the effective effort rather than reaching back into
+  // state, so the form can never submit a value the server would refuse.
+  const efforts = allowedEfforts(options.catalog, selected);
+  const effort = efforts.includes(reasoningEffort)
+    ? reasoningEffort
+    : efforts[efforts.length - 1];
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -151,6 +190,7 @@ function LaunchRunFields({
         max_tokens: maxTokens,
         // "Provider default" → null, which the server omits from the request payload.
         temperature: providerDefault ? null : temperature,
+        reasoning_effort: effort,
       },
       { onSuccess: (run) => onLaunched(run.id) },
     );
@@ -167,7 +207,7 @@ function LaunchRunFields({
         >
           {options.prompts.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.task}: {p.family} — v{p.version}
+              {p.family} — v{p.version}
             </option>
           ))}
         </select>
@@ -221,6 +261,9 @@ function LaunchRunFields({
         onTemperature={setTemperature}
         providerDefault={providerDefault}
         onProviderDefault={setProviderDefault}
+        reasoningEffort={effort}
+        efforts={efforts}
+        onReasoningEffort={setReasoningEffort}
       />
 
       {createRun.isError && <ErrorBlock error={createRun.error} />}
@@ -240,7 +283,8 @@ const KNOB_INPUT_CLASS =
  * effective per run (ingest retains the source PDF, ADR 0018) and ignored for image drawings.
  * Downsample is on with a target long-edge px, or off (→ `downsample_px: null`, full
  * resolution). Temperature is a number, or "provider default" (→ `null`, omitted from the
- * request) for Models that reject an explicit temperature. */
+ * request) for Models that reject an explicit temperature — the pre-filled choice, since one
+ * catalog Model does not accept the parameter at all. Reasoning effort is always sent. */
 function AdvancedKnobs({
   dpi,
   onDpi,
@@ -254,6 +298,9 @@ function AdvancedKnobs({
   onTemperature,
   providerDefault,
   onProviderDefault,
+  reasoningEffort,
+  efforts,
+  onReasoningEffort,
 }: {
   dpi: number;
   onDpi: (value: number) => void;
@@ -267,6 +314,9 @@ function AdvancedKnobs({
   onTemperature: (value: number) => void;
   providerDefault: boolean;
   onProviderDefault: (value: boolean) => void;
+  reasoningEffort: ReasoningEffort;
+  efforts: ReasoningEffort[];
+  onReasoningEffort: (value: ReasoningEffort) => void;
 }) {
   return (
     <details className="rounded-md border bg-card px-3 py-2">
@@ -341,6 +391,32 @@ function AdvancedKnobs({
             />
             Use provider default (omit temperature)
           </label>
+        </Field>
+
+        <Field label="reasoning effort" htmlFor="launch-reasoning-effort">
+          <select
+            id="launch-reasoning-effort"
+            value={reasoningEffort}
+            onChange={(e) =>
+              onReasoningEffort(e.target.value as ReasoningEffort)
+            }
+            className={KNOB_INPUT_CLASS}
+          >
+            {efforts.map((effort) => (
+              <option key={effort} value={effort}>
+                {effort}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Sent to every Model, so they reason at the same setting rather than
+            each at its own default. Thinking is spent from max_tokens — raise
+            it alongside the effort.
+            {efforts.length < REASONING_EFFORTS.length &&
+              " A selected Model stops at " +
+                efforts[efforts.length - 1] +
+                ", which caps the run."}
+          </p>
         </Field>
       </div>
     </details>

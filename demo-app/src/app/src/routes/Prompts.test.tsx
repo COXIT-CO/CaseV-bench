@@ -26,7 +26,7 @@ function renderPrompts() {
     <>
       <Routes>
         <Route path="/prompts" element={<Prompts />} />
-        <Route path="/prompts/:task/:family" element={<div>history page</div>} />
+        <Route path="/prompts/:family" element={<div>history page</div>} />
       </Routes>
       <LocationProbe />
     </>,
@@ -40,63 +40,62 @@ describe("Prompts list", () => {
     vi.mocked(api.createPrompt).mockReset();
   });
 
-  it("groups families under their task with latest version and count", async () => {
+  it("lists every family flat, with its latest version and count", async () => {
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     renderPrompts();
 
-    expect(await screen.findByText("cabinet-count-v2")).toBeInTheDocument();
+    expect(await screen.findByText("boxes")).toBeInTheDocument();
     expect(screen.getByText("latest v3")).toBeInTheDocument();
     expect(screen.getByText("3 versions")).toBeInTheDocument();
-    // Task-scoped groups: the counting and location headings both render.
-    expect(screen.getByRole("heading", { name: "counting" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "location" })).toBeInTheDocument();
+    expect(screen.getByText("default")).toBeInTheDocument();
+    // No task grouping: no section heading wraps the families.
+    expect(screen.queryByRole("heading", { name: "counting" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "location" })).not.toBeInTheDocument();
   });
 
   it("links a family to its history page", async () => {
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     renderPrompts();
 
-    await userEvent.click(await screen.findByText("cabinet-count-v2"));
+    await userEvent.click(await screen.findByText("boxes"));
     expect(await screen.findByText("history page")).toBeInTheDocument();
-    expect(screen.getByTestId("url")).toHaveTextContent(
-      "/prompts/counting/cabinet-count-v2",
-    );
+    expect(screen.getByTestId("url")).toHaveTextContent("/prompts/boxes");
   });
 
-  it("creates a new family and routes to its history page", async () => {
+  it("creates a new family without a task choice and routes to its history page", async () => {
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     vi.mocked(api.createPrompt).mockResolvedValue({
-      task: "location",
       family: "fixtures",
       version: 1,
     });
     renderPrompts();
 
-    await screen.findByText("cabinet-count-v2");
-    await userEvent.selectOptions(screen.getByLabelText("Task"), "location");
+    await screen.findByText("boxes");
+    // The authoring form asks only for what varies — there is no Task control to pick.
+    expect(screen.queryByLabelText("Task")).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Family"), "fixtures");
     await userEvent.type(screen.getByLabelText("Prompt text"), "Locate fixtures");
     await userEvent.click(screen.getByRole("button", { name: "Create prompt" }));
 
     await waitFor(() =>
       expect(api.createPrompt).toHaveBeenCalledWith(
-        { task: "location", family: "fixtures", text: "Locate fixtures" },
+        { family: "fixtures", text: "Locate fixtures" },
         expect.anything(),
       ),
     );
     expect(await screen.findByText("history page")).toBeInTheDocument();
-    expect(screen.getByTestId("url")).toHaveTextContent("/prompts/location/fixtures");
+    expect(screen.getByTestId("url")).toHaveTextContent("/prompts/fixtures");
   });
 
   it("surfaces the service message when creating a duplicate family", async () => {
     const { ApiError } = await vi.importActual<typeof import("@/api")>("@/api");
     vi.mocked(api.prompts).mockResolvedValue(PROMPTS);
     vi.mocked(api.createPrompt).mockRejectedValue(
-      new ApiError(400, "prompt family 'default' already exists for task counting"),
+      new ApiError(400, "prompt family 'default' already exists"),
     );
     renderPrompts();
 
-    await screen.findByText("cabinet-count-v2");
+    await screen.findByText("boxes");
     await userEvent.type(screen.getByLabelText("Family"), "default");
     await userEvent.type(screen.getByLabelText("Prompt text"), "dupe");
     await userEvent.click(screen.getByRole("button", { name: "Create prompt" }));

@@ -1,24 +1,22 @@
 """Run / Result / Prediction tables — one launched experiment and its stored
 outputs (spec: Runs & execution; glossary: Run, Result, Prediction; ADR 0006).
 
-A ``Run`` is one execution of ``(task, prompt version, drawing, N models)``. It
-snapshots the per-run knobs used (DPI, downsample long-edge, max_tokens, temperature)
+A ``Run`` is one execution of ``(prompt version, drawing, N models)``. It
+snapshots the per-run knobs used (DPI, downsample long-edge, max_tokens, temperature,
+reasoning effort)
 so a result stays reproducible; the knobs are recorded and displayed but are not a
 Leaderboard rank axis (Configuration stays ``(prompt version, model)``; ADR 0018).
 ``temperature`` is ``None`` when the Run runs under the provider default. Each Model's
 outcome is a ``Result`` (the comparison unit scores later attach to); each Result holds one
-``Prediction`` per Page — the raw model content plus the parsed output (counting
-counts, or location boxes with a rendered overlay PNG), or a failure record with the
-parse error. Execution runs on a background task (ADR 0006). Kept DB-agnostic per
-ADR 0007/0008.
+``Prediction`` per Page — the raw model content plus the parsed output (the detected
+boxes with a rendered overlay PNG), or a failure record with the parse error. Execution
+runs on a background task (ADR 0006). Kept DB-agnostic per ADR 0007/0008.
 """
 
 from datetime import datetime, timezone
 from enum import Enum
 
 from sqlmodel import Field, Relationship, SQLModel
-
-from core.models.prompt import Task
 
 
 def _utcnow() -> datetime:
@@ -47,7 +45,6 @@ class Run(SQLModel, table=True):
     __tablename__ = "run"
 
     id: int | None = Field(default=None, primary_key=True)
-    task: Task = Field(index=True)
     prompt_id: int = Field(foreign_key="prompt.id", index=True)
     drawing_id: int = Field(foreign_key="drawing.id", index=True)
 
@@ -63,6 +60,10 @@ class Run(SQLModel, table=True):
     downsample_px: int | None
     max_tokens: int
     temperature: float | None
+    # Nullable only so the additive schema pass can add it to a live table (db.py); every Run
+    # launched since records a value. NULL therefore reads as "launched before the knob
+    # existed, each Model at its own default effort" — which is exactly what happened.
+    reasoning_effort: str | None = None
 
     created_at: datetime = Field(default_factory=_utcnow)
 
@@ -102,19 +103,27 @@ class Prediction(SQLModel, table=True):
     # The model's raw response content — retained on both success and failure so a
     # developer can inspect exactly what came back (spec: Runs 19, 21).
     raw_content: str | None = None
-    # Parsed JSON as text on success — counting: the per-page counts; location: the
-    # detected boxes (spec: Runs 19). None on failure.
+    # Parsed JSON as text on success — the detected boxes (spec: Runs 19). None on failure.
     parsed_json: str | None = None
     # The parse error recorded after the one retry failed; None on success.
     parse_error: str | None = None
-    # Path to the prediction-overlay PNG (location Runs only): the detected boxes drawn
-    # on the page image (ticket 09). None for counting or failed predictions.
+    # Path to the prediction-overlay PNG: the detected boxes drawn on the page image
+    # (ticket 09). None for a failed prediction.
     overlay_path: str | None = None
+    # What this page cost to produce: wall-clock latency of the model call and OpenRouter's
+    # own usage accounting, both summed across the retry attempt so they measure the *page*
+    # rather than whichever attempt happened to succeed. ``None`` means never measured — a
+    # Prediction from before these columns, or an adapter that returned no usage — and stays
+    # distinct from a genuine zero, which free and BYOK models really do report.
+    latency_ms: int | None = None
+    cost_usd: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
     # A developer's manual JSON override for a location Prediction (ADR 0020, ticket 07): the
     # corrected boxes as a ``LocationResult`` JSON. Never touches ``parsed_json``/``raw_content``
     # and is **invisible to scoring** — the Leaderboard always ranks the model's original output.
     # When set, the drill-down JSON view and the prediction overlay render from it (marked
-    # "edited"); clearing it reverts to the model's output. None on counting or unedited Predictions.
+    # "edited"); clearing it reverts to the model's output. None on an unedited Prediction.
     edited_json: str | None = None
 
     result: Result | None = Relationship(back_populates="predictions")

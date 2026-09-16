@@ -37,7 +37,11 @@ WORKDIR /app
 # group, and --no-root since the project ships as a pythonpath source tree, not a package.
 RUN pip install --no-cache-dir "poetry>=2.0,<3.0"
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --only main --no-root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && poetry install --only main --no-root \
+    && apt-get purge -y --auto-remove git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Application source: the web layer and the domain engine only (no frontend TS source — the
 # built SPA arrives from the frontend stage below).

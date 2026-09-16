@@ -1,6 +1,6 @@
 """JSON contract for the location Leaderboard (spec §A.2, ticket 02). Under
-``?task=location`` the ``/api`` twin serves the P/R/F1-ranked board — the location metric
-set and per-row rates instead of the counting pair — with unscored Results pinned last.
+The ``/api`` twin serves the P/R/F1-ranked board — the location metric
+set and per-row rates — with unscored Results pinned last.
 """
 
 import json
@@ -10,9 +10,8 @@ from conftest import seed_page_images
 from sqlmodel import Session, select
 
 from api.deps import get_run_service
-from core.adapters.openrouter import get_openrouter_adapter
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Prompt, Task
+from core.models.prompt import Prompt
 from core.services.location_ground_truth import LocationGroundTruthService
 from core.services.run import RunService
 
@@ -51,9 +50,7 @@ def _seed_drawing(engine, tmp_path) -> int:
 
 def _location_prompt_id(engine) -> int:
     with Session(engine) as session:
-        return (
-            session.exec(select(Prompt).where(Prompt.task == Task.location)).first().id
-        )
+        return session.exec(select(Prompt)).first().id
 
 
 def _import_gt(engine, drawing_id) -> None:
@@ -102,9 +99,8 @@ def test_location_leaderboard_api_ranks_by_prf1(
     _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
     _import_gt(engine, drawing_id)
 
-    body = client.get(f"/api/leaderboard?task=location&drawing_id={drawing_id}").json()
+    body = client.get(f"/api/leaderboard?drawing_id={drawing_id}").json()
 
-    assert body["task"] == "location"
     assert body["sort"] == "f1"
     assert body["metrics"] == ["f1", "precision", "recall"]
 
@@ -118,8 +114,6 @@ def test_location_leaderboard_api_ranks_by_prf1(
     assert row["f1"] == 1.0
     assert row["precision"] == 1.0
     assert row["recall"] == 1.0
-    # Location rows carry no counting metrics.
-    assert row["total_absolute_error"] is None
 
 
 def test_location_leaderboard_api_unscored_without_gt(
@@ -128,10 +122,40 @@ def test_location_leaderboard_api_unscored_without_gt(
     drawing_id = _seed_drawing(engine, tmp_path)
     _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
 
-    rows = client.get(f"/api/leaderboard?task=location&drawing_id={drawing_id}").json()[
-        "rows"
-    ]
+    rows = client.get(f"/api/leaderboard?drawing_id={drawing_id}").json()["rows"]
     assert len(rows) == 1
     assert rows[0]["scored"] is False
     assert rows[0]["rank"] is None
     assert rows[0]["f1"] is None
+
+
+def test_location_leaderboard_api_filters_by_prompt_family(
+    app, client, engine, stub_adapter, tmp_path
+):
+    """On the location board too, a ``prompt_family`` narrows to that lineage (ticket 04)."""
+    drawing_id = _seed_drawing(engine, tmp_path)
+    _launch_and_wait(app, client, engine, stub_adapter, tmp_path, drawing_id)
+    _import_gt(engine, drawing_id)
+
+    seeded_family = None
+    with Session(engine) as session:
+        seeded_family = session.exec(select(Prompt)).first().family
+
+    body = client.get(
+        f"/api/leaderboard?drawing_id={drawing_id}" f"&prompt_family={seeded_family}"
+    ).json()
+    assert body["prompt_family"] == seeded_family
+    assert {r["prompt_family"] for r in body["rows"]} == {seeded_family}
+
+    # A family with no location Runs yields an empty board, not the seeded rows.
+    empty = client.get(
+        f"/api/leaderboard?drawing_id={drawing_id}&prompt_family=nonexistent"
+    ).json()
+    assert empty["rows"] == []
+
+
+def test_location_leaderboard_api_version_without_family_is_400(client):
+    """A ``prompt_version`` without a ``prompt_family`` is a 400 on the location board too."""
+    response = client.get("/api/leaderboard?prompt_version=1")
+    assert response.status_code == 400
+    assert "prompt_family" in response.json()["detail"]

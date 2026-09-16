@@ -4,8 +4,8 @@ With the OpenRouter adapter stubbed to canned bounding-box responses, launching 
 location Run through the shared service against a temp SQLite DB parses each model's
 output into labeled normalized boxes, persists them as location Predictions per
 (Result, Page), and renders a prediction-overlay PNG on the page image. A response
-that fails to parse twice is recorded as a failure Prediction — same one-retry-then-
-record behavior as counting — without aborting the Run or rendering an overlay.
+that fails to parse twice is recorded as a failure Prediction — one retry, then record —
+without aborting the Run or rendering an overlay.
 """
 
 import json
@@ -15,7 +15,6 @@ from conftest import seed_page_images
 from sqlmodel import select
 
 from core.models.drawing import Drawing, Page
-from core.models.prompt import Task
 from core.models.results import LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, RunStatus
 from core.services.prompt import PromptService
@@ -62,7 +61,7 @@ def _seed_drawing(session, tmp_path: Path, n_pages: int) -> Drawing:
 
 
 def _seed_prompt(session):
-    return PromptService(session).create(Task.location, "default", "find them")
+    return PromptService(session).create("default", "find them")
 
 
 def test_location_run_persists_predictions_and_overlays(
@@ -74,7 +73,7 @@ def test_location_run_persists_predictions_and_overlays(
     overlay_root = tmp_path / "overlays"
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [SONNET, GPT]
+        prompt.id, drawing.id, [SONNET, GPT]
     )
 
     assert run.status == RunStatus.done
@@ -110,7 +109,7 @@ def test_location_parse_failure_is_recorded_without_overlay(
     overlay_root = tmp_path / "overlays"
 
     run = RunService(session, stub_adapter, overlay_root=overlay_root).launch(
-        Task.location, prompt.id, drawing.id, [SONNET, GPT]
+        prompt.id, drawing.id, [SONNET, GPT]
     )
 
     # A model failure does not abort the Run.

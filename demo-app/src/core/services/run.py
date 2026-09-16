@@ -1,9 +1,9 @@
 """Run execution — the shared service that launches a Run and persists its Results +
 Predictions (spec: Runs & execution; tickets 05, 06, 09).
 
-Two pieces live here around the per-page predict routines (``predict_counting`` /
-``predict_location``, the single primary test seam — they take an ``OpenRouterAdapter``
-so tests stub the only external I/O boundary):
+Two pieces live here around the per-page predict routine (``predict_location``, the single
+primary test seam — it takes an ``OpenRouterAdapter`` so tests stub the only external I/O
+boundary):
 
 - ``RunService`` inserts a ``queued`` Run with one Result per model and the knob
   snapshot (``create_run``). This is what a request calls synchronously and returns.
@@ -11,41 +11,54 @@ so tests stub the only external I/O boundary):
   (ADR 0006): it advances ``status`` (queued → running → done/failed) and a
   ``progress`` counter, fanning models out in parallel under a bounded concurrency
   cap while pages run **sequentially per model**. The HTMX frontend polls a status
-  endpoint and swaps in results when finished.
+  endpoint and swaps in results when finished. A Run that reaches ``done`` then offers
+  its scores to the shared results store (``services.results_store``, scope 9 ticket 05)
+  — best-effort, after the commit, and incapable of failing the Run.
 
-Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — for
-counting the per-page counts parsed from the model's JSON; for location the labeled
-boxes plus a prediction-overlay PNG drawn on the page image (ticket 09) — or a failure
-record. The request is a single model-agnostic user turn (no prefill; ADR 0019) and the
-response is parsed, retried once before a failure is recorded; a model failure never
-aborts the Run (spec: Runs 20, 21).
+Each model becomes a ``Result``; every Page becomes a ``Prediction`` under it — the
+labeled boxes parsed from the model's JSON plus a prediction-overlay PNG drawn on the
+page image (ticket 09) — or a failure record, and either way what the page cost to produce:
+its wall-clock latency and OpenRouter's usage accounting (``_CallStats``). The request is a
+single model-agnostic user turn (no prefill; ADR 0019) and the response is parsed, retried
+once before a failure is recorded; a model failure never aborts the Run (spec: Runs 20, 21).
 """
 
-import json
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TypeVar
 
 from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
-from core.adapters.openrouter import DEFAULT_MAX_TOKENS, OpenRouterAdapter
+from core.adapters.openrouter import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_REASONING_EFFORT,
+    OpenRouterAdapter,
+    OpenRouterError,
+    ReasoningEffort,
+)
 from core.config import settings
 from core.models.drawing import Drawing
-from core.models.prompt import Prompt, Task
-from core.models.results import CountResult, LocationDetection, LocationResult
+from core.models.prompt import Prompt
+from core.models.results import LocationDetection, LocationResult
 from core.models.run import Prediction, PredictionStatus, Result, Run, RunStatus
 from core.services.deletion import RunCascadeCounts, cascade_delete_runs
 from core.services.pdf_processing import DEFAULT_DPI, render_run_page
+from core.services.results_store import ResultsStoreConfig, publish_completed_run
 from core.utils import DEFAULT_DOWNSAMPLE_PX, draw_overlay, salvage_json
 
 # The default temperature a Run pins for reproducibility; a Run may instead set None to
 # run under the provider default, which is omitted from the request payload (ADR 0018/0019).
-DEFAULT_TEMPERATURE = 0.0
+# The provider default (temperature omitted from the payload). A reasoning Model either
+# ignores an explicit temperature or rejects the request outright — one catalog Model does not
+# accept the parameter at all — so pinning 0.0 for every Model bought reproducibility on the
+# Models that never needed it and errors on the ones that did (ADR 0019).
+DEFAULT_TEMPERATURE = None
 
 # How many models may call OpenRouter at once. Bounded so a 3-model run finishes ~3×
 # faster than fully sequential without hammering rate limits (ADR 0006).
@@ -56,8 +69,8 @@ DEFAULT_MAX_CONCURRENCY = 3
 # Production default under the single data root; tests inject a temp root (ADR-0014).
 DEFAULT_OVERLAY_ROOT = settings.overlays_root
 
-# Tasks the run path can execute today (counting: ticket 05/06; location: ticket 09).
-SUPPORTED_TASKS = (Task.counting, Task.location)
+# Token counts stay ints and costs stay floats through accumulation (``_accumulate``).
+_Number = TypeVar("_Number", int, float)
 
 
 def reconcile_orphaned_runs(session: Session) -> int:
@@ -84,13 +97,16 @@ class RunKnobs:
     """The per-run knobs a Run snapshots — recorded and displayed, but not a Leaderboard
     rank axis (Configuration stays ``(prompt version, model)``; ADR 0018). ``temperature``
     of ``None`` means "provider default" and is omitted from the request payload, so one
-    config runs reasoning and older models identically (ADR 0019). Field names match the
-    ``Run`` columns so the snapshot copies by ``asdict``."""
+    config runs reasoning and older models identically (ADR 0019); ``reasoning_effort`` is
+    sent to every Model precisely so they *don't* differ, each Model's own default sitting at
+    a different point of the band. Field names match the ``Run`` columns so the snapshot
+    copies by ``asdict``."""
 
     dpi: int = DEFAULT_DPI
     downsample_px: int | None = DEFAULT_DOWNSAMPLE_PX
     max_tokens: int = DEFAULT_MAX_TOKENS
     temperature: float | None = DEFAULT_TEMPERATURE
+    reasoning_effort: ReasoningEffort | None = DEFAULT_REASONING_EFFORT
 
 
 class _PageRef(NamedTuple):
@@ -116,21 +132,18 @@ class RunService:
         adapter: OpenRouterAdapter,
         knobs: RunKnobs = RunKnobs(),
         overlay_root: Path = DEFAULT_OVERLAY_ROOT,
+        results_store: ResultsStoreConfig | None = None,
     ):
         self.session = session
         self.adapter = adapter
         self.knobs = knobs
         self.overlay_root = overlay_root
+        self.results_store = results_store
 
-    def create_run(
-        self, task: Task, prompt_id: int, drawing_id: int, models: list[str]
-    ) -> Run:
+    def create_run(self, prompt_id: int, drawing_id: int, models: list[str]) -> Run:
         """Insert a ``queued`` Run with one Result per model and the knob snapshot."""
-        if task not in SUPPORTED_TASKS:
-            raise ValueError(f"unsupported Run task {task.value}")
-        prompt = self.session.get(Prompt, prompt_id)
-        if prompt is None or prompt.task != task:
-            raise ValueError(f"no {task.value} prompt with id {prompt_id}")
+        if self.session.get(Prompt, prompt_id) is None:
+            raise ValueError(f"no prompt with id {prompt_id}")
         drawing = self.session.get(Drawing, drawing_id)
         if drawing is None:
             raise ValueError(f"no drawing with id {drawing_id}")
@@ -138,7 +151,6 @@ class RunService:
             raise ValueError("a Run needs at least one model")
 
         run = Run(
-            task=task,
             prompt_id=prompt_id,
             drawing_id=drawing_id,
             status=RunStatus.queued,
@@ -166,22 +178,25 @@ class RunService:
         return cascade_delete_runs(self.session, [run_id], self.overlay_root)
 
     def background_runner(self, engine: Engine) -> "BackgroundRunner":
-        """A ``BackgroundRunner`` sharing this service's adapter and knob snapshot, so
-        the background execution path can't drift from what ``create_run`` recorded.
+        """A ``BackgroundRunner`` sharing this service's adapter, knob snapshot and
+        results-store destination, so the background execution path can't drift from what
+        ``create_run`` recorded — nor publish somewhere this service was not pointed at.
         The runner needs the engine (not the request-bound session) to open a fresh
         session per worker thread (ADR 0006)."""
         return BackgroundRunner(
-            engine, self.adapter, self.knobs, overlay_root=self.overlay_root
+            engine,
+            self.adapter,
+            self.knobs,
+            overlay_root=self.overlay_root,
+            results_store=self.results_store,
         )
 
-    def launch(
-        self, task: Task, prompt_id: int, drawing_id: int, models: list[str]
-    ) -> Run:
+    def launch(self, prompt_id: int, drawing_id: int, models: list[str]) -> Run:
         """Create a Run and run it to completion, blocking until done — a synchronous
         convenience for the CLI and tests. The web launch path instead calls
         ``create_run`` and hands the id to a ``BackgroundRunner`` so the request
         returns while the work continues (ADR 0006)."""
-        run = self.create_run(task, prompt_id, drawing_id, models)
+        run = self.create_run(prompt_id, drawing_id, models)
         self.background_runner(self.session.get_bind()).execute_run(run.id)
         self.session.refresh(run)
         return run
@@ -207,12 +222,17 @@ class BackgroundRunner:
         knobs: RunKnobs = RunKnobs(),
         max_workers: int = DEFAULT_MAX_CONCURRENCY,
         overlay_root: Path = DEFAULT_OVERLAY_ROOT,
+        results_store: ResultsStoreConfig | None = None,
     ):
         self.engine = engine
         self.adapter = adapter
         self.knobs = knobs
         self.max_workers = max_workers
         self.overlay_root = overlay_root
+        # Where a finished Run's scores are published (scope 9, ticket 05). ``None`` means
+        # "whatever the environment configures", which is normally nothing at all — tests
+        # inject a recorder. Publishing is best-effort by construction and cannot fail a Run.
+        self.results_store = results_store
         self._write_lock = threading.Lock()
 
     def submit(self, run_id: int) -> threading.Thread:
@@ -226,13 +246,14 @@ class BackgroundRunner:
         """Drive one Run to a terminal state. Snapshots what workers need up front,
         marks the Run ``running``, fans the models out under the concurrency cap, then
         records ``done`` — or ``failed`` if a worker hit a genuine persistence error
-        (a *model* failure is recorded as a Prediction and never fails the Run)."""
+        (a *model* failure is recorded as a Prediction and never fails the Run). A ``done``
+        Run's scores are then published to the shared results store, if one is configured.
+        """
         with Session(self.engine) as session:
             run = session.get(Run, run_id)
             run.status = RunStatus.running
             session.commit()
 
-            task = run.task
             prompt_text = session.get(Prompt, run.prompt_id).text
             drawing = session.get(Drawing, run.drawing_id)
             pages = [
@@ -256,7 +277,6 @@ class BackgroundRunner:
                     model,
                     pages,
                     prompt_text,
-                    task,
                 )
                 for result_id, model in results
             ]
@@ -269,6 +289,10 @@ class BackgroundRunner:
             run = session.get(Run, run_id)
             run.status = RunStatus.failed if errors else RunStatus.done
             session.commit()
+            # Last, and after the commit: the Run is complete and durable before its scores
+            # are offered to the shared store, so a store outage costs the record of an
+            # experiment and never the experiment itself (scope 9, ticket 05).
+            publish_completed_run(session, run, self.results_store)
 
     def _execute_result(
         self,
@@ -277,27 +301,21 @@ class BackgroundRunner:
         model: str,
         pages: list[_PageRef],
         prompt_text: str,
-        task: Task,
     ) -> None:
         """One model's Result: walk its pages **sequentially**, persisting a Prediction
         and advancing progress after each. A model failure is already captured inside
         the predict routine as a failure Prediction, so this only raises on a real
         persistence error — which marks the whole Run ``failed``."""
         for page in pages:
-            if task == Task.location:
-                prediction = predict_location(
-                    self.adapter,
-                    result_id,
-                    model,
-                    page,
-                    prompt_text,
-                    self.knobs,
-                    self.overlay_root,
-                )
-            else:
-                prediction = predict_counting(
-                    self.adapter, result_id, model, page, prompt_text, self.knobs
-                )
+            prediction = predict_location(
+                self.adapter,
+                result_id,
+                model,
+                page,
+                prompt_text,
+                self.knobs,
+                self.overlay_root,
+            )
             with self._write_lock:
                 with Session(self.engine) as session:
                     session.add(prediction)
@@ -318,6 +336,53 @@ class _Interpretation:
     parsed_json: str | None = None
     detections: list[LocationDetection] = field(default_factory=list)
     error: str | None = None
+
+
+@dataclass
+class _CallStats:
+    """What one page cost to produce, accumulated across the retry (ADR 0019) so it measures
+    the **page** rather than whichever attempt happened to succeed — a page that needed a
+    second call really did wait twice and really was billed twice.
+
+    Latency is wall clock around the model call alone (the page image is rendered before it),
+    and accrues even for an attempt that raised — the page waited for that too. The rest is
+    OpenRouter's own usage accounting, which every response now carries; a response without
+    it leaves the fields ``None``, which is why they are read defensively. ``None`` throughout
+    means *never measured* and must stay distinct from a real zero, since free and BYOK models
+    report a genuine cost of 0."""
+
+    latency_ms: int | None = None
+    cost_usd: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+
+    def record(self, elapsed_seconds: float, response: dict | None = None) -> None:
+        self.latency_ms = (self.latency_ms or 0) + round(elapsed_seconds * 1000)
+        usage = (response or {}).get("usage")
+        if not isinstance(usage, dict):
+            return
+        self.cost_usd = _accumulate(self.cost_usd, usage.get("cost"), float)
+        self.prompt_tokens = _accumulate(
+            self.prompt_tokens, usage.get("prompt_tokens"), int
+        )
+        self.completion_tokens = _accumulate(
+            self.completion_tokens, usage.get("completion_tokens"), int
+        )
+
+
+def _accumulate(
+    total: _Number | None, value: object, cast: Callable[[object], _Number]
+) -> _Number | None:
+    """Fold one attempt's usage figure into a running total, leaving the total ``None`` while
+    nothing has ever reported the figure. A provider that omits or nulls a field must not
+    turn an unmeasured page into a page measured at zero."""
+    if value is None:
+        return total
+    try:
+        value = cast(value)
+    except (TypeError, ValueError):
+        return total
+    return value if total is None else total + value
 
 
 def _render_page(page: _PageRef, knobs: RunKnobs) -> Path:
@@ -341,21 +406,24 @@ def _predict(
     prompt_text: str,
     knobs: RunKnobs,
     interpret: Callable[[str], _Interpretation],
-) -> tuple[str | None, _Interpretation]:
+) -> tuple[str | None, _Interpretation, _CallStats]:
     """Send the page image + prompt and ``interpret`` the response, retried once whenever
     the first parse isn't cleanly ``ok`` (spec: Runs 20; ADR 0019). A failing OpenRouter
     call is caught like a parse failure rather than propagated, so one model's error doesn't
     abort the Run (spec: Runs 21). ``interpret`` never raises — a malformed body becomes a
     non-clean ``_Interpretation`` whose salvage is shown for display.
 
-    Returns ``(raw_content, interpretation)`` from the clean attempt, else from the last
-    attempt (retaining that attempt's ``raw_content`` for inspection). The single external
-    I/O boundary, kept session-free so the predict routines stay a pure test seam."""
+    Returns ``(raw_content, interpretation, stats)`` — the first two from the clean attempt,
+    else from the last attempt (retaining that attempt's ``raw_content`` for inspection),
+    and the latency/usage of *every* attempt. The single external I/O boundary, kept
+    session-free so the predict routines stay a pure test seam."""
     raw_content: str | None = None
     interp = _Interpretation(clean=False, error="model produced no response")
+    stats = _CallStats()
 
     # Initial attempt plus a single retry; a clean parse short-circuits the retry.
     for _ in range(2):
+        started = time.perf_counter()
         try:
             response = adapter.send_image_prompt(
                 image_path,
@@ -363,43 +431,56 @@ def _predict(
                 prompt_text,
                 max_tokens=knobs.max_tokens,
                 temperature=knobs.temperature,
+                reasoning_effort=knobs.reasoning_effort,
             )
-            raw = response["choices"][0]["message"]["content"]
+            raw, finish_reason = _read_choice(response)
         except Exception as exc:
+            stats.record(time.perf_counter() - started)
             # A raised retry must not discard a salvage the first attempt already produced:
             # only record the error when no earlier attempt returned content, so ``interp``
             # stays paired with ``raw_content`` and the best salvage survives (ADR 0019).
             if raw_content is None:
                 interp = _Interpretation(clean=False, error=str(exc))
             continue
+        stats.record(time.perf_counter() - started, response)
         raw_content = raw
-        interp = interpret(raw)
+        interp = _name_budget_stop(interpret(raw), finish_reason)
         if interp.clean:
             break
 
-    return raw_content, interp
+    return raw_content, interp, stats
 
 
-def _interpret_counting(raw: str) -> _Interpretation:
-    """Recover per-page counts from a model response (ADR 0019). A clean, fully-valid
-    ``CountResult`` scores ``ok``; a recovered-but-invalid structure (wrong shape, missing
-    label) is kept visible in ``parsed_json`` but stays a non-clean ``error``."""
-    salvaged = salvage_json(raw)
-    if salvaged.value is None:
-        return _Interpretation(clean=False, error=salvaged.error)
-    try:
-        counts = CountResult(**salvaged.value)
-    except (TypeError, ValidationError) as exc:
-        # Keep the parsed structure visible even though it didn't validate.
-        return _Interpretation(
-            clean=False,
-            parsed_json=json.dumps(salvaged.value),
-            error=salvaged.error or f"counts did not match the schema: {exc}",
+def _read_choice(response: dict) -> tuple[str | None, str | None]:
+    """The first choice's content and ``finish_reason``. OpenRouter answers ``200`` with an
+    ``error`` body (and no ``choices``) for some upstream failures, which indexing blind
+    reported as the bare message ``'choices'`` — so a body without choices raises carrying
+    whatever OpenRouter did say."""
+    choices = response.get("choices")
+    if not choices:
+        raise OpenRouterError(
+            f"OpenRouter returned no choices: {response.get('error') or response}"
         )
-    return _Interpretation(
-        clean=salvaged.complete,
-        parsed_json=counts.model_dump_json(),
-        error=salvaged.error,
+    choice = choices[0] or {}
+    return (choice.get("message") or {}).get("content"), choice.get("finish_reason")
+
+
+def _name_budget_stop(
+    interp: _Interpretation, finish_reason: str | None
+) -> _Interpretation:
+    """Attribute a non-clean parse to the token budget when that is what stopped the call.
+    A reasoning Model spends ``max_tokens`` thinking before it answers, so a budget it
+    exhausts yields empty or truncated content — indistinguishable, from the parse error
+    alone, from a Model that simply produced nothing. ``finish_reason`` is the only thing
+    that tells the two apart, and the fix each needs is different."""
+    if interp.clean or finish_reason != "length":
+        return interp
+    return replace(
+        interp,
+        error=(
+            f"{interp.error} — the call stopped at max_tokens, which a reasoning Model "
+            "spends before it answers; raise max_tokens or lower reasoning_effort"
+        ),
     )
 
 
@@ -444,11 +525,14 @@ def _prediction(
     result_id: int,
     raw_content: str | None,
     interp: _Interpretation,
+    stats: _CallStats,
     overlay_path: str | None = None,
 ) -> Prediction:
     """Build the (unsaved) ``Prediction`` from an interpretation: a scored ``ok`` when clean,
-    else an unscored ``error`` that still retains the salvaged ``parsed_json``/overlay for
-    display. ``raw_content`` is retained either way (spec: Runs 19, 20)."""
+    else an ``error`` that still retains the salvaged ``parsed_json``/overlay — those salvaged
+    boxes are still scored (ADR 0027), so ``error`` is a data-quality flag, not an unscored
+    verdict. ``raw_content`` and the page's latency/usage are retained either way — a page
+    that failed still took time and still cost money (spec: Runs 19, 20)."""
     status = PredictionStatus.ok if interp.clean else PredictionStatus.error
     return Prediction(
         result_id=result_id,
@@ -459,27 +543,11 @@ def _prediction(
         parsed_json=interp.parsed_json,
         parse_error=None if interp.clean else interp.error,
         overlay_path=overlay_path,
+        latency_ms=stats.latency_ms,
+        cost_usd=stats.cost_usd,
+        prompt_tokens=stats.prompt_tokens,
+        completion_tokens=stats.completion_tokens,
     )
-
-
-def predict_counting(
-    adapter: OpenRouterAdapter,
-    result_id: int,
-    model: str,
-    page: _PageRef,
-    prompt_text: str,
-    knobs: RunKnobs,
-) -> Prediction:
-    """One page's counting Prediction: recover the per-page counts from the model's JSON,
-    retried once before recording an outcome (spec: Runs 20, 21; ADR 0019). A clean parse
-    scores ``ok``; a malformed one stays an ``error`` (its best-effort salvage kept visible).
-    Returns an unsaved ``Prediction`` — persistence is the caller's, kept out of this routine
-    so it stays a pure, session-free seam."""
-    image_path = _render_page(page, knobs)
-    raw_content, interp = _predict(
-        adapter, model, image_path, prompt_text, knobs, _interpret_counting
-    )
-    return _prediction(page, result_id, raw_content, interp)
 
 
 def predict_location(
@@ -499,7 +567,7 @@ def predict_location(
     ``draw_overlay`` (ticket 09) and its path stored, so the salvage is visible in the
     drill-down. Returns an unsaved ``Prediction`` — DB persistence is the caller's."""
     image_path = _render_page(page, knobs)
-    raw_content, interp = _predict(
+    raw_content, interp, stats = _predict(
         adapter, model, image_path, prompt_text, knobs, _interpret_location
     )
 
@@ -513,4 +581,4 @@ def predict_location(
         # Draw on the same image the Model saw so the boxes land on the rendered variant.
         draw_overlay(image_path, interp.detections, path)
         overlay_path = str(path)
-    return _prediction(page, result_id, raw_content, interp, overlay_path)
+    return _prediction(page, result_id, raw_content, interp, stats, overlay_path)
