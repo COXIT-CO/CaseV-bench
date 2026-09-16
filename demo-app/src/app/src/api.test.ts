@@ -58,6 +58,7 @@ describe("api client", () => {
       downsample_px: 1568,
       max_tokens: 4096,
       temperature: 0,
+      reasoning_effort: "medium" as const,
     };
     await expect(api.createRun(body)).resolves.toEqual(created);
     expect(fetch).toHaveBeenCalledWith(
@@ -91,6 +92,7 @@ describe("api client", () => {
         downsample_px: 1568,
         max_tokens: 4096,
         temperature: 0,
+        reasoning_effort: "medium" as const,
       }),
     ).rejects.toMatchObject({
       status: 400,

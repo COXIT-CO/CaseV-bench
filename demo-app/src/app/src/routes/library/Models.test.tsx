@@ -44,7 +44,7 @@ describe("Models catalog", () => {
 
   it("adds a model with its slug and label, then shows it after the refetch", async () => {
     const user = userEvent.setup();
-    const added = { slug: "mistralai/pixtral-12b", label: "Pixtral 12B" };
+    const added = { slug: "mistralai/pixtral-12b", label: "Pixtral 12B", max_reasoning_effort: "high" as const };
     // First render shows the seeded three; after the add the refetch includes the new entry.
     vi.mocked(api.models)
       .mockResolvedValueOnce(MODELS)
@@ -79,6 +79,7 @@ describe("Models catalog", () => {
     vi.mocked(api.removeModel).mockResolvedValue({
       slug: "google/gemini-2.5-flash",
       label: "Gemini 2.5 Flash",
+      max_reasoning_effort: "high" as const,
     });
     renderWithProviders(<Models />);
 

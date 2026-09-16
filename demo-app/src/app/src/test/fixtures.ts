@@ -112,7 +112,7 @@ export const LOCATION_RESULT: ResultDetailResponse = {
   drawing_name: "floorplan",
   scored: true,
   label_count: 5,
-  knobs: { dpi: 600, downsample_px: 2000, max_tokens: 8192, temperature: null },
+  knobs: { dpi: 600, downsample_px: 2000, max_tokens: 8192, temperature: null, reasoning_effort: null },
   iou_threshold: 0.5,
   canonical_iou: true,
   canonical_iou_threshold: 0.5,
@@ -358,6 +358,7 @@ export const RUN_DETAIL: RunDetailResponse = {
     downsample_px: 1600,
     max_tokens: 4096,
     temperature: 0.0,
+    reasoning_effort: "medium",
   },
   results: [
     { id: 42, model: "anthropic/claude-sonnet-4.5" },
