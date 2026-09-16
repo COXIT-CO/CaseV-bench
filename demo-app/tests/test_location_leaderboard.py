@@ -47,7 +47,8 @@ SLOPPY_JSON = json.dumps(
 
 def _seed_drawing(session, tmp_path: Path) -> Drawing:
     """A 1-page Drawing whose Page points at a real PNG so overlay rendering has an
-    image to draw on. Native point dims are 100×100 so native pixel boxes normalize cleanly."""
+    image to draw on. Native point dims are 100×100 so native pixel boxes normalize cleanly.
+    """
     drawing = Drawing(name="sample")
     session.add(drawing)
     session.commit()
