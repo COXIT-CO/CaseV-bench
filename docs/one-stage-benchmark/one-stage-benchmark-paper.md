@@ -1,10 +1,12 @@
 # Single-Pass Vision-Language Model Prompting for Object Localization in Architectural Millwork Drawings
 
-*VERSION BY 31.08.26*
+Andrii Chumak, Iryna Mykytyn, Andrian Kozynets, Yurii Didyk, Yelysaveta Mykytyn, Victor Mykhailov, Volodymyr Hresko
 
-*TRIMED DATASET*
+Coxit
 
-*Draft — Section 1 of N. Author list intentionally omitted pending author confirmation.*
+*VERSION BY 15.09.26*
+
+*TRIMMED DATASET*
 
 ## Abstract
 
@@ -16,20 +18,25 @@ objects on such a sheet from a single instruction prompt and a single full-page 
 per request ("One-Stage" detection), and at what accuracy, latency, and dollar cost.
 We introduce **CaseV-Bench**, a benchmark built around five object categories —
 `elevation`, `floor plan`, `cabinet`, `countertop`, and `callout` — hand-annotated on
-real construction-document PDFs, and evaluate six current VLMs from four providers
-(Google, Anthropic, OpenAI-compatible, and Alibaba/Qwen families) under one fixed
-single-pass prompting protocol, scored by greedy IoU matching against ground truth at
-IoU ≥ 0.5 with real, provider-reported per-request dollar cost. Across nine annotated
-sheet sets (1,353 ground-truth objects), aggregate micro-averaged F1 is **42.8%**,
-ranging from **22.0%** to **59.7%** across models — a wide enough spread that model
-choice is at least as consequential as prompt design. We report per-model and
-per-document results, quantify two structural bottlenecks specific to this domain —
-per-model image-resolution ceilings and a model-specific coordinate-reporting failure —
-and outline what a higher-cost, human-in-the-loop two-pass variant of the same task
-buys in return (§9, reserved). We conclude that single-pass VLM prompting is a viable
-assisted-review signal for this document class but not yet an unattended extraction
-step, and identify the specific failure modes — small, densely packed objects and
-per-model coordinate reliability — that bound its current accuracy.
+real construction-document PDFs, and evaluate eleven current VLMs from five providers
+(Google, Anthropic, OpenAI, xAI, and Alibaba/Qwen) under one fixed single-pass
+prompting protocol, scored by greedy IoU matching against ground truth at IoU ≥ 0.5
+with real, provider-reported per-request dollar cost. Across nine annotated sheet sets
+(1,353 ground-truth objects), aggregate micro-averaged F1 is **55.4%**, ranging from
+**22.0%** to **91.6%** across models — a 4.2× spread wide enough that model choice
+dominates prompt design entirely. One model, `gpt-6-astra`, stands apart from the rest
+of the field: it is the only model tested that keeps a high F1 (>80%) on the three
+small, densely packed object types (`cabinet`, `countertop`, `callout`) where every
+other model we test collapses to 0–68% F1, but it is also the single most expensive
+model per document in the evaluation, so it is not the best model by every axis at
+once. We report per-model, per-document, and per-object-type results and quantify two
+structural bottlenecks specific to this domain — per-model image-resolution ceilings
+and a model-specific coordinate-reporting failure. We conclude that single-pass VLM
+prompting is, for at least one current model, a plausible unattended first pass for
+this document class, while remaining an assisted-review signal at best for the rest of
+the field, and identify the specific failure modes — small, densely packed objects and
+per-model coordinate reliability — that bound accuracy for every model but the
+strongest one.
 
 ## 1. Introduction
 
@@ -70,10 +77,8 @@ Concretely, this paper asks:
    coordinates?
 
 We answer these with a benchmark (§3), a fully specified detection method and prompt
-(§4), a fixed evaluation protocol (§5), and results across six models and nine
-documents (§6), followed by a discussion of failure modes and limitations (§7–§8). A
-companion section reserved for comparison against a two-pass, human-in-the-loop variant
-of the same task is included as §9 and left for a later revision of this draft.
+(§4), a fixed evaluation protocol (§5), and results across eleven models and nine
+documents (§6), followed by a discussion of failure modes and limitations (§7–§8).
 
 ## 2. Related Work
 
@@ -303,102 +308,123 @@ appear in the tables in §6.
 ## 6. Results
 
 All results below are for the current, best-performing One-Stage prompt (§4, Appendix
-A), evaluated on all nine documents (§3.1, 1,353 ground-truth objects) with six models.
-Where a (model, document) pair was run more than once, the most recent run is used
-(§6.6 notes this as a scope decision, not a hidden average). Aggregate metrics are
-micro-averaged (§5.1): true positives, false positives, and false negatives are summed
-across all documents before precision/recall/F1 are computed once, so one large document
-does not get outweighed by several small ones.
+A), evaluated on all nine documents (§3.1, 1,353 ground-truth objects) with eleven
+models from five providers. Where a (model, document) pair was run more than once, the
+most recent run is used (§6.6 notes this as a scope decision, not a hidden average).
+Aggregate metrics are micro-averaged (§5.1): true positives, false positives, and false
+negatives are summed across all documents before precision/recall/F1 are computed once,
+so one large document does not get outweighed by several small ones.
 
 ### 6.1 Headline — accuracy by model
 
-| Model | TP | FP | FN | Precision | Recall | **F1** | Total cost | Mean latency / doc |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `qwen3.8-max` | 956 | 895 | 397 | 51.6% | 70.7% | **59.7%** | $6.73 | 178.7 s |
-| `gemini-3.5-flash` | 756 | 706 | 597 | 51.7% | 55.9% | **53.7%** | $4.15 | 28.5 s |
-| `gemini-3.1-pro-preview` | 593 | 448 | 760 | 57.0% | 43.8% | **49.5%** | $4.69 | 29.7 s |
-| `claude-opus-5` | 722 | 1,542 | 631 | 31.9% | 53.4% | **39.9%** | $15.97 | 70.5 s |
-| `grok-4.6` | 376 | 740 | 977 | 33.7% | 27.8% | **30.5%** | $17.24 | 346.9 s |
-| `claude-sonnet-5` | 316 | 1,205 | 1,037 | 20.8% | 23.4% | **22.0%** | $8.65 | 71.0 s |
-| **All models pooled** | 3,719 | 5,536 | 4,399 | 40.2% | 45.8% | **42.8%** | $57.44 | — |
+| Model | Provider | TP | FP | FN | Precision | Recall | **F1** | Cost/doc | Mean latency/doc |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `gpt-6-astra` | OpenAI | 1,354 | 171 | 76 | 88.8% | 94.7% | **91.6%** | $2.91 | 58.7 s |
+| `gemini-3.8-flash` | Google | 958 | 349 | 472 | 73.3% | 67.0% | **70.0%** | $0.98 | 120.2 s |
+| `claude-fable-5.1` | Anthropic | 1,003 | 439 | 427 | 69.6% | 70.1% | **69.8%** | $2.16 | 33.6 s |
+| `gpt-5.6-sol` | OpenAI | 932 | 517 | 498 | 64.3% | 65.2% | **64.7%** | $0.79 | 58.8 s |
+| `qwen3.8-max` | Qwen | 956 | 895 | 397 | 51.6% | 70.7% | **59.7%** | $0.75 | 178.7 s |
+| `gpt-5.6-terra` | OpenAI | 824 | 671 | 606 | 55.1% | 57.6% | **56.3%** | $0.74 | 35.2 s |
+| `gemini-3.5-flash` | Google | 756 | 706 | 597 | 51.7% | 55.9% | **53.7%** | $0.46 | 28.5 s |
+| `gemini-3.1-pro-preview` | Google | 593 | 448 | 760 | 57.0% | 43.8% | **49.5%** | $0.52 | 29.7 s |
+| `claude-opus-5` | Anthropic | 722 | 1,542 | 631 | 31.9% | 53.4% | **39.9%** | $1.77 | 70.5 s |
+| `grok-4.6` | xAI | 376 | 740 | 977 | 33.7% | 27.8% | **30.5%** | $1.92 | 346.9 s |
+| `claude-sonnet-5` | Anthropic | 316 | 1,205 | 1,037 | 20.8% | 23.4% | **22.0%** | $0.96 | 71.0 s |
+| **All models pooled** | — | 8,790 | 7,683 | 6,478 | 53.4% | 57.6% | **55.4%** | — | — |
 
 ![F1, precision, and recall by model](figures/fig1_f1_by_model.png)
 
-Two things stand out. First, **the spread across models is wide** — 22.0% to 59.7% F1,
-a 2.7× range — for the *same* prompt, the *same* documents, and the *same* IoU
-threshold; model choice is at least as consequential as anything in prompt design (§4).
-Second, **the ranking does not track provider "flagship" status**: `qwen3.8-max` is the
-strongest model in this evaluation, while `claude-sonnet-5` is the weakest overall
-despite sharing a provider and model family with the mid-ranked `claude-opus-5`. Recall
-varies more across models than precision does (23.4–70.7%, a 47-point range, vs.
-20.8–57.0%, a 36-point range), suggesting a meaningful share of the ranking is driven by
-how much of a dense sheet a model keeps scanning rather than by how tightly it places
-the boxes it does report.
+Three things stand out. **One model, `gpt-6-astra`, is in a different regime from
+every other model tested**: 91.6% F1, more than 20 points clear of the next-best model
+(`gemini-3.8-flash`, 70.0%) and more than 30 points clear of every other model in the
+field. Second, **the overall spread across all eleven models is wide** — 22.0% to
+91.6% F1, a **4.2× range** — for the *same* prompt, the *same* documents, and the
+*same* IoU threshold; model choice is not just a consequential lever on accuracy, it is
+the dominant one. Third, **the ranking does not track provider "flagship" status
+cleanly**: `gpt-6-astra` leads by a wide margin, but `claude-sonnet-5` is the weakest
+model overall despite sharing a provider with the mid-ranked `claude-opus-5` and the
+strong `claude-fable-5.1`, and the three OpenAI models (`gpt-6-astra`, `gpt-5.6-sol`,
+`gpt-5.6-terra`) span nearly 35 F1 points among themselves. Recall varies more across
+models than precision does (23.4–94.7%, a 71-point range, vs. 20.8–88.8%, a 68-point
+range) — `gpt-6-astra`'s lead is driven by being strong on *both* axes at once, not by
+trading one for the other.
 
 ### 6.2 Per-document difficulty
 
 | Document | Pages | GT objects | F1 (all models pooled) |
 |---|---:|---:|---:|
-| `trim_prj1` | 3 | 74 | 24.2% |
-| `trim_prj2` | 2 | 48 | 39.0% |
-| `trim_prj3` | 7 | 34 | 51.7% |
-| `trim_prj4` | 9 | 241 | 37.8% |
-| `trim_prj5` | 2 | 80 | **71.3%** |
-| `trim_prj6` | 24 | 323 | 34.1% |
-| `trim_prj7` | 34 | 234 | 41.8% |
-| `trim_prj8` | 29 | 231 | 56.7% |
-| `trim_prj9` | 9 | 94 | 45.4% |
+| `trim_prj1` | 3 | 74 | 40.0% |
+| `trim_prj2` | 2 | 48 | 55.9% |
+| `trim_prj3` | 7 | 34 | 67.5% |
+| `trim_prj4` | 9 | 241 | 53.6% |
+| `trim_prj5` | 2 | 80 | **77.0%** |
+| `trim_prj6` | 24 | 323 | 45.5% |
+| `trim_prj7` | 34 | 234 | 55.1% |
+| `trim_prj8` | 29 | 231 | 70.9% |
+| `trim_prj9` | 9 | 94 | 53.0% |
 
 ![F1 by document](figures/fig2_f1_by_document.png)
 
-Difficulty does not track document size in either direction: both the easiest document
-(`trim_prj5`, F1 71.3%, 2 pages) and the hardest (`trim_prj1`, F1 24.2%, 3 pages) are
-among the three smallest documents in the set. The three largest documents span almost
-the entire range instead of clustering together: `trim_prj8` (29 pages) is the
-second-best result (56.7%), `trim_prj7` (34 pages) sits near the median (41.8%), and
-`trim_prj6` (24 pages) is the second-worst (34.1%). Object *density* and *type mix*
-(§6.3) appear to matter more for this configuration than page count or raw object count
-per se; a per-document type breakdown is left for a future revision of this draft.
+`trim_prj5` (2 pages) is the easiest document (77.0%) and `trim_prj1` (3 pages) is the
+hardest (40.0%) — both among the three smallest documents in the set, in either
+direction. The three largest documents span most of the range rather than clustering
+together: `trim_prj8` (29 pages) is the second-best result (70.9%), `trim_prj7` (34
+pages) sits near the median (55.1%), and `trim_prj6` (24 pages) is the second-worst
+(45.5%). Object *density* and *type mix* (§6.3) appear to matter more for this
+configuration than page count or raw object count per se; a per-document, per-model
+breakdown is left for future work.
 
 ### 6.3 Accuracy by object type
 
 | Type | TP | FP | FN | Precision | Recall | **F1** |
 |---|---:|---:|---:|---:|---:|---:|
-| `floor_plan` | 903 | 99 | 93 | 90.1% | 90.7% | **90.4%** |
-| `elevation` | 1,296 | 281 | 504 | 82.2% | 72.0% | **76.8%** |
-| `cabinet` | 647 | 1,068 | 1,255 | 37.7% | 34.0% | **35.8%** |
-| `callout` | 801 | 3,715 | 2,079 | 17.7% | 27.8% | **21.7%** |
-| `countertop` | 72 | 373 | 468 | 16.2% | 13.3% | **14.6%** |
+| `floor_plan` | 1,709 | 123 | 117 | 93.3% | 93.6% | **93.4%** |
+| `elevation` | 2,550 | 363 | 750 | 87.5% | 77.3% | **82.1%** |
+| `cabinet` | 1,673 | 1,813 | 1,814 | 48.0% | 48.0% | **48.0%** |
+| `callout` | 2,627 | 4,774 | 3,038 | 35.5% | 46.4% | **40.2%** |
+| `countertop` | 231 | 610 | 759 | 27.5% | 23.3% | **25.2%** |
 
 ![F1 by object type](figures/fig4_f1_by_type.png)
 
-The two large, sheet-level region types (`floor_plan`, `elevation`) score 76.8–90.4%
-F1; the three small/dense object types (`cabinet`, `callout`, `countertop`) score
-14.6–35.8% — roughly a 2–6× gap. This is the same pattern the visual-grounding
-literature reports for general-purpose VLMs more broadly (§2): accuracy degrades sharply
-as objects get smaller relative to the image and more densely packed, and this
-benchmark's own worst-performing type, `countertop`, is exactly that — a thin,
-easily-confused band that is only ever a small fraction of the sheet.
+The two large, sheet-level region types (`floor_plan`, `elevation`) score far higher
+(82.1–93.4% F1) than the three small/dense object types (`cabinet`, `callout`,
+`countertop`, 25.2–48.0% F1) — roughly a 2–4× gap (93.4/25.2 ≈ 3.7×), though the pooled
+numbers are pulled up by one model (`gpt-6-astra`) that does not show this pattern at
+all (see below). This is the pattern the visual-grounding literature reports for
+general-purpose VLMs more broadly (§2) — accuracy degrades as objects get smaller
+relative to the image and more densely packed — but §6.3's per-model breakdown shows it
+is not universal.
 
-Per-model, the ranking established in §6.1 is not uniform across types:
+Per-model, the picture is stark:
+
+![F1 by model and object type (heatmap)](figures/fig5_f1_heatmap_model_type.png)
 
 | Model | `elevation` | `floor_plan` | `cabinet` | `countertop` | `callout` |
 |---|---:|---:|---:|---:|---:|
-| `qwen3.8-max` | 90.4% | **97.9%** | **60.3%** | **32.4%** | **42.1%** |
+| `gpt-6-astra` | **93.8%** | **98.8%** | **81.8%** | **83.6%** | **95.6%** |
+| `qwen3.8-max` | 90.4% | 97.9% | 60.3% | 32.4% | 42.1% |
 | `gemini-3.5-flash` | 89.6% | 96.4% | 45.3% | 16.5% | 32.8% |
 | `claude-opus-5` | 88.7% | 95.5% | 51.2% | 18.8% | 13.2% |
+| `gpt-5.6-sol` | 87.9% | 98.2% | 52.6% | 24.2% | 56.6% |
+| `claude-fable-5.1` | 87.2% | 97.9% | 60.7% | 34.4% | 63.8% |
+| `gpt-5.6-terra` | 86.9% | 93.9% | 51.3% | 23.5% | 38.3% |
+| `gemini-3.8-flash` | 86.1% | 96.7% | 58.8% | 19.8% | 67.5% |
 | `gemini-3.1-pro-preview` | 75.6% | 88.0% | 40.8% | 8.7% | 33.3% |
-| `grok-4.6` | 68.7% | 91.4% | 5.4% | 7.4% | 0.2% |
+| `grok-4.6` | 68.7% | 91.4% | 5.4% | 7.4% | 0.3% |
 | `claude-sonnet-5` | 47.3% | 73.0% | 9.7% | 0.0% | 4.7% |
 
-`qwen3.8-max`'s overall lead (§6.1) is not concentrated in one easy type — it is the
-single best model on every one of the five types, including the two hardest
-(`countertop`, `callout`). `grok-4.6` and `claude-sonnet-5` are the mirror case: both
-score far higher on the two large region types (47.3–91.4% F1) than on any small object
-type, and both collapse on small objects specifically (`cabinet` 5.4–9.7%, `countertop`
-0.0–7.4%, `callout` 0.2–4.7%) — a much steeper large-vs-small drop-off than the other
-four models show. §6.4 examines whether this is a placement-precision problem or a
-detection problem and finds it is mostly the latter.
+`gpt-6-astra` is the single best model on every one of the five types, and unlike every
+other model in the set, it does not show the large-vs-small gap at all: its own worst
+type (`cabinet`, 81.8%) is still better than any other model's *best* small-object
+score (`claude-fable-5.1`'s `countertop`, 34.4%). This is the central empirical finding
+of this paper — the large-vs-small object gap, which §6.3 might otherwise treat as a
+structural property of single-pass VLM prompting on this document class, turns out to
+be a property of the other ten models, not of the task itself. `grok-4.6` and
+`claude-sonnet-5` are the clearest examples of the conventional pattern: both score far
+higher on the two large region types (47.3–91.4% F1) than on any small object type, and
+both collapse on small objects specifically (`cabinet` 5.4–9.7%, `countertop`
+0.0–7.4%, `callout` 0.3–4.7%). §6.4 examines whether the *other* ten models' gap is a
+placement-precision problem or a detection problem and finds it is mostly the latter.
 
 ### 6.4 Precision of placement vs. failure to detect
 
@@ -409,78 +435,121 @@ hypothesis raised by §6.3's large-vs-small gap: is a weak model's small-object 
 because its boxes are loose (found the object, placed it imprecisely) or because it
 mostly does not report the object at all (never found it)?
 
-| Model | Mean IoU of matches | FPs nowhere near a GT box (best IoU < 0.10) |
-|---|---:|---:|
-| `qwen3.8-max` | 0.785 | 79.1% |
-| `gemini-3.5-flash` | 0.779 | 52.3% |
-| `gemini-3.1-pro-preview` | 0.770 | 46.2% |
-| `claude-opus-5` | 0.747 | 73.9% |
-| `grok-4.6` | 0.720 | 60.8% |
-| `claude-sonnet-5` | 0.700 | 65.6% |
+| Model | Mean IoU of matches | FPs nowhere near a GT box (best IoU < 0.10) | n (FP) |
+|---|---:|---:|---:|
+| `gpt-6-astra` | 0.867 | 81.9% | 171 |
+| `gpt-5.6-sol` | 0.787 | 43.5% | 517 |
+| `qwen3.8-max` | 0.785 | 79.1% | 895 |
+| `gemini-3.8-flash` | 0.785 | 33.8% | 349 |
+| `gpt-5.6-terra` | 0.781 | 51.4% | 671 |
+| `gemini-3.5-flash` | 0.779 | 52.3% | 706 |
+| `gemini-3.1-pro-preview` | 0.770 | 46.2% | 448 |
+| `claude-fable-5.1` | 0.764 | 38.3% | 439 |
+| `claude-opus-5` | 0.747 | 73.9% | 1,542 |
+| `grok-4.6` | 0.720 | 60.8% | 740 |
+| `claude-sonnet-5` | 0.700 | 65.6% | 1,205 |
 
-Mean IoU of matches is close across all six models (0.700–0.785) — including
-`grok-4.6` and `claude-sonnet-5`, the two weakest models on small objects overall. When
-these two models *do* find a small object, they box it about as tightly as any other
-model does; `claude-sonnet-5` reports **zero** true-positive `countertop` matches
-across all nine documents (§6.3, 0.0% F1) rather than a large number of loose,
-low-IoU ones. This weighs against the box-precision hypothesis from §6.3: the dominant
-failure mode for the weakest models on small object types is **not reporting the object
-at all** (a recall/detection failure), not placing a low-quality box around an object
-they did find. The nowhere-near-any-object share of false positives does not cleanly
-separate strong models from weak ones either — `qwen3.8-max`, the strongest model
-overall, has the *highest* rate of wildly misplaced false positives (79.1%) of any
-model in the set, which suggests it compensates for a noisier detection process with a
-much higher detection rate rather than a cleaner one. Confirming *why* small-object
-recall specifically degrades for some models (a genuine perception limit vs. a
-prompt-following one) is not resolved by this data and is noted as an open question in
-§7.
+Mean IoU of matches is close across ten of the eleven models (0.700–0.787); `gpt-6-astra`
+sits clearly apart (0.867), meaning it is not just detecting more small objects than
+everyone else (§6.3) but placing every box — small or large — measurably tighter than
+any other model does. Among the other ten, `grok-4.6` and `claude-sonnet-5` remain the
+weakest on small objects, and when they *do* find a small object they box it about as
+tightly as most other models (0.700–0.720 mean IoU) — `claude-sonnet-5` reports **zero**
+true-positive `countertop` matches across all nine documents (§6.3, 0.0% F1) rather than
+a large number of loose, low-IoU ones. This weighs against the box-precision hypothesis
+for those two models specifically: their small-object collapse is primarily a
+**detection** failure (the object goes unreported), not a **placement** failure. The
+nowhere-near-any-object share of false positives does not cleanly separate strong models
+from weak ones: `gpt-6-astra`, the strongest model overall, has the *highest* rate of
+wildly misplaced false positives (81.9%) of any model in the set — its very small false
+positive count (171, the fewest of any model) is nonetheless disproportionately made up
+of outright wrong guesses rather than close misses. `qwen3.8-max` shows a similarly
+high rate (79.1%). Confirming *why* small-object recall specifically degrades for the
+other ten models (a genuine perception limit vs. a prompt-following one) is not
+resolved by this data and is noted as an open question in §7.
 
-### 6.5 Cost and latency
+### 6.5 Cost, latency, and cost-efficiency
 
 ![Cost vs. F1 by model](figures/fig3_cost_vs_f1.png)
 
-The three cheapest models by mean cost per document — `gemini-3.5-flash` ($0.46/doc),
-`gemini-3.1-pro-preview` ($0.52/doc), and `qwen3.8-max` ($0.75/doc) — are exactly the
-three most accurate models in §6.1 (49.5–59.7% F1). Cost alone does not fully explain
-the ranking, though: `claude-sonnet-5` is the fourth-cheapest model ($0.96/doc) yet the
-*least* accurate of the six (22.0% F1), while the two most expensive models per document
-— `claude-opus-5` ($1.77/doc) and `grok-4.6` ($1.92/doc) — land in the middle and bottom
-of the accuracy ranking respectively, not at the top. `grok-4.6` is the worst value in
-the evaluation on every axis at once: the highest cost per document, by far the
-highest mean latency (346.9 s/doc — 2–12× every other model), and only the
-second-lowest F1. `qwen3.8-max`'s accuracy lead (§6.1) comes at a real latency cost
-(178.7 s/doc, second-slowest of the six) but not a dollar-cost one — at $0.75/doc it
-remains the third-cheapest model evaluated.
+Cost and accuracy are not cleanly aligned across the eleven models. `gpt-6-astra` is
+simultaneously the **most accurate and the single most expensive model per document**
+in the evaluation ($2.91/doc, next-highest is `claude-fable-5.1` at $2.16/doc), so
+being the most accurate model does not also mean being the cheapest. Among the
+remaining ten models, a "cheap and accurate" pattern roughly holds: the three cheapest
+models by mean cost per document — `gemini-3.5-flash` ($0.46/doc),
+`gemini-3.1-pro-preview` ($0.52/doc), and `gpt-5.6-terra` ($0.74/doc) — are mid-table
+on accuracy (49.5–56.3% F1) rather than at the bottom, and `claude-sonnet-5` is the
+standout exception: a cheap model ($0.96/doc) that is nonetheless the least accurate of
+all eleven (22.0% F1). `grok-4.6` is the worst value in the evaluation on every axis it
+is not `gpt-6-astra`-adjacent: the second-highest cost per document, by far the highest
+mean latency (346.9 s/doc — 2–12× every other model), and the second-lowest F1.
+
+![Cost efficiency: F1 points per dollar](figures/fig6_cost_efficiency.png)
+
+Because raw cost and raw accuracy do not move together once `gpt-6-astra` is included,
+a cost-efficiency view — F1 points earned per dollar spent per document — adds
+information the headline table does not: `gemini-3.5-flash` (116.4 F1 pts/$),
+`gemini-3.1-pro-preview` (95.0), and `gpt-5.6-sol` (81.5) are the three most
+cost-efficient models, while `gpt-6-astra` — despite leading on raw accuracy by more
+than 20 points — ranks only **7th of 11** on this measure (31.5 F1 pts/$), behind
+every model it beats on F1 except `claude-fable-5.1`, `claude-sonnet-5`, `claude-opus-5`,
+and `grok-4.6`. Whether `gpt-6-astra`'s accuracy is worth its cost premium is therefore a
+deployment-specific question this paper does not resolve: for a use case where missing a
+small `cabinet` or `countertop` is costly, `gpt-6-astra`'s large lead on exactly those
+types (§6.3) may justify roughly 4–6× the per-document cost of the next tier of models;
+for a use case tolerant of the large-vs-small gap most other models show, the
+cost-efficient tier is a materially cheaper choice.
 
 ### 6.6 Scope notes
 
-Two caveats on how these numbers were produced, stated explicitly since they affect how
-much weight to put on small differences:
+Three caveats on how these numbers were produced, stated explicitly since they affect
+how much weight to put on small differences:
 
 - **One run per (model, document) pair**, taken as the most recent when a pair was run
   more than once; no repeated-trial variance estimate is available from this data.
   Differences of a few F1 points between two models should not be read as
   statistically distinguished from noise; the differences this section leads with (the
-  2.7× model spread in §6.1, the 2–6× type gap in §6.3) are much larger than that.
+  4.2× model spread in §6.1, `gpt-6-astra`'s absence of a large-vs-small gap in §6.3) are
+  much larger than that.
 - **Coverage across (model, document) pairs was not perfectly uniform** in the
   underlying run history — some pairs were run more than once before the most-recent-run
   rule above was applied, for reasons not recorded in the data available for this draft.
   Every model was ultimately evaluated on all nine documents, so the headline numbers in
   §6.1 are not affected by missing cells.
+- **Results attributed to a separate, sliding-window detection method (a different
+  author's exploratory run, tagged `sliding_window` in the underlying run history) are
+  excluded from this paper entirely.** That method uses a materially different request
+  granularity than the One-Stage protocol specified in §4 and was run on a single
+  document with an earlier taxonomy version, so it is not comparable to the results
+  above and is left out rather than mixed in.
 
 ## 7. Limitations
 
-**The small-object failure mode is identified but not explained.** §6.4 shows that the
-weakest models' collapse on `cabinet`/`countertop`/`callout` is primarily a *detection*
-failure (the object goes unreported) rather than a *placement* failure (a loose but
-present box) — but this data cannot distinguish between the two most likely underlying
-causes: a genuine perception limit (the model's vision encoder discards small-object
-detail before the language model ever reasons about it, e.g. through aggressive internal
-image downsampling) and a prompt-following limit (the model perceives the object well
-enough but under-reports it for reasons specific to how the instructions are phrased or
-how much of a long, dense list it is willing to emit). Distinguishing these would need
-either a controlled resolution sweep per model or a targeted prompt ablation, neither of
-which this evaluation ran.
+**Why `gpt-6-astra` avoids the small-object failure mode that every other model shows is
+not explained by this data.** §6.3 shows that one model spans the large-vs-small object
+gap that this paper otherwise treats as a structural property of single-pass VLM
+prompting on this document class; §6.4 shows it also places boxes more tightly overall
+(mean IoU 0.867 vs. 0.700–0.787 for the rest of the field). This evaluation cannot say
+*why*: candidate explanations include a materially higher effective image resolution
+reaching the model's vision encoder, a different (and more literal) adherence to the
+box-tightness and small-object instructions in the shared prompt (§4.2, Appendix A), or
+an architectural difference unrelated to either. Distinguishing these would need a
+controlled resolution sweep and a prompt ablation run specifically against
+`gpt-6-astra`, neither of which this evaluation ran.
+
+**The small-object failure mode in the other ten models is identified but not
+explained.** §6.4 shows that the weakest models' collapse on
+`cabinet`/`countertop`/`callout` is primarily a *detection* failure (the object goes
+unreported) rather than a *placement* failure (a loose but present box) — but this data
+cannot distinguish between the two most likely underlying causes: a genuine perception
+limit (the model's vision encoder discards small-object detail before the language model
+ever reasons about it, e.g. through aggressive internal image downsampling) and a
+prompt-following limit (the model perceives the object well enough but under-reports it
+for reasons specific to how the instructions are phrased or how much of a long, dense
+list it is willing to emit). Distinguishing these would need either a controlled
+resolution sweep per model or a targeted prompt ablation, neither of which this
+evaluation ran.
 
 **The execution harness that produced §6's results is not independently documented.**
 As noted in §4.4, the prompt itself (Appendix A) and the scored outcomes (§6) are known
@@ -509,8 +578,9 @@ configuration.** §6.6 already states the run-repetition caveat; the IoU thresho
 is a second, related one. A looser or tighter threshold would shift every number in §6
 without necessarily changing the ranking, but that has not been checked, and no
 statistical test accompanies any comparison in this paper — the differences led with in
-§6 (a 2.7× model spread, a 2–6× type gap) are treated as self-evidently larger than
-plausible run-to-run noise rather than formally tested as such.
+§6 (a 4.2× model spread, `gpt-6-astra`'s absence of a large-vs-small gap) are treated as
+self-evidently larger than plausible run-to-run noise rather than formally tested as
+such.
 
 **No fine-tuned or task-specific baseline is included.** §2 notes that supervised
 detectors trained on labeled engineering-drawing corpora report substantially higher
@@ -520,73 +590,94 @@ comparably-sized labeled training set to fine-tune against — so the numbers in
 be read as a zero-shot ceiling for this exact prompting approach, not as a statement
 about what is achievable for this document class with any amount of supervision.
 
-## 8. Conclusion
+## 8. Conclusion and Future Work
 
 Returning to the four questions posed in §1:
 
 1. **How accurately can a current, general-purpose VLM localize these objects?**
-   Aggregate F1 is 42.8% pooled across six models, with the best single model
-   (`qwen3.8-max`) reaching 59.7% — high enough on the two large, sheet-level region
-   types (`floor_plan` 90.4%, `elevation` 76.8%) to be a genuinely useful first pass, and
-   low enough on the three small/dense types (14.6–35.8% F1) that unattended use on
-   those types is not supported by this data. Single-pass VLM prompting is best read as
-   an assisted-review signal for this document class, not an unattended extraction step.
+   Aggregate F1 is 55.4% pooled across eleven models, but that pooled number obscures
+   the real finding: the best single model (`gpt-6-astra`) reaches 91.6% F1, and unlike
+   every other model tested, it stays high on the three small/dense types (81.8–95.6%
+   F1) as well as the two large region types (93.8–98.8% F1). For that one model,
+   single-pass VLM prompting looks like a plausible unattended first pass on this
+   document class, not just an assisted-review signal. For the remaining ten models —
+   the best of which is `qwen3.8-max` at 59.7% — the pattern is different: strong
+   enough on `floor_plan`/`elevation` (73.0–97.9% F1) to be a useful first pass, too
+   weak on `cabinet`/`countertop`/`callout` (0–68% F1 outside `gpt-6-astra`) for
+   unattended use.
 
 2. **Does model choice matter more than prompt engineering?** Within one fixed,
-   carefully iterated prompt, F1 spans 22.0–59.7% across six models (§6.1) — a 2.7×
-   range driven mostly by recall rather than precision. That range is comparable in size
-   to plausible prompt-engineering gains, which means model selection is not a detail to
-   fix arbitrarily and iterate the prompt around; it is a first-order lever in its own
-   right, on par with the prompt itself.
+   carefully iterated prompt, F1 spans 22.0–91.6% across eleven models (§6.1) — a 4.2×
+   range. That range is far larger than any plausible prompt-engineering gain, which
+   means model selection is not a detail to fix arbitrarily and iterate the prompt
+   around; it is the single largest lever measured in this paper, larger than the
+   prompt itself.
 
-3. **What does an accurate-enough configuration cost?** The three cheapest models
-   evaluated are also the three most accurate (§6.5) — cost and accuracy are not in
-   tension for most of this evaluation's range. The exception on both ends matters:
-   `claude-sonnet-5` is cheap and the least accurate model tested, and `grok-4.6` is
-   simultaneously the most expensive, the slowest by a wide margin, and second-worst on
-   accuracy. Neither low cost nor high cost reliably predicts where a model lands.
+3. **What does an accurate-enough configuration cost?** `gpt-6-astra` breaks a clean
+   "cheap and accurate" pattern: it is simultaneously the most accurate model tested and
+   the single most expensive one per document (§6.5). Raw accuracy and cost-efficiency
+   (F1 points per dollar, §6.5) rank models differently — `gemini-3.5-flash` is the most
+   cost-efficient model but only mid-table on raw F1, while `gpt-6-astra` is the
+   reverse. Which one is "accurate enough" is a deployment-specific question this paper
+   poses rather than resolves. Among the other ten models, a cheap-and-mid-table
+   pattern roughly holds: `claude-sonnet-5` is cheap and the least accurate model
+   tested, and `grok-4.6` is simultaneously expensive, the slowest by a wide margin, and
+   second-worst on accuracy — neither low cost nor high cost reliably predicts where a
+   model lands outside the `gpt-6-astra` outlier.
 
-4. **What holds single-pass detection back, structurally?** The dominant pattern is a
-   large-vs-small object gap (§6.3) that §6.4's IoU analysis narrows to a **detection**
-   problem for the weakest models — objects going unreported, not boxes landing loosely
-   — though this evaluation cannot yet separate a genuine small-object perception limit
-   from a prompt-following one (§7). A second, unresolved structural gap is that the
-   execution harness's own rendering parameters are not documented for the specific runs
-   analyzed here (§4.4, §7), which is exactly the kind of detail a resolution-limited
-   failure mode would be sensitive to.
+4. **What holds single-pass detection back, structurally?** For ten of the eleven
+   models, the dominant pattern is a large-vs-small object gap (§6.3) that §6.4's IoU
+   analysis narrows to a **detection** problem for the weakest of them — objects going
+   unreported, not boxes landing loosely. But `gpt-6-astra` shows this gap does not have
+   to exist for this document class and this prompt: it is not a law of single-pass VLM
+   prompting, it is a property most current models happen to share. This reframes the
+   open question from "why do all models struggle on small objects" to "what does
+   `gpt-6-astra` do differently" — a question this data cannot yet answer (§7). A
+   second, unresolved structural gap is that the execution harness's own rendering
+   parameters are not documented for the specific runs analyzed here (§4.4, §7), which
+   is exactly the kind of detail a resolution-limited failure mode would be sensitive
+   to.
 
-Overall, single-pass VLM prompting for architectural millwork drawing localization is a
-viable starting point — model selection and the large/small object distinction matter
-more than this paper can yet fully explain — and the next concrete step is closing the
-harness-visibility gap in §7 so that a resolution sweep can directly test the
-small-object recall hypothesis raised in §6.4, before further prompt iteration is spent
-chasing a bottleneck that may not be in the prompt at all.
+Overall, evaluating eleven models across five providers shows that single-pass VLM
+prompting for architectural millwork drawing localization is not bounded, as a class,
+by a large-vs-small object gap: at least one current model closes that gap almost
+entirely. Whether that is because of a resolution advantage, a training difference, or
+something else is the most consequential open question this paper raises, and
+answering it — alongside closing the harness-visibility gap in §7 — is a
+higher-priority next step than further prompt iteration on the other ten models.
 
-## 9. Two-Stage comparison
-
-*Reserved for a later revision of this draft. The underlying project also implements a
-higher-cost, human-in-the-loop two-pass detection method, and an earlier internal
-comparison (on a different, four-type taxonomy and an earlier prompt version) found it
-substantially more accurate than single-pass detection at several times the cost. A
-comparison of Two-Stage against the current One-Stage configuration reported in §6, on
-the current taxonomy and document set, has not yet been run and is left for future work.*
+**Future work.** Two further directions were explored informally before this paper's
+scope was fixed to single-pass, One-Stage detection, and neither is quantified here,
+but both are planned as follow-up benchmarking studies under the current protocol. An
+earlier, higher-cost **two-stage, crop-based** pipeline — a first pass to locate
+candidate regions, followed by a second, higher-resolution pass over each region — left
+a clear impression of out-performing single-pass detection by a meaningful margin,
+though that comparison ran under an earlier taxonomy and document set and was never
+repeated under the protocol used in this paper. Re-running it — Two-Stage vs. One-Stage
+on the current taxonomy, document set, and IoU-matching protocol (§5) — is planned as
+the next study. A separate, **grid-based coordinate encoding** — asking the model to
+reference cells of a coarse grid overlaid on the page rather than raw normalized
+fractions — was also tried earlier, as a possible fix for models with unreliable
+coordinate output; how it performed relative to the other two approaches is not
+established with enough confidence to report here, and re-running it under the current
+protocol is planned as a second follow-up study, alongside Two-Stage.
 
 ## References
 
-*(Numbering is provisional and will be finalized once the reference list is complete;
-full author lists to be added before submission.)*
-
-1. LLM-Optic: Unveiling the Capabilities of Large Language Models for Universal Visual
-   Grounding. arXiv:2405.17104.
-2. GroundingME: Exposing the Visual Grounding Gap in MLLMs through Multi-Dimensional
-   Evaluation. arXiv:2512.17495.
-3. Automatic Detection and Classification of Symbols in Engineering Drawings.
-   arXiv:2204.13277.
-4. SkeySpot: Automating Service Key Detection for Digital Electrical Layout Plans in the
-   Construction Industry. arXiv:2508.10449.
-5. Document Intelligence in the Era of Large Language Models: A Survey.
-   arXiv:2510.13366.
-6. A Survey on MLLM-based Visually Rich Document Understanding: Methods, Challenges, and
+1. H. Zhao, W. Ge, and Y. Chen. LLM-Optic: Unveiling the Capabilities of Large Language
+   Models for Universal Visual Grounding. arXiv:2405.17104.
+2. R. Li, L. Li, S. Ren, H. Tian, S. Gu, S. Li, Z. Yue, Y. Wang, W. Ma, Z. Yang, J. Ma,
+   Z. Sui, and F. Luo. GroundingME: Exposing the Visual Grounding Gap in MLLMs through
+   Multi-Dimensional Evaluation. arXiv:2512.17495.
+3. S. Sarkar, P. Pandey, and S. Kar. Automatic Detection and Classification of Symbols
+   in Engineering Drawings. arXiv:2204.13277.
+4. D. Dosi, R. Meena, P. Rajpura, and Y. K. Meena. SkeySpot: Automating Service Key
+   Detection for Digital Electrical Layout Plans in the Construction Industry.
+   arXiv:2508.10449.
+5. W. Wang, H. Hu, Z. Zhang, Z. Li, H. Shao, and D. Dahlmeier. Document Intelligence in
+   the Era of Large Language Models: A Survey. arXiv:2510.13366.
+6. Y. Ding, S. Luo, Y. Dai, Y. Jiang, Z. Li, Q. Sun, G. Martin, W. Liu, and Y. Peng. A
+   Survey on MLLM-based Visually Rich Document Understanding: Methods, Challenges, and
    Emerging Trends. arXiv:2507.09861.
 
 ## Appendix A — Full One-Stage prompt text
