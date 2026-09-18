@@ -63,6 +63,17 @@ Useful `run` flags:
 A run that's already partially written (matching `run-id`) resumes: pages already scored
 successfully are skipped, and only the rest are sent to the model.
 
+### Prompt versioning
+
+The prompt sent to the model lives in `core/prompts/` as a plain `.md` file named
+`<name>_v<N>.md` (currently `object_location_v1.md`, pinned by `PROMPT_PATH` in
+`core/config.py`). A prompt file is never edited once a run has used it — a change to the
+wording ships as a new `_v<N+1>.md` file and a new `PROMPT_PATH`, so old runs stay
+reproducible. Every run also records a sha256 hash of the exact prompt text in `run.json`
+(`prompt_hash`), which feeds the run's `compatibility_key` alongside dataset version and
+render settings, so runs that used a different prompt are never silently compared as if they
+matched.
+
 ### Output
 
 Each run writes a directory under `--out-dir`:

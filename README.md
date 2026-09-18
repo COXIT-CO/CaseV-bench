@@ -35,7 +35,7 @@ A GitHub Actions workflow runs every Monday, sends the whole dataset through eac
 roster and rewrites the table below. Prompt, dataset, render settings and temperature are fixed
 between runs, so a change in the numbers means the model behind the slug changed.
 
-This is a drift check, not a leaderboard. Three drawings are enough to notice that a model
+This is a drift check, not a leaderboard. The dataset is small enough to notice that a model
 behaves differently from the previous week, but not enough to rank models against each other.
 
 <!-- BENCHMARK_DASHBOARD:START -->
@@ -72,23 +72,34 @@ Flags, output format and running without Docker are documented in
 
 ## Dataset
 
-[`dataset/`](dataset) contains three drawings, each a PDF sheet and a JSON file with the
-ground-truth boxes. Annotators used the same object definitions as the prompt. Current
-counts:
+[`dataset/`](dataset) is the *balanced* subset of the full internal dataset — roughly 10% of it,
+picked to be representative rather than exhaustive. It is not a complete set used for internal
+evaluation. It doubles as the sample sent through every model in the weekly run, so it needs to
+be small enough to run weekly but varied enough that a shift in a model's numbers over time is
+meaningful rather than noise.
+
+<!-- TODO: this section describes the dataset once the balanced-dataset selection lands (see the
+`balanced-dataset` branch). Until then, drawing count and counts below are placeholders. -->
+
+It contains TBD drawings, each a PDF sheet and a JSON file with the ground-truth boxes.
+Annotators used the same object definitions as the prompt, drawing boxes with
+[`annotation_tool/`](annotation_tool), a small PDF viewer with annotating functionality.
+Current counts:
 
 | Object | Boxes |
 |---|---:|
-| `cabinet` | 73 |
-| `elevation` | 40 |
-| `callout` | 21 |
-| `countertop` | 17 |
-| `floor_plan` | 13 |
+| `cabinet` | TBD |
+| `elevation` | TBD |
+| `callout` | TBD |
+| `countertop` | TBD |
+| `floor_plan` | TBD |
 
 ## Layout
 
 | Path | |
 |---|---|
 | [`dataset/`](dataset) | Drawings and ground truth |
+| [`annotation_tool/`](annotation_tool) | GUI used to annotate the dataset's ground-truth boxes |
 | [`src/runner/`](src/runner) | The `casev` CLI: render, prompt, parse, score |
 | [`src/packages/location-scorer/`](src/packages/location-scorer) | Scoring library, versioned and tagged separately |
 | [`src/results_store/`](src/results_store) | Schema for the shared Postgres table that weekly scores are published to |
