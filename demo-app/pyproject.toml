@@ -1,0 +1,27 @@
+[project]
+name = "demo-app"
+version = "0.1.0"
+description = "Single-page demo: upload a PDF, run detection, view the results."
+requires-python = ">=3.12"
+dependencies = [
+    "runner",
+    "location-overlay",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.9",
+]
+
+[tool.uv.sources]
+# editable = true so a volume-mounted container (see demo-app's dev instructions) picks up
+# edits to src/runner/core and location-overlay without a rebuild, not just to demo-app's own
+# code (which uv installs editable by default as the project being synced).
+runner = { path = "../src/runner", editable = true }
+location-overlay = { path = "../src/packages/location-overlay", editable = true }
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = "app"
