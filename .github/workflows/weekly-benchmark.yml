@@ -1,5 +1,7 @@
 # Drift check: fixed prompt, dataset and settings, so only the model can change between runs.
-# Runs go to the `service` schema; the README dashboard is regenerated from that history.
+# Runs go to the `service` schema; the README dashboard is regenerated from that history and
+# proposed as a PR. Optionally posts results to Slack if SLACK_WEBHOOK_URL is configured as
+# a repo secret.
 name: Weekly benchmark
 
 on:
@@ -112,7 +114,8 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # only job that pushes
+      contents: write
+      pull-requests: write
     defaults:
       run:
         working-directory: src/runner
@@ -127,18 +130,37 @@ jobs:
         env:
           CASEV_SERVICE_DATABASE_URL: ${{ secrets.SERVICE_DATABASE_URL }}
         run: |
-          uv run python scripts/render_benchmark_dashboard.py
+          uv run python scripts/render_benchmark_dashboard.py --table-out "$RUNNER_TEMP/dashboard_table.txt"
 
-      # The section carries a timestamp, so a diff most weeks is expected.
-      - name: Commit the README if it changed
+      - name: Open/update the dashboard PR
+        id: pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          add-paths: README.md
+          branch: weekly-benchmark-dashboard
+          commit-message: "chore: refresh weekly benchmark dashboard"
+          title: "chore: refresh weekly benchmark dashboard"
+          body: >
+            Automated README dashboard refresh from the
+            [weekly benchmark workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+      - name: Notify Slack
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
         working-directory: .
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TABLE_PATH: ${{ runner.temp }}/dashboard_table.txt
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+          PR_OP: ${{ steps.pr.outputs.pull-request-operation }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if git diff --quiet -- README.md; then
-            echo "README unchanged"
-            exit 0
+          pr_line="No README changes this week."
+          if [ "$PR_OP" = "created" ] || [ "$PR_OP" = "updated" ]; then
+            pr_line="README update ready to merge: $PR_URL"
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          git commit -m "chore: refresh weekly benchmark dashboard"
-          git push
+          payload=$(jq -n \
+            --rawfile table "$TABLE_PATH" \
+            --arg pr "$pr_line" \
+            --arg run "$RUN_URL" \
+            '{text: ":bar_chart: *Weekly benchmark results*\n```\($table)```\n\($pr)\n<\($run)|workflow run>"}')
+          curl -sf -X POST -H "Content-Type: application/json" -d "$payload" "$SLACK_WEBHOOK_URL"

@@ -54,20 +54,28 @@ def fetch_weekly_scores(database_url: str, *, iou_threshold: Decimal) -> dict[st
 
 
 def render_table(models: list[str], by_model: dict[str, list[WeekScore]]) -> str:
-    lines = [
-        "| Model | F1 @ IoU 0.5 | Δ vs. previous run | Last run |",
-        "|---|---|---|---|",
-    ]
+    header = ["Model", "F1 @ IoU 0.5", "Δ vs. previous run", "Last run"]
+    rows = []
     for model in models:
         weeks = by_model.get(model, [])
         if not weeks:
-            lines.append(f"| `{model}` | — | — | no runs yet |")
+            rows.append([f"`{model}`", "—", "—", "no runs yet"])
             continue
         latest, *rest = weeks
         delta = latest.f1 - rest[0].f1 if rest else 0.0
         arrow = "▲" if delta > 0 else "▼" if delta < 0 else "•"
-        run_date = latest.run_date.isoformat()
-        lines.append(f"| `{model}` | {latest.f1:.3f} | {arrow} {delta:+.3f} | {run_date} |")
+        rows.append(
+            [f"`{model}`", f"{latest.f1:.3f}", f"{arrow} {delta:+.3f}", latest.run_date.isoformat()]
+        )
+
+    # Padded to fixed widths so the table also reads cleanly as plain monospace text (e.g. Slack).
+    widths = [max(len(header[i]), *(len(row[i]) for row in rows)) for i in range(len(header))]
+    lines = [
+        "| " + " | ".join(header[i].ljust(widths[i]) for i in range(len(header))) + " |",
+        "|" + "|".join("-" * (widths[i] + 2) for i in range(len(header))) + "|",
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(row[i].ljust(widths[i]) for i in range(len(header))) + " |")
     return "\n".join(lines)
 
 
@@ -93,6 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--iou-threshold", default="0.500")
     parser.add_argument("--readme-path", type=Path, default=DEFAULT_README_PATH)
+    parser.add_argument(
+        "--table-out",
+        type=Path,
+        default=None,
+        help="Also write the plain table (no README markers) to this path, e.g. for Slack.",
+    )
     args = parser.parse_args(argv)
 
     database_url = os.environ.get(DATABASE_URL_ENV_VAR, "").strip()
@@ -104,6 +118,10 @@ def main(argv: list[str] | None = None) -> int:
     table = render_table(sorted(MODEL_ROSTER), by_model)
     changed = update_readme(args.readme_path, table)
     print("README dashboard updated" if changed else "README dashboard unchanged")
+
+    if args.table_out is not None:
+        args.table_out.write_text(table + "\n")
+
     return 0
 
 
