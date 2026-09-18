@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
@@ -11,6 +12,7 @@ from core.config import DEFAULT_MAX_PX
 from core.dataset import DatasetError, DrawingGroundTruth, resolve_dataset
 from core.parse import ZeroDetectionsError
 from core.pipelines.raw import RawPipeline
+from core.reporting import PrintingRunObserver, format_run_summary
 
 DATASET_DIR_ENV_VAR = "CASEV_DATASET_DIR"
 DEFAULT_OUT_DIR = "results"
@@ -74,6 +76,7 @@ class Cli:
         return client
 
     def _cmd_run(self, args: argparse.Namespace) -> int:
+        started = time.perf_counter()
         try:
             pipeline = RawPipeline(self._client or self._default_client())
             run_dir = pipeline.execute_run(
@@ -83,13 +86,15 @@ class Cli:
                 out_dir=Path(args.out_dir),
                 max_px=args.max_px,
                 threads=args.threads,
+                observer=PrintingRunObserver(),
             )
         except ApiKeyError as exc:
             return self._fail(exc, exit_code=2)
         except (DatasetError, ModelClientError, ZeroDetectionsError) as exc:
             return self._fail(exc)
 
-        print(f"Run written to {run_dir}")
+        print()
+        print(format_run_summary(run_dir, elapsed_seconds=time.perf_counter() - started))
         return 0
 
     def _cmd_score(self, args: argparse.Namespace) -> int:
@@ -99,12 +104,14 @@ class Cli:
             return self._fail(FileNotFoundError(f"no run.json found in {run_dir}"))
 
         dataset_dir = args.dataset_dir or json.loads(run_json_path.read_text())["dataset"]["dir"]
+        started = time.perf_counter()
         try:
             RawPipeline.score_run(run_dir, Path(dataset_dir))
         except (DatasetError, ZeroDetectionsError) as exc:
             return self._fail(exc)
 
-        print(f"Scored {run_dir}")
+        print()
+        print(format_run_summary(run_dir, elapsed_seconds=time.perf_counter() - started))
         return 0
 
     @staticmethod
