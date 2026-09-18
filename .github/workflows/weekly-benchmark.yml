@@ -149,7 +149,6 @@ jobs:
             [weekly benchmark workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
 
       - name: Notify Slack
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
         working-directory: .
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -158,6 +157,10 @@ jobs:
           PR_OP: ${{ steps.pr.outputs.pull-request-operation }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not configured, skipping notification"
+            exit 0
+          fi
           pr_line="No README changes this week."
           if [ "$PR_OP" = "created" ] || [ "$PR_OP" = "updated" ]; then
             pr_line="README update ready to merge: $PR_URL"
