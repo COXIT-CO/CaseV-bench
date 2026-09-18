@@ -1,0 +1,50 @@
+name: CI — runner
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/runner/**"
+      - "docker-compose.yml"
+      - ".github/workflows/ci-runner.yml"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Job name is the branch-protection status context — keep it stable.
+  runner:
+    name: runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen --group store
+
+      - name: lint + typecheck + test
+        run: make check
+
+  # Smoke test for the Dockerfile/docker-compose.yml catches image build breakage
+  # that `uv sync` above can't see, since it never builds the image.
+  compose-smoke:
+    name: compose-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker compose build runner
+
+      - run: docker compose run --rm runner validate
