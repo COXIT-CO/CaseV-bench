@@ -28,6 +28,8 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen
       - id: roster
+        env:
+          CASEV_MODEL_ROSTER: ${{ vars.CASEV_MODEL_ROSTER }}
         run: |
           models=$(uv run python3 -c "
           import json
@@ -68,6 +70,7 @@ jobs:
       - name: Run against the committed dataset
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CASEV_MODEL_ROSTER: ${{ vars.CASEV_MODEL_ROSTER }}
           MODEL: ${{ matrix.model }}
           RUN_ID: ${{ steps.ctx.outputs.run_id }}
           DATASET_DIR: ${{ github.workspace }}/dataset
@@ -129,6 +132,7 @@ jobs:
       - name: Regenerate the README dashboard
         env:
           CASEV_SERVICE_DATABASE_URL: ${{ secrets.SERVICE_DATABASE_URL }}
+          CASEV_MODEL_ROSTER: ${{ vars.CASEV_MODEL_ROSTER }}
         run: |
           uv run python scripts/render_benchmark_dashboard.py --table-out "$RUNNER_TEMP/dashboard_table.txt"
 

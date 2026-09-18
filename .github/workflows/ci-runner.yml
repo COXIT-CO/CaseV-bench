@@ -1,0 +1,36 @@
+name: CI — runner
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/runner/**"
+      - ".github/workflows/ci-runner.yml"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Job name is the branch-protection status context — keep it stable.
+  runner:
+    name: runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: lint + typecheck + test
+        run: make check

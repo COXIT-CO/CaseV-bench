@@ -60,6 +60,13 @@ Useful `run` flags:
 | `--max-px` | `5000` | Target long edge in pixels, if the model isn't in `MODEL_ROSTER` (`core/config.py`) |
 | `--threads` | `1` | Pages to send to the model concurrently |
 
+The model roster (which models the weekly benchmark runs, and each one's max-px cap) defaults
+to the dict in `core/config.py`, but can be overridden without a PR by setting
+`CASEV_MODEL_ROSTER` to a JSON object of the same shape, e.g. `{"vendor/model-x": 5000}`. Set it
+in `src/.env` to try an unreleased model locally, or as a GitHub Actions repo Variable
+(Settings > Secrets and variables > Actions > Variables) to change what the weekly benchmark
+runs.
+
 A run that's already partially written (matching `run-id`) resumes: pages already scored
 successfully are skipped, and only the rest are sent to the model.
 
