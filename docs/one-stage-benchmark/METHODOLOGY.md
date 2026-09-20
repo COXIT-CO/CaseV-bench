@@ -197,6 +197,18 @@ earlier integer-scale finding still holds against the *current* prompt and
 taxonomy has not been directly re-tested, and should not be assumed to
 generalize.
 
+### 2.4 Data and code availability
+
+CaseV-Bench is a public benchmark. Aggregate, headline results are published at
+[casevbench.com](https://casevbench.com/) and
+[coxit.co/ai-drawing-benchmark](https://coxit.co/ai-drawing-benchmark/), alongside a
+companion methodology write-up on the COXIT blog. The evaluation code — including the
+IoU greedy-matching scorer used throughout §5 — is public at
+[github.com/COXIT-CO/CaseV-bench](https://github.com/COXIT-CO/CaseV-bench/). That
+repository also carries a **subset** of the annotated dataset as a public reference; the
+complete nine-document, 1,353-object ground-truth set described in §2.1 has not been
+publicly released.
+
 ## 3. Detection methods
 
 All three methods share the same downstream pipeline once a raw model

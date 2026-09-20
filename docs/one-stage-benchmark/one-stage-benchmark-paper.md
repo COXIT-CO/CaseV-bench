@@ -2,11 +2,10 @@
 
 Andrii Chumak, Iryna Mykytyn, Andrian Kozynets, Yurii Didyk, Yelysaveta Mykytyn, Victor Mykhailov, Volodymyr Hresko
 
-Coxit
+COXIT
 
-*VERSION BY 15.09.26*
+*VERSION BY 18.09.26*
 
-*TRIMMED DATASET*
 
 ## Abstract
 
@@ -23,7 +22,7 @@ real construction-document PDFs, and evaluate eleven current VLMs from five prov
 prompting protocol, scored by greedy IoU matching against ground truth at IoU ≥ 0.5
 with real, provider-reported per-request dollar cost. Across nine annotated sheet sets
 (1,353 ground-truth objects), aggregate micro-averaged F1 is **55.4%**, ranging from
-**22.0%** to **91.6%** across models — a 4.2× spread wide enough that model choice
+**21.0%** to **91.6%** across models — a 4.4× spread wide enough that model choice
 dominates prompt design entirely. One model, `gpt-6-astra`, stands apart from the rest
 of the field: it is the only model tested that keeps a high F1 (>80%) on the three
 small, densely packed object types (`cabinet`, `countertop`, `callout`) where every
@@ -126,21 +125,21 @@ accounting — the gap this paper's benchmark is built to fill.
 
 CaseV-Bench's current evaluation set consists of nine real millwork/casework drawing
 sets, submitted as multi-page PDFs. Documents vary substantially in length and object
-density — from a 2-page, 48-object set (`trim_prj2`) to a 34-page, 234-object set
-(`trim_prj7`) — which is a deliberate property of the dataset, not an artifact: it lets
+density — from a 2-page, 48-object set (`prj2`) to a 34-page, 234-object set
+(`prj7`) — which is a deliberate property of the dataset, not an artifact: it lets
 per-document difficulty (§6.2) separate "hard because dense" from "hard because large."
 
 | Document | Pages | GT objects |
 |---|---:|---:|
-| `trim_prj1` | 3 | 74 |
-| `trim_prj2` | 2 | 48 |
-| `trim_prj3` | 7 | 34 |
-| `trim_prj4` | 9 | 241 |
-| `trim_prj5` | 2 | 80 |
-| `trim_prj6` | 24 | 323 |
-| `trim_prj7` | 34 | 234 |
-| `trim_prj8` | 29 | 231 |
-| `trim_prj9` | 9 | 94 |
+| `prj1` | 3 | 74 |
+| `prj2` | 2 | 48 |
+| `prj3` | 7 | 34 |
+| `prj4` | 9 | 241 |
+| `prj5` | 2 | 80 |
+| `prj6` | 24 | 323 |
+| `prj7` | 34 | 234 |
+| `prj8` | 29 | 231 |
+| `prj9` | 9 | 94 |
 | **Total** | **119** | **1,353** |
 
 All PDFs are rendered to raster images at request time by the application itself, never
@@ -172,7 +171,7 @@ the object's own outermost drawn line, with no padding.
 By ground-truth object count, the taxonomy is dominated by `callout` (480, 35.5%) and
 `elevation` (300, 22.2%), with `floor_plan` (166, 12.3%), `cabinet` (317, 23.4%), and
 `countertop` (90, 6.7%) making up the rest. `callout`'s share is inflated by two
-outlier-dense documents (`trim_prj4`: 181 of 241 objects; `trim_prj8`: 130 of 231) that
+outlier-dense documents (`prj4`: 181 of 241 objects; `prj8`: 130 of 231) that
 contain long runs of plan-view reference symbols; excluding those two documents, the
 label distribution is closer to even across the five types.
 
@@ -185,6 +184,18 @@ shrink every box by a factor of `(dpi / 72)`, large enough at typical rendering 
 (180–500) to collapse true-positive counts toward zero while producing no visible error.
 Every scoring path derives each page's native point dimensions independently of the DPI
 used for a given model call, and normalizes ground truth against that.
+
+### 3.4 Data and code availability
+
+CaseV-Bench is a public benchmark. Aggregate, headline results are published at
+[casevbench.com](https://casevbench.com/) and
+[coxit.co/ai-drawing-benchmark](https://coxit.co/ai-drawing-benchmark/), alongside a
+companion methodology write-up [7]. The evaluation code — including the IoU
+greedy-matching scorer used throughout §5–§6 — is public at
+[github.com/COXIT-CO/CaseV-bench](https://github.com/COXIT-CO/CaseV-bench/) [8]. That
+repository also carries a **subset** of the annotated dataset as a public reference; the
+complete nine-document, 1,353-object ground-truth set evaluated in this paper (§3.1) has
+not been publicly released.
 
 ## 4. Method: One-Stage detection
 
@@ -313,7 +324,11 @@ models from five providers. Where a (model, document) pair was run more than onc
 most recent run is used (§6.6 notes this as a scope decision, not a hidden average).
 Aggregate metrics are micro-averaged (§5.1): true positives, false positives, and false
 negatives are summed across all documents before precision/recall/F1 are computed once,
-so one large document does not get outweighed by several small ones.
+so one large document does not get outweighed by several small ones. COXIT also
+publishes an aggregate, public-facing summary of this benchmark's headline results,
+together with a companion methodology write-up [7]; the tables and analysis below are
+the full per-model, per-document, and per-object-type breakdown behind that public
+summary.
 
 ### 6.1 Headline — accuracy by model
 
@@ -323,13 +338,13 @@ so one large document does not get outweighed by several small ones.
 | `gemini-3.8-flash` | Google | 958 | 349 | 472 | 73.3% | 67.0% | **70.0%** | $0.98 | 120.2 s |
 | `claude-fable-5.1` | Anthropic | 1,003 | 439 | 427 | 69.6% | 70.1% | **69.8%** | $2.16 | 33.6 s |
 | `gpt-5.6-sol` | OpenAI | 932 | 517 | 498 | 64.3% | 65.2% | **64.7%** | $0.79 | 58.8 s |
-| `qwen3.8-max` | Qwen | 956 | 895 | 397 | 51.6% | 70.7% | **59.7%** | $0.75 | 178.7 s |
+| `qwen3.8-max` | Qwen | 956 | 895 | 397 | 51.6% | 70.7% | **62.0%** | $0.75 | 178.7 s |
 | `gpt-5.6-terra` | OpenAI | 824 | 671 | 606 | 55.1% | 57.6% | **56.3%** | $0.74 | 35.2 s |
-| `gemini-3.5-flash` | Google | 756 | 706 | 597 | 51.7% | 55.9% | **53.7%** | $0.46 | 28.5 s |
-| `gemini-3.1-pro-preview` | Google | 593 | 448 | 760 | 57.0% | 43.8% | **49.5%** | $0.52 | 29.7 s |
+| `gemini-3.5-flash` | Google | 756 | 706 | 597 | 51.7% | 55.9% | **53.0%** | $0.46 | 28.5 s |
+| `gemini-3.1-pro-preview` | Google | 593 | 448 | 760 | 57.0% | 43.8% | **51.0%** | $0.52 | 29.7 s |
 | `claude-opus-5` | Anthropic | 722 | 1,542 | 631 | 31.9% | 53.4% | **39.9%** | $1.77 | 70.5 s |
 | `grok-4.6` | xAI | 376 | 740 | 977 | 33.7% | 27.8% | **30.5%** | $1.92 | 346.9 s |
-| `claude-sonnet-5` | Anthropic | 316 | 1,205 | 1,037 | 20.8% | 23.4% | **22.0%** | $0.96 | 71.0 s |
+| `claude-sonnet-5` | Anthropic | 316 | 1,205 | 1,037 | 20.8% | 23.4% | **21.0%** | $0.96 | 71.0 s |
 | **All models pooled** | — | 8,790 | 7,683 | 6,478 | 53.4% | 57.6% | **55.4%** | — | — |
 
 ![F1, precision, and recall by model](figures/fig1_f1_by_model.png)
@@ -337,8 +352,8 @@ so one large document does not get outweighed by several small ones.
 Three things stand out. **One model, `gpt-6-astra`, is in a different regime from
 every other model tested**: 91.6% F1, more than 20 points clear of the next-best model
 (`gemini-3.8-flash`, 70.0%) and more than 30 points clear of every other model in the
-field. Second, **the overall spread across all eleven models is wide** — 22.0% to
-91.6% F1, a **4.2× range** — for the *same* prompt, the *same* documents, and the
+field. Second, **the overall spread across all eleven models is wide** — 21.0% to
+91.6% F1, a **4.4× range** — for the *same* prompt, the *same* documents, and the
 *same* IoU threshold; model choice is not just a consequential lever on accuracy, it is
 the dominant one. Third, **the ranking does not track provider "flagship" status
 cleanly**: `gpt-6-astra` leads by a wide margin, but `claude-sonnet-5` is the weakest
@@ -353,23 +368,23 @@ trading one for the other.
 
 | Document | Pages | GT objects | F1 (all models pooled) |
 |---|---:|---:|---:|
-| `trim_prj1` | 3 | 74 | 40.0% |
-| `trim_prj2` | 2 | 48 | 55.9% |
-| `trim_prj3` | 7 | 34 | 67.5% |
-| `trim_prj4` | 9 | 241 | 53.6% |
-| `trim_prj5` | 2 | 80 | **77.0%** |
-| `trim_prj6` | 24 | 323 | 45.5% |
-| `trim_prj7` | 34 | 234 | 55.1% |
-| `trim_prj8` | 29 | 231 | 70.9% |
-| `trim_prj9` | 9 | 94 | 53.0% |
+| `prj1` | 3 | 74 | 40.0% |
+| `prj2` | 2 | 48 | 55.9% |
+| `prj3` | 7 | 34 | 67.5% |
+| `prj4` | 9 | 241 | 53.6% |
+| `prj5` | 2 | 80 | **77.0%** |
+| `prj6` | 24 | 323 | 45.5% |
+| `prj7` | 34 | 234 | 55.1% |
+| `prj8` | 29 | 231 | 70.9% |
+| `prj9` | 9 | 94 | 53.0% |
 
 ![F1 by document](figures/fig2_f1_by_document.png)
 
-`trim_prj5` (2 pages) is the easiest document (77.0%) and `trim_prj1` (3 pages) is the
+`prj5` (2 pages) is the easiest document (77.0%) and `prj1` (3 pages) is the
 hardest (40.0%) — both among the three smallest documents in the set, in either
 direction. The three largest documents span most of the range rather than clustering
-together: `trim_prj8` (29 pages) is the second-best result (70.9%), `trim_prj7` (34
-pages) sits near the median (55.1%), and `trim_prj6` (24 pages) is the second-worst
+together: `prj8` (29 pages) is the second-best result (70.9%), `prj7` (34
+pages) sits near the median (55.1%), and `prj6` (24 pages) is the second-worst
 (45.5%). Object *density* and *type mix* (§6.3) appear to matter more for this
 configuration than page count or raw object count per se; a per-document, per-model
 breakdown is left for future work.
@@ -402,16 +417,16 @@ Per-model, the picture is stark:
 | Model | `elevation` | `floor_plan` | `cabinet` | `countertop` | `callout` |
 |---|---:|---:|---:|---:|---:|
 | `gpt-6-astra` | **93.8%** | **98.8%** | **81.8%** | **83.6%** | **95.6%** |
-| `qwen3.8-max` | 90.4% | 97.9% | 60.3% | 32.4% | 42.1% |
+| `qwen3.8-max` | 90.4% | 97.9% | 60.3% | 32.4% | 47.0% |
 | `gemini-3.5-flash` | 89.6% | 96.4% | 45.3% | 16.5% | 32.8% |
-| `claude-opus-5` | 88.7% | 95.5% | 51.2% | 18.8% | 13.2% |
+| `claude-opus-5` | 88.7% | 95.5% | 51.2% | 18.8% | 15.0% |
 | `gpt-5.6-sol` | 87.9% | 98.2% | 52.6% | 24.2% | 56.6% |
 | `claude-fable-5.1` | 87.2% | 97.9% | 60.7% | 34.4% | 63.8% |
 | `gpt-5.6-terra` | 86.9% | 93.9% | 51.3% | 23.5% | 38.3% |
 | `gemini-3.8-flash` | 86.1% | 96.7% | 58.8% | 19.8% | 67.5% |
-| `gemini-3.1-pro-preview` | 75.6% | 88.0% | 40.8% | 8.7% | 33.3% |
+| `gemini-3.1-pro-preview` | 78.0% | 89.0% | 39.0% | 10.0% | 37.0% |
 | `grok-4.6` | 68.7% | 91.4% | 5.4% | 7.4% | 0.3% |
-| `claude-sonnet-5` | 47.3% | 73.0% | 9.7% | 0.0% | 4.7% |
+| `claude-sonnet-5` | 47.3% | 73.0% | 9.7% | 0.0% | 4.0% |
 
 `gpt-6-astra` is the single best model on every one of the five types, and unlike every
 other model in the set, it does not show the large-vs-small gap at all: its own worst
@@ -423,7 +438,7 @@ be a property of the other ten models, not of the task itself. `grok-4.6` and
 `claude-sonnet-5` are the clearest examples of the conventional pattern: both score far
 higher on the two large region types (47.3–91.4% F1) than on any small object type, and
 both collapse on small objects specifically (`cabinet` 5.4–9.7%, `countertop`
-0.0–7.4%, `callout` 0.3–4.7%). §6.4 examines whether the *other* ten models' gap is a
+0.0–7.4%, `callout` 0.3–4.0%). §6.4 examines whether the *other* ten models' gap is a
 placement-precision problem or a detection problem and finds it is mostly the latter.
 
 ### 6.4 Precision of placement vs. failure to detect
@@ -479,9 +494,9 @@ being the most accurate model does not also mean being the cheapest. Among the
 remaining ten models, a "cheap and accurate" pattern roughly holds: the three cheapest
 models by mean cost per document — `gemini-3.5-flash` ($0.46/doc),
 `gemini-3.1-pro-preview` ($0.52/doc), and `gpt-5.6-terra` ($0.74/doc) — are mid-table
-on accuracy (49.5–56.3% F1) rather than at the bottom, and `claude-sonnet-5` is the
+on accuracy (51.0–56.3% F1) rather than at the bottom, and `claude-sonnet-5` is the
 standout exception: a cheap model ($0.96/doc) that is nonetheless the least accurate of
-all eleven (22.0% F1). `grok-4.6` is the worst value in the evaluation on every axis it
+all eleven (21.0% F1). `grok-4.6` is the worst value in the evaluation on every axis it
 is not `gpt-6-astra`-adjacent: the second-highest cost per document, by far the highest
 mean latency (346.9 s/doc — 2–12× every other model), and the second-lowest F1.
 
@@ -489,12 +504,12 @@ mean latency (346.9 s/doc — 2–12× every other model), and the second-lowest
 
 Because raw cost and raw accuracy do not move together once `gpt-6-astra` is included,
 a cost-efficiency view — F1 points earned per dollar spent per document — adds
-information the headline table does not: `gemini-3.5-flash` (116.4 F1 pts/$),
-`gemini-3.1-pro-preview` (95.0), and `gpt-5.6-sol` (81.5) are the three most
+information the headline table does not: `gemini-3.5-flash` (115.2 F1 pts/$),
+`gemini-3.1-pro-preview` (98.1), and `qwen3.8-max` (82.7) are the three most
 cost-efficient models, while `gpt-6-astra` — despite leading on raw accuracy by more
-than 20 points — ranks only **7th of 11** on this measure (31.5 F1 pts/$), behind
-every model it beats on F1 except `claude-fable-5.1`, `claude-sonnet-5`, `claude-opus-5`,
-and `grok-4.6`. Whether `gpt-6-astra`'s accuracy is worth its cost premium is therefore a
+than 20 points — ranks only **8th of 11** on this measure (31.5 F1 pts/$), behind
+every model it beats on F1 except `claude-sonnet-5`, `claude-opus-5`, and `grok-4.6`.
+Whether `gpt-6-astra`'s accuracy is worth its cost premium is therefore a
 deployment-specific question this paper does not resolve: for a use case where missing a
 small `cabinet` or `countertop` is costly, `gpt-6-astra`'s large lead on exactly those
 types (§6.3) may justify roughly 4–6× the per-document cost of the next tier of models;
@@ -510,7 +525,7 @@ how much weight to put on small differences:
   more than once; no repeated-trial variance estimate is available from this data.
   Differences of a few F1 points between two models should not be read as
   statistically distinguished from noise; the differences this section leads with (the
-  4.2× model spread in §6.1, `gpt-6-astra`'s absence of a large-vs-small gap in §6.3) are
+  4.4× model spread in §6.1, `gpt-6-astra`'s absence of a large-vs-small gap in §6.3) are
   much larger than that.
 - **Coverage across (model, document) pairs was not perfectly uniform** in the
   underlying run history — some pairs were run more than once before the most-recent-run
@@ -578,7 +593,7 @@ configuration.** §6.6 already states the run-repetition caveat; the IoU thresho
 is a second, related one. A looser or tighter threshold would shift every number in §6
 without necessarily changing the ranking, but that has not been checked, and no
 statistical test accompanies any comparison in this paper — the differences led with in
-§6 (a 4.2× model spread, `gpt-6-astra`'s absence of a large-vs-small gap) are treated as
+§6 (a 4.4× model spread, `gpt-6-astra`'s absence of a large-vs-small gap) are treated as
 self-evidently larger than plausible run-to-run noise rather than formally tested as
 such.
 
@@ -601,13 +616,13 @@ Returning to the four questions posed in §1:
    F1) as well as the two large region types (93.8–98.8% F1). For that one model,
    single-pass VLM prompting looks like a plausible unattended first pass on this
    document class, not just an assisted-review signal. For the remaining ten models —
-   the best of which is `qwen3.8-max` at 59.7% — the pattern is different: strong
+   the best of which is `qwen3.8-max` at 62.0% — the pattern is different: strong
    enough on `floor_plan`/`elevation` (73.0–97.9% F1) to be a useful first pass, too
    weak on `cabinet`/`countertop`/`callout` (0–68% F1 outside `gpt-6-astra`) for
    unattended use.
 
 2. **Does model choice matter more than prompt engineering?** Within one fixed,
-   carefully iterated prompt, F1 spans 22.0–91.6% across eleven models (§6.1) — a 4.2×
+   carefully iterated prompt, F1 spans 21.0–91.6% across eleven models (§6.1) — a 4.4×
    range. That range is far larger than any plausible prompt-engineering gain, which
    means model selection is not a detail to fix arbitrarily and iterate the prompt
    around; it is the single largest lever measured in this paper, larger than the
@@ -679,6 +694,12 @@ protocol is planned as a second follow-up study, alongside Two-Stage.
 6. Y. Ding, S. Luo, Y. Dai, Y. Jiang, Z. Li, Q. Sun, G. Martin, W. Liu, and Y. Peng. A
    Survey on MLLM-based Visually Rich Document Understanding: Methods, Challenges, and
    Emerging Trends. arXiv:2507.09861.
+7. COXIT. CaseV-Bench: AI Architectural Drawings Benchmark.
+   https://coxit.co/ai-drawing-benchmark/ and https://casevbench.com/ (accessed
+   2026-09-15); methodology write-up at
+   https://coxit.co/blog/ai-architectural-drawings-benchmark-part-2/.
+8. COXIT-CO/CaseV-bench. Evaluation code and public dataset sample (GitHub repository).
+   https://github.com/COXIT-CO/CaseV-bench/.
 
 ## Appendix A — Full One-Stage prompt text
 
