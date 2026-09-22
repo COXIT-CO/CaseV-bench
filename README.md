@@ -47,8 +47,13 @@ _No runs published yet. This section is filled in automatically after the first 
 Requires Docker and an [OpenRouter](https://openrouter.ai/) API key. Any OpenRouter model slug
 is accepted.
 
+All configuration is environment variables — see [`.env.example`](.env.example) for the full
+list. `docker compose` reads a `.env` file in this directory automatically, so copy it and fill
+in your key:
+
 ```bash
-export OPENROUTER_API_KEY=...
+cp .env.example .env
+# edit .env, or just: export OPENROUTER_API_KEY=...
 
 docker compose build runner
 
