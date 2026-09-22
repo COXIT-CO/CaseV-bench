@@ -73,7 +73,8 @@ and per-drawing scores. An interrupted run resumes when started again with the s
 `--threads N` sends N pages concurrently.
 
 Flags, output format and running without Docker are documented in
-[`src/runner/README.md`](src/runner/README.md).
+[`src/runner/README.md`](src/runner/README.md), including how prompt versions are named and
+pinned ([Prompt versioning](src/runner/README.md#prompt-versioning)).
 
 ## Dataset
 
