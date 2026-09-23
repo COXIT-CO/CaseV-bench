@@ -1,47 +1,5 @@
 {
-  "project_id": "prj0002",
-  "page_map": {
-    "1": {
-      "project": "prj1",
-      "original_page": 2
-    },
-    "2": {
-      "project": "prj2",
-      "original_page": 2
-    },
-    "3": {
-      "project": "prj3",
-      "original_page": 1
-    },
-    "4": {
-      "project": "prj4",
-      "original_page": 5
-    },
-    "5": {
-      "project": "prj4",
-      "original_page": 7
-    },
-    "6": {
-      "project": "prj5",
-      "original_page": 1
-    },
-    "7": {
-      "project": "prj6",
-      "original_page": 9
-    },
-    "8": {
-      "project": "prj7",
-      "original_page": 23
-    },
-    "9": {
-      "project": "prj8",
-      "original_page": 26
-    },
-    "10": {
-      "project": "prj9",
-      "original_page": 3
-    }
-  },
+  "project_id": "public_set_1",
   "objects": [
     {
       "id": "elv-010",
@@ -52,8 +10,7 @@
         "y": 36,
         "width": 873,
         "height": 523
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "elv-011",
@@ -64,8 +21,7 @@
         "y": 36,
         "width": 1463,
         "height": 523
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-031",
@@ -76,8 +32,7 @@
         "y": 203,
         "width": 42,
         "height": 44
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-032",
@@ -88,8 +43,7 @@
         "y": 248,
         "width": 40,
         "height": 41
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-033",
@@ -100,8 +54,7 @@
         "y": 248,
         "width": 40,
         "height": 40
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-034",
@@ -112,8 +65,7 @@
         "y": 262,
         "width": 46,
         "height": 46
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-035",
@@ -124,8 +76,7 @@
         "y": 266,
         "width": 40,
         "height": 44
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-036",
@@ -136,8 +87,7 @@
         "y": 336,
         "width": 47,
         "height": 44
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-037",
@@ -148,8 +98,7 @@
         "y": 360,
         "width": 44,
         "height": 40
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "elv-012",
@@ -160,8 +109,7 @@
         "y": 559,
         "width": 872,
         "height": 521
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "elv-013",
@@ -172,8 +120,7 @@
         "y": 560,
         "width": 1465,
         "height": 518
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-038",
@@ -184,8 +131,7 @@
         "y": 560,
         "width": 49,
         "height": 53
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-039",
@@ -196,8 +142,7 @@
         "y": 566,
         "width": 43,
         "height": 49
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-040",
@@ -208,8 +153,7 @@
         "y": 786,
         "width": 40,
         "height": 42
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-041",
@@ -220,8 +164,7 @@
         "y": 880,
         "width": 42,
         "height": 43
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-042",
@@ -232,8 +175,7 @@
         "y": 887,
         "width": 42,
         "height": 41
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "ctp-006",
@@ -244,8 +186,7 @@
         "y": 927,
         "width": 430,
         "height": 2
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-020",
@@ -256,8 +197,7 @@
         "y": 929,
         "width": 53,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-021",
@@ -268,8 +208,7 @@
         "y": 929,
         "width": 54,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-022",
@@ -280,8 +219,7 @@
         "y": 929,
         "width": 54,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-023",
@@ -292,8 +230,7 @@
         "y": 929,
         "width": 54,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-024",
@@ -304,8 +241,7 @@
         "y": 929,
         "width": 54,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-025",
@@ -316,8 +252,7 @@
         "y": 929,
         "width": 54,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-026",
@@ -328,8 +263,7 @@
         "y": 929,
         "width": 54,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cab-027",
@@ -340,8 +274,7 @@
         "y": 929,
         "width": 53,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "elv-014",
@@ -352,8 +285,7 @@
         "y": 1080,
         "width": 2337,
         "height": 521
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-043",
@@ -364,8 +296,7 @@
         "y": 1096,
         "width": 42,
         "height": 47
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-044",
@@ -376,8 +307,7 @@
         "y": 1306,
         "width": 42,
         "height": 47
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-045",
@@ -388,8 +318,7 @@
         "y": 1306,
         "width": 43,
         "height": 44
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-046",
@@ -400,8 +329,7 @@
         "y": 1307,
         "width": 41,
         "height": 45
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-047",
@@ -412,8 +340,7 @@
         "y": 1308,
         "width": 52,
         "height": 47
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-048",
@@ -424,8 +351,7 @@
         "y": 1386,
         "width": 39,
         "height": 45
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-049",
@@ -436,8 +362,7 @@
         "y": 1397,
         "width": 46,
         "height": 47
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-050",
@@ -448,8 +373,7 @@
         "y": 1398,
         "width": 39,
         "height": 44
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-051",
@@ -460,8 +384,7 @@
         "y": 1398,
         "width": 46,
         "height": 43
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-052",
@@ -472,8 +395,7 @@
         "y": 1399,
         "width": 43,
         "height": 42
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-053",
@@ -484,8 +406,7 @@
         "y": 1414,
         "width": 43,
         "height": 42
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "elv-015",
@@ -496,8 +417,7 @@
         "y": 1602,
         "width": 2337,
         "height": 521
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-054",
@@ -508,8 +428,7 @@
         "y": 1607,
         "width": 42,
         "height": 48
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-055",
@@ -520,8 +439,7 @@
         "y": 1825,
         "width": 54,
         "height": 42
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-056",
@@ -532,8 +450,7 @@
         "y": 1826,
         "width": 46,
         "height": 45
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-057",
@@ -544,8 +461,7 @@
         "y": 1827,
         "width": 48,
         "height": 41
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-058",
@@ -556,8 +472,7 @@
         "y": 1828,
         "width": 40,
         "height": 41
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-059",
@@ -568,8 +483,7 @@
         "y": 1829,
         "width": 41,
         "height": 39
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-060",
@@ -580,8 +494,7 @@
         "y": 1900,
         "width": 44,
         "height": 44
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-061",
@@ -592,8 +505,7 @@
         "y": 1903,
         "width": 43,
         "height": 42
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-062",
@@ -604,8 +516,7 @@
         "y": 1907,
         "width": 42,
         "height": 42
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-063",
@@ -616,8 +527,7 @@
         "y": 1925,
         "width": 41,
         "height": 43
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-064",
@@ -628,8 +538,7 @@
         "y": 1926,
         "width": 45,
         "height": 40
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "cal-065",
@@ -640,8 +549,7 @@
         "y": 2054,
         "width": 45,
         "height": 41
-      },
-      "source_project": "prj1"
+      }
     },
     {
       "id": "flp-002",
@@ -652,9 +560,7 @@
         "y": 159,
         "width": 1171,
         "height": 603
-      },
-      "source_page": 2,
-      "source_project": "prj2"
+      }
     },
     {
       "id": "flp-003",
@@ -665,9 +571,7 @@
         "y": 865,
         "width": 1413,
         "height": 1006
-      },
-      "source_page": 2,
-      "source_project": "prj2"
+      }
     },
     {
       "id": "flp-001",
@@ -678,8 +582,7 @@
         "y": 136,
         "width": 441,
         "height": 450
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cal-001",
@@ -690,8 +593,7 @@
         "y": 303,
         "width": 49,
         "height": 43
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "elv-001",
@@ -702,8 +604,7 @@
         "y": 319,
         "width": 163,
         "height": 267
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "elv-002",
@@ -714,8 +615,7 @@
         "y": 319,
         "width": 163,
         "height": 267
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cab-001",
@@ -726,8 +626,7 @@
         "y": 352,
         "width": 34,
         "height": 68
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cab-002",
@@ -738,8 +637,7 @@
         "y": 354,
         "width": 34,
         "height": 68
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cab-003",
@@ -750,8 +648,7 @@
         "y": 354,
         "width": 68,
         "height": 55
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "ctp-001",
@@ -762,8 +659,7 @@
         "y": 461,
         "width": 104,
         "height": 4
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cal-002",
@@ -774,8 +670,7 @@
         "y": 464,
         "width": 51,
         "height": 43
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cab-004",
@@ -786,8 +681,7 @@
         "y": 465,
         "width": 34,
         "height": 76
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cab-005",
@@ -798,8 +692,7 @@
         "y": 465,
         "width": 68,
         "height": 76
-      },
-      "source_project": "prj3"
+      }
     },
     {
       "id": "cal-316",
@@ -810,9 +703,7 @@
         "y": 95,
         "width": 31,
         "height": 51
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-317",
@@ -823,9 +714,7 @@
         "y": 173,
         "width": 29,
         "height": 50
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-318",
@@ -836,9 +725,7 @@
         "y": 240,
         "width": 47,
         "height": 34
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-319",
@@ -849,9 +736,7 @@
         "y": 387,
         "width": 47,
         "height": 28
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-320",
@@ -862,9 +747,7 @@
         "y": 418,
         "width": 39,
         "height": 42
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-321",
@@ -875,9 +758,7 @@
         "y": 509,
         "width": 30,
         "height": 34
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-322",
@@ -888,9 +769,7 @@
         "y": 517,
         "width": 32,
         "height": 32
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-323",
@@ -901,9 +780,7 @@
         "y": 532,
         "width": 66,
         "height": 71
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-324",
@@ -914,9 +791,7 @@
         "y": 560,
         "width": 67,
         "height": 61
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-325",
@@ -927,9 +802,7 @@
         "y": 579,
         "width": 58,
         "height": 63
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-326",
@@ -940,9 +813,7 @@
         "y": 778,
         "width": 56,
         "height": 65
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-327",
@@ -953,9 +824,7 @@
         "y": 796,
         "width": 55,
         "height": 61
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-328",
@@ -966,9 +835,7 @@
         "y": 818,
         "width": 56,
         "height": 69
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-329",
@@ -979,9 +846,7 @@
         "y": 903,
         "width": 26,
         "height": 46
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-330",
@@ -992,9 +857,7 @@
         "y": 1006,
         "width": 35,
         "height": 45
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-331",
@@ -1005,9 +868,7 @@
         "y": 1074,
         "width": 35,
         "height": 35
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-332",
@@ -1018,9 +879,7 @@
         "y": 1396,
         "width": 33,
         "height": 35
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-333",
@@ -1031,9 +890,7 @@
         "y": 1710,
         "width": 34,
         "height": 35
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-047",
@@ -1044,9 +901,7 @@
         "y": 82,
         "width": 905,
         "height": 1115
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-048",
@@ -1057,9 +912,7 @@
         "y": 96,
         "width": 849,
         "height": 1102
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-049",
@@ -1070,9 +923,7 @@
         "y": 114,
         "width": 809,
         "height": 1081
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-050",
@@ -1083,9 +934,7 @@
         "y": 1233,
         "width": 430,
         "height": 621
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-051",
@@ -1096,9 +945,7 @@
         "y": 1235,
         "width": 449,
         "height": 618
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-052",
@@ -1109,9 +956,7 @@
         "y": 1246,
         "width": 449,
         "height": 607
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-053",
@@ -1122,9 +967,7 @@
         "y": 1251,
         "width": 482,
         "height": 602
-      },
-      "source_page": 12,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-345",
@@ -1135,9 +978,7 @@
         "y": 110,
         "width": 31,
         "height": 36
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-346",
@@ -1148,9 +989,7 @@
         "y": 116,
         "width": 33,
         "height": 37
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-347",
@@ -1161,9 +1000,7 @@
         "y": 264,
         "width": 28,
         "height": 65
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-348",
@@ -1174,9 +1011,7 @@
         "y": 341,
         "width": 47,
         "height": 50
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-349",
@@ -1187,9 +1022,7 @@
         "y": 417,
         "width": 34,
         "height": 35
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-350",
@@ -1200,9 +1033,7 @@
         "y": 442,
         "width": 48,
         "height": 32
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-351",
@@ -1213,9 +1044,7 @@
         "y": 507,
         "width": 32,
         "height": 34
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-352",
@@ -1226,9 +1055,7 @@
         "y": 717,
         "width": 30,
         "height": 30
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-353",
@@ -1239,9 +1066,7 @@
         "y": 959,
         "width": 27,
         "height": 35
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-354",
@@ -1252,9 +1077,7 @@
         "y": 1021,
         "width": 31,
         "height": 30
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-355",
@@ -1265,9 +1088,7 @@
         "y": 1057,
         "width": 30,
         "height": 32
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-356",
@@ -1278,9 +1099,7 @@
         "y": 1336,
         "width": 32,
         "height": 31
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-357",
@@ -1291,9 +1110,7 @@
         "y": 1552,
         "width": 42,
         "height": 30
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-358",
@@ -1304,9 +1121,7 @@
         "y": 1628,
         "width": 33,
         "height": 28
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-059",
@@ -1317,9 +1132,7 @@
         "y": 88,
         "width": 728,
         "height": 595
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-060",
@@ -1330,9 +1143,7 @@
         "y": 100,
         "width": 1212,
         "height": 581
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-061",
@@ -1343,9 +1154,7 @@
         "y": 158,
         "width": 620,
         "height": 524
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-062",
@@ -1356,9 +1165,7 @@
         "y": 693,
         "width": 433,
         "height": 608
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-063",
@@ -1369,9 +1176,7 @@
         "y": 707,
         "width": 471,
         "height": 593
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-064",
@@ -1382,9 +1187,7 @@
         "y": 718,
         "width": 391,
         "height": 585
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-065",
@@ -1395,9 +1198,7 @@
         "y": 739,
         "width": 459,
         "height": 561
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-066",
@@ -1408,9 +1209,7 @@
         "y": 776,
         "width": 669,
         "height": 526
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-067",
@@ -1421,9 +1220,7 @@
         "y": 1307,
         "width": 588,
         "height": 585
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-068",
@@ -1434,9 +1231,7 @@
         "y": 1326,
         "width": 442,
         "height": 566
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "flp-069",
@@ -1447,9 +1242,7 @@
         "y": 1343,
         "width": 437,
         "height": 549
-      },
-      "source_page": 14,
-      "source_project": "prj4"
+      }
     },
     {
       "id": "cal-054",
@@ -1460,9 +1253,7 @@
         "y": 1528,
         "width": 33,
         "height": 34
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-071",
@@ -1473,9 +1264,7 @@
         "y": 92,
         "width": 326,
         "height": 288
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-072",
@@ -1486,9 +1275,7 @@
         "y": 97,
         "width": 358,
         "height": 283
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-073",
@@ -1499,9 +1286,7 @@
         "y": 100,
         "width": 318,
         "height": 280
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-074",
@@ -1512,9 +1297,7 @@
         "y": 113,
         "width": 332,
         "height": 267
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-075",
@@ -1525,9 +1308,7 @@
         "y": 118,
         "width": 355,
         "height": 262
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-076",
@@ -1538,9 +1319,7 @@
         "y": 127,
         "width": 354,
         "height": 253
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-077",
@@ -1551,9 +1330,7 @@
         "y": 131,
         "width": 319,
         "height": 249
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-078",
@@ -1564,9 +1341,7 @@
         "y": 414,
         "width": 339,
         "height": 301
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-079",
@@ -1577,9 +1352,7 @@
         "y": 420,
         "width": 351,
         "height": 295
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-080",
@@ -1590,9 +1363,7 @@
         "y": 448,
         "width": 314,
         "height": 268
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-081",
@@ -1603,9 +1374,7 @@
         "y": 452,
         "width": 326,
         "height": 263
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-082",
@@ -1616,9 +1385,7 @@
         "y": 463,
         "width": 337,
         "height": 252
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-083",
@@ -1629,9 +1396,7 @@
         "y": 472,
         "width": 318,
         "height": 243
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-084",
@@ -1642,9 +1407,7 @@
         "y": 476,
         "width": 324,
         "height": 239
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-085",
@@ -1655,9 +1418,7 @@
         "y": 730,
         "width": 342,
         "height": 348
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-086",
@@ -1668,9 +1429,7 @@
         "y": 733,
         "width": 355,
         "height": 345
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-087",
@@ -1681,9 +1440,7 @@
         "y": 753,
         "width": 369,
         "height": 325
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-088",
@@ -1694,9 +1451,7 @@
         "y": 787,
         "width": 336,
         "height": 291
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-089",
@@ -1707,9 +1462,7 @@
         "y": 806,
         "width": 317,
         "height": 272
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-090",
@@ -1720,9 +1473,7 @@
         "y": 809,
         "width": 344,
         "height": 269
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-091",
@@ -1733,9 +1484,7 @@
         "y": 822,
         "width": 331,
         "height": 256
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-092",
@@ -1746,9 +1495,7 @@
         "y": 1079,
         "width": 354,
         "height": 328
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-093",
@@ -1759,9 +1506,7 @@
         "y": 1104,
         "width": 350,
         "height": 303
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-094",
@@ -1772,9 +1517,7 @@
         "y": 1113,
         "width": 309,
         "height": 294
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-095",
@@ -1785,9 +1528,7 @@
         "y": 1126,
         "width": 310,
         "height": 281
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-096",
@@ -1798,9 +1539,7 @@
         "y": 1138,
         "width": 325,
         "height": 269
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-097",
@@ -1811,9 +1550,7 @@
         "y": 1148,
         "width": 336,
         "height": 259
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-098",
@@ -1824,9 +1561,7 @@
         "y": 1167,
         "width": 327,
         "height": 240
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-099",
@@ -1837,9 +1572,7 @@
         "y": 1419,
         "width": 449,
         "height": 411
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-100",
@@ -1850,9 +1583,7 @@
         "y": 1445,
         "width": 476,
         "height": 385
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-101",
@@ -1863,9 +1594,7 @@
         "y": 1460,
         "width": 329,
         "height": 370
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-102",
@@ -1876,9 +1605,7 @@
         "y": 1471,
         "width": 418,
         "height": 359
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-103",
@@ -1889,9 +1616,7 @@
         "y": 1505,
         "width": 317,
         "height": 325
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-104",
@@ -1902,9 +1627,7 @@
         "y": 1523,
         "width": 316,
         "height": 307
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "elv-105",
@@ -1915,9 +1638,7 @@
         "y": 1532,
         "width": 298,
         "height": 298
-      },
-      "source_page": 6,
-      "source_project": "prj5"
+      }
     },
     {
       "id": "cal-005",
@@ -1928,9 +1649,7 @@
         "y": 1097,
         "width": 53,
         "height": 55
-      },
-      "source_page": 15,
-      "source_project": "prj6"
+      }
     },
     {
       "id": "cal-006",
@@ -1941,9 +1660,7 @@
         "y": 1275,
         "width": 56,
         "height": 45
-      },
-      "source_page": 15,
-      "source_project": "prj6"
+      }
     },
     {
       "id": "cal-007",
@@ -1954,9 +1671,7 @@
         "y": 1373,
         "width": 56,
         "height": 50
-      },
-      "source_page": 15,
-      "source_project": "prj6"
+      }
     },
     {
       "id": "cal-008",
@@ -1967,9 +1682,7 @@
         "y": 1509,
         "width": 49,
         "height": 45
-      },
-      "source_page": 15,
-      "source_project": "prj6"
+      }
     },
     {
       "id": "flp-019",
@@ -1980,9 +1693,7 @@
         "y": 531,
         "width": 2724,
         "height": 1352
-      },
-      "source_page": 15,
-      "source_project": "prj6"
+      }
     },
     {
       "id": "cab-062",
@@ -1993,9 +1704,7 @@
         "y": 227,
         "width": 45,
         "height": 36
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-063",
@@ -2006,9 +1715,7 @@
         "y": 227,
         "width": 45,
         "height": 36
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-064",
@@ -2019,9 +1726,7 @@
         "y": 227,
         "width": 45,
         "height": 36
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-065",
@@ -2032,9 +1737,7 @@
         "y": 227,
         "width": 45,
         "height": 56
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-066",
@@ -2045,9 +1748,7 @@
         "y": 227,
         "width": 30,
         "height": 117
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-067",
@@ -2058,9 +1759,7 @@
         "y": 227,
         "width": 60,
         "height": 117
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-068",
@@ -2071,9 +1770,7 @@
         "y": 283,
         "width": 45,
         "height": 61
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-069",
@@ -2084,9 +1781,7 @@
         "y": 292,
         "width": 45,
         "height": 52
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-070",
@@ -2097,9 +1792,7 @@
         "y": 292,
         "width": 45,
         "height": 52
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-071",
@@ -2110,9 +1803,7 @@
         "y": 292,
         "width": 45,
         "height": 52
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "ctp-017",
@@ -2123,9 +1814,7 @@
         "y": 284,
         "width": 135,
         "height": 8
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "elv-045",
@@ -2136,9 +1825,7 @@
         "y": 93,
         "width": 1179,
         "height": 318
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "elv-046",
@@ -2149,9 +1836,7 @@
         "y": 417,
         "width": 1189,
         "height": 316
-      },
-      "source_page": 52,
-      "source_project": "prj7"
+      }
     },
     {
       "id": "cab-004",
@@ -2162,9 +1847,7 @@
         "y": 249,
         "width": 73,
         "height": 108
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-005",
@@ -2175,9 +1858,7 @@
         "y": 375,
         "width": 73,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-006",
@@ -2188,9 +1869,7 @@
         "y": 746,
         "width": 72,
         "height": 108
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-007",
@@ -2201,9 +1880,7 @@
         "y": 748,
         "width": 72,
         "height": 108
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-008",
@@ -2214,9 +1891,7 @@
         "y": 881,
         "width": 90,
         "height": 98
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-009",
@@ -2227,9 +1902,7 @@
         "y": 881,
         "width": 107,
         "height": 98
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-010",
@@ -2240,9 +1913,7 @@
         "y": 881,
         "width": 106,
         "height": 98
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-011",
@@ -2253,9 +1924,7 @@
         "y": 881,
         "width": 63,
         "height": 98
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-012",
@@ -2266,9 +1935,7 @@
         "y": 881,
         "width": 89,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-013",
@@ -2279,9 +1946,7 @@
         "y": 881,
         "width": 90,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-014",
@@ -2292,9 +1957,7 @@
         "y": 881,
         "width": 90,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-015",
@@ -2305,9 +1968,7 @@
         "y": 881,
         "width": 89,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-016",
@@ -2318,9 +1979,7 @@
         "y": 1333,
         "width": 90,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-017",
@@ -2331,9 +1990,7 @@
         "y": 1333,
         "width": 90,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-018",
@@ -2344,9 +2001,7 @@
         "y": 1333,
         "width": 90,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cab-019",
@@ -2357,9 +2012,7 @@
         "y": 1333,
         "width": 90,
         "height": 97
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cal-135",
@@ -2370,9 +2023,7 @@
         "y": 787,
         "width": 36,
         "height": 40
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "ctp-003",
@@ -2383,9 +2034,7 @@
         "y": 358,
         "width": 73,
         "height": 17
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "ctp-004",
@@ -2396,9 +2045,7 @@
         "y": 864,
         "width": 344,
         "height": 17
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "ctp-005",
@@ -2409,9 +2056,7 @@
         "y": 864,
         "width": 165,
         "height": 17
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "ctp-006",
@@ -2422,9 +2067,7 @@
         "y": 865,
         "width": 199,
         "height": 16
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "ctp-007",
@@ -2435,9 +2078,7 @@
         "y": 865,
         "width": 169,
         "height": 16
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "ctp-008",
@@ -2448,9 +2089,7 @@
         "y": 1316,
         "width": 572,
         "height": 17
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-044",
@@ -2461,9 +2100,7 @@
         "y": 175,
         "width": 449,
         "height": 389
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-045",
@@ -2474,9 +2111,7 @@
         "y": 177,
         "width": 448,
         "height": 387
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-046",
@@ -2487,9 +2122,7 @@
         "y": 180,
         "width": 446,
         "height": 387
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-047",
@@ -2500,9 +2133,7 @@
         "y": 180,
         "width": 455,
         "height": 384
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-048",
@@ -2513,9 +2144,7 @@
         "y": 677,
         "width": 395,
         "height": 403
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-049",
@@ -2526,9 +2155,7 @@
         "y": 681,
         "width": 481,
         "height": 401
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-050",
@@ -2539,9 +2166,7 @@
         "y": 683,
         "width": 461,
         "height": 400
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-051",
@@ -2552,9 +2177,7 @@
         "y": 683,
         "width": 469,
         "height": 399
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "elv-052",
@@ -2565,9 +2188,7 @@
         "y": 1136,
         "width": 641,
         "height": 418
-      },
-      "source_page": 59,
-      "source_project": "prj8"
+      }
     },
     {
       "id": "cal-001",
@@ -2578,9 +2199,7 @@
         "y": 308,
         "width": 94,
         "height": 98
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "cal-002",
@@ -2591,9 +2210,7 @@
         "y": 318,
         "width": 84,
         "height": 84
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "cal-003",
@@ -2604,9 +2221,7 @@
         "y": 324,
         "width": 82,
         "height": 90
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "cal-004",
@@ -2617,9 +2232,7 @@
         "y": 912,
         "width": 98,
         "height": 105
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "cal-005",
@@ -2630,9 +2243,7 @@
         "y": 921,
         "width": 86,
         "height": 88
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "cal-006",
@@ -2643,9 +2254,7 @@
         "y": 1564,
         "width": 90,
         "height": 84
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "cal-007",
@@ -2656,9 +2265,7 @@
         "y": 1568,
         "width": 96,
         "height": 82
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "cal-008",
@@ -2669,9 +2276,7 @@
         "y": 1572,
         "width": 92,
         "height": 74
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-001",
@@ -2682,9 +2287,7 @@
         "y": 158,
         "width": 335,
         "height": 510
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-002",
@@ -2695,9 +2298,7 @@
         "y": 161,
         "width": 298,
         "height": 517
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-003",
@@ -2708,9 +2309,7 @@
         "y": 166,
         "width": 557,
         "height": 498
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-004",
@@ -2721,9 +2320,7 @@
         "y": 751,
         "width": 733,
         "height": 520
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-005",
@@ -2734,9 +2331,7 @@
         "y": 754,
         "width": 583,
         "height": 517
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-006",
@@ -2747,9 +2342,7 @@
         "y": 1376,
         "width": 361,
         "height": 518
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-007",
@@ -2760,9 +2353,7 @@
         "y": 1381,
         "width": 527,
         "height": 513
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     },
     {
       "id": "flp-008",
@@ -2773,9 +2364,7 @@
         "y": 1381,
         "width": 388,
         "height": 513
-      },
-      "source_page": 4,
-      "source_project": "prj9"
+      }
     }
   ]
 }
