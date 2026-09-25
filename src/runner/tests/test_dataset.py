@@ -45,6 +45,14 @@ class TestLocalDatasetSource:
         drawings = LocalDatasetSource(self.root).load()
         assert set(drawings) == {"a", "b"}
 
+    def test_accepts_prefixed_location_file_name(self) -> None:
+        self._write_drawing(
+            "d1",
+            objects=[{"label": "cabinet", "x_min": 0.1, "y_min": 0.1, "x_max": 0.3, "y_max": 0.3}],
+        )
+        (self.root / "obj-location.json").rename(self.root / "prj1-obj-location.json")
+        assert set(LocalDatasetSource(self.root).load()) == {"d1"}
+
     def test_missing_dataset_dir_raises(self) -> None:
         with pytest.raises(DatasetNotFoundError):
             LocalDatasetSource(self.root / "does-not-exist").load()

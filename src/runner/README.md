@@ -19,17 +19,16 @@ uv sync
 ## Dataset layout
 
 Each drawing lives in its own directory containing exactly one PDF and one
-`*-obj-location.json` ground-truth file:
+`*obj-location.json` ground-truth file (`obj-location.json` or `<name>-obj-location.json`).
 
 ```
 dataset/
-  prj1/
-    prj1.pdf
-    prj1-obj-location.json
-  prj2/
-    prj2.pdf
-    prj2-obj-location.json
+  public/
+    drawing.pdf
+    obj-location.json
 ```
+
+The drawing is named after `project_id` in the JSON, falling back to the directory name.
 
 Point the CLI at the dataset root (a directory of drawing directories) or at a single drawing
 directory, either via `--dataset-dir` or the `CASEV_DATASET_DIR` environment variable.

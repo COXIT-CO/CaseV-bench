@@ -84,21 +84,19 @@ evaluation. It doubles as the sample sent through every model in the weekly run,
 be small enough to run weekly but varied enough that a shift in a model's numbers over time is
 meaningful rather than noise.
 
-<!-- TODO: this section describes the dataset once the balanced-dataset selection lands (see the
-`balanced-dataset` branch). Until then, drawing count and counts below are placeholders. -->
-
-It contains TBD drawings, each a PDF sheet and a JSON file with the ground-truth boxes.
-Annotators used the same object definitions as the prompt, drawing boxes with
-[`annotation_tool/`](annotation_tool), a small PDF viewer with annotating functionality.
-Current counts:
+It is a single multi-page PDF, [`drawing.pdf`](dataset/public/drawing.pdf), of 10 sheets, with the
+ground-truth boxes in [`obj-location.json`](dataset/public/obj-location.json). Annotators used the
+same object definitions as the prompt, drawing boxes with [`annotation_tool/`](annotation_tool),
+a small PDF viewer with annotating functionality. Current counts:
 
 | Object | Boxes |
 |---|---:|
-| `cabinet` | TBD |
-| `elevation` | TBD |
-| `callout` | TBD |
-| `countertop` | TBD |
-| `floor_plan` | TBD |
+| `callout` | 83 |
+| `elevation` | 54 |
+| `cabinet` | 39 |
+| `floor_plan` | 30 |
+| `countertop` | 9 |
+| **Total** | **215** |
 
 ## Layout
 

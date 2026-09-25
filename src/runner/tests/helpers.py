@@ -94,11 +94,11 @@ class StubModelClient:
 
 def write_local_dataset(root: Path, drawing: str, pages_objects: list[list[FractionalBox]]) -> None:
     """Build a minimal on-disk dataset: an N-page PDF plus a matching native
-    `<drawing>-obj-location.json`"""
+    `obj-location.json`"""
     document = pymupdf.open()
     for _ in pages_objects:
         document.new_page(width=_PAGE_WIDTH, height=_PAGE_HEIGHT)
-    document.save(root / f"{drawing}.pdf")
+    document.save(root / "drawing.pdf")
     document.close()
 
     objects = []
@@ -119,7 +119,7 @@ def write_local_dataset(root: Path, drawing: str, pages_objects: list[list[Fract
                 }
             )
     location = {"project_id": drawing, "objects": objects}
-    (root / f"{drawing}-obj-location.json").write_text(json.dumps(location))
+    (root / "obj-location.json").write_text(json.dumps(location))
 
 
 def write_smoke_dataset(root: Path) -> Path:
