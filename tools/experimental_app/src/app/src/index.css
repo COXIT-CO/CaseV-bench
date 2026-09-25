@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens (ADR 0012, spec Part C) — ported 1:1 from the Claude Design mockup
+ * (docs/design/mockups/"Design Tokens & Components.dc.html"). OKLCH throughout, as the
+ * mockup specified, for perceptually even steps and easier contrast tuning across the
+ * light/dark pair. Variables hold bare `L C H` channels; tailwind.config wraps them in
+ * `oklch(var(--x) / <alpha-value>)` so Tailwind's opacity modifiers still work.
+ *
+ * Palette: neutral chrome (converted from the mockup's hex neutrals) + an indigo accent
+ * + a disciplined semantic set — success (win / ok / GT / done / scored), danger (fail /
+ * loss / prediction / failed), warning (queued→neutral, running→warning), neutral
+ * (unscored). Overlay legend is fixed: red = prediction, green = ground truth.
+ */
+@layer base {
+  :root {
+    --background: 1 0 0; /* #ffffff */
+    --foreground: 0.216 0.006 265; /* #1a1b1e */
+
+    --card: 1 0 0;
+    --card-foreground: 0.216 0.006 265;
+    --popover: 1 0 0;
+    --popover-foreground: 0.216 0.006 265;
+
+    --primary: 0.55 0.18 275; /* indigo accent */
+    --primary-foreground: 0.99 0 0;
+    --secondary: 0.968 0.002 265; /* #f7f7f8 surface */
+    --secondary-foreground: 0.3 0.006 265;
+
+    --muted: 0.968 0.002 265;
+    --muted-foreground: 0.53 0.009 265; /* #6b6e75 */
+    --accent: 0.955 0.003 265; /* subtle hover neutral */
+    --accent-foreground: 0.3 0.006 265;
+
+    --destructive: 0.55 0.18 25; /* = danger */
+    --destructive-foreground: 0.99 0 0;
+
+    --border: 0.918 0.003 265; /* #e4e5e7 */
+    --input: 0.918 0.003 265;
+    --ring: 0.55 0.18 275; /* focus = accent */
+
+    /* Semantic (status / scoring). Each: a solid tone + a low-chroma subtle bg for badge
+       fills; badge text uses the solid tone on the subtle bg (mockup convention). */
+    --success: 0.5 0.13 145;
+    --success-subtle: 0.95 0.04 145;
+    --danger: 0.55 0.18 25;
+    --danger-subtle: 0.95 0.04 25;
+    --warning: 0.6 0.14 80;
+    --warning-subtle: 0.95 0.05 80;
+    --neutral-subtle: 0.94 0.006 260;
+
+    /* Fixed overlay legend. */
+    --overlay-prediction: 0.55 0.18 25; /* red */
+    --overlay-gt: 0.5 0.13 145; /* green */
+
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: 0.19 0.004 230; /* #151719 */
+    --foreground: 0.925 0.002 250; /* #e8e9ea */
+
+    --card: 0.235 0.005 230; /* #1c1f22 */
+    --card-foreground: 0.925 0.002 250;
+    --popover: 0.235 0.005 230;
+    --popover-foreground: 0.925 0.002 250;
+
+    --primary: 0.72 0.15 275; /* lighter indigo */
+    --primary-foreground: 0.99 0 0;
+    --secondary: 0.27 0.006 250;
+    --secondary-foreground: 0.925 0.002 250;
+
+    --muted: 0.26 0.005 250;
+    --muted-foreground: 0.67 0.006 260; /* #9a9da3 */
+    --accent: 0.3 0.006 250;
+    --accent-foreground: 0.925 0.002 250;
+
+    --destructive: 0.7 0.16 25;
+    --destructive-foreground: 0.99 0 0;
+
+    --border: 0.3 0.006 250; /* #2a2d31 */
+    --input: 0.32 0.006 250;
+    --ring: 0.72 0.15 275;
+
+    --success: 0.72 0.14 145;
+    --success-subtle: 0.3 0.06 145;
+    --danger: 0.7 0.16 25;
+    --danger-subtle: 0.32 0.08 25;
+    --warning: 0.76 0.13 80;
+    --warning-subtle: 0.32 0.06 80;
+    --neutral-subtle: 0.3 0.006 260;
+
+    --overlay-prediction: 0.7 0.16 25;
+    --overlay-gt: 0.72 0.14 145;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+    /* Numeric metric cells line up column-to-column when scanning the board. */
+    font-variant-numeric: tabular-nums;
+  }
+}

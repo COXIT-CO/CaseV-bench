@@ -1,0 +1,42 @@
+# Keep the build context lean and, above all, keep secrets and local state out of the image
+# (ADR-0013: secrets come from Railway variables, never baked in).
+
+# Version control
+.git
+.gitignore
+
+# Secrets — the local-dev .env (any depth) must never enter an image layer.
+**/.env
+*.env
+
+# Local persistent state — the DB, rendered pages, overlays, scratch output. These live on
+# the mounted Volume at runtime, not in the image.
+data/
+**/*.sqlite
+**/*.sqlite-journal
+**/*.sqlite-bak
+**/*.bak
+
+# Python caches / tooling
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node: reinstalled via `npm ci` and rebuilt in the frontend stage; never copy the host's.
+**/node_modules/
+src/app/dist/
+**/*.tsbuildinfo
+
+# Tests aren't needed to run the app.
+tests/
+
+# Repo scaffolding / docs / editor cruft
+.agents/
+.scratch/
+.claude/
+docs/
+**/.DS_Store
+*.md
+!README.md
