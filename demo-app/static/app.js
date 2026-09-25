@@ -25,9 +25,18 @@ const lightboxImage = document.getElementById("lightbox-image");
 const lightboxCaption = document.getElementById("lightbox-caption");
 const lightboxClose = document.getElementById("lightbox-close");
 
+const historyToggle = document.getElementById("history-toggle");
+const historyDrawer = document.getElementById("history-drawer");
+const historyBackdrop = document.getElementById("history-backdrop");
+const historyClose = document.getElementById("history-close");
+const historySearch = document.getElementById("history-search");
+const historyList = document.getElementById("history-list");
+const historyEmpty = document.getElementById("history-empty");
+
 let selectedFile = null;
 let labelOrder = [];
 let defaultPromptText = "";
+let historyRuns = [];
 
 configToggle.addEventListener("click", () => configPanel.classList.toggle("hidden"));
 document.addEventListener("click", (event) => {
@@ -96,11 +105,126 @@ lightboxClose.addEventListener("click", closeLightbox);
 lightbox.addEventListener("click", (event) => {
   if (event.target === lightbox) closeLightbox();
 });
+function openHistoryDrawer() {
+  historyDrawer.classList.remove("hidden");
+  historyDrawer.classList.add("flex");
+  historyBackdrop.classList.remove("hidden");
+}
+
+function closeHistoryDrawer() {
+  historyDrawer.classList.add("hidden");
+  historyDrawer.classList.remove("flex");
+  historyBackdrop.classList.add("hidden");
+}
+
+historyToggle.addEventListener("click", () => {
+  if (historyDrawer.classList.contains("hidden")) {
+    loadHistory();
+    openHistoryDrawer();
+  } else {
+    closeHistoryDrawer();
+  }
+});
+historyClose.addEventListener("click", closeHistoryDrawer);
+historyBackdrop.addEventListener("click", closeHistoryDrawer);
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   closeLightbox();
   closePromptModal();
+  closeHistoryDrawer();
 });
+
+function historyRow(run) {
+  const row = document.createElement("div");
+  row.className = "group flex cursor-pointer items-start justify-between gap-2 border-b border-line px-4 py-3 hover:bg-soft";
+
+  const info = document.createElement("div");
+  info.className = "min-w-0";
+
+  const filenameEl = document.createElement("p");
+  filenameEl.className = "truncate text-sm font-medium text-ink";
+  filenameEl.textContent = run.filename;
+  info.appendChild(filenameEl);
+
+  const metaEl = document.createElement("p");
+  metaEl.className = "mt-0.5 font-mono text-xs text-muted";
+  const when = new Date(run.created_at).toLocaleString();
+  metaEl.textContent =
+    `${run.model} · ${when} · ${run.detection_count} found` + (run.custom_prompt ? " · custom prompt" : "");
+  info.appendChild(metaEl);
+
+  row.appendChild(info);
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.title = "Delete this run";
+  deleteButton.className = "flex-shrink-0 p-1 text-muted hover:text-brand";
+  deleteButton.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">' +
+    '<path fill-rule="evenodd" clip-rule="evenodd" d="M8 2a1 1 0 00-1 1v1H4a1 1 0 000 2h12a1 1 0 100-2h-3V3a1 1 0 00-1-1H8zM5 7a1 1 0 011 1v8a2 2 0 002 2h4a2 2 0 002-2V8a1 1 0 112 0v8a4 4 0 01-4 4H8a4 4 0 01-4-4V8a1 1 0 011-1z"/>' +
+    "</svg>";
+  deleteButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    if (!confirm(`Delete "${run.filename}" from history?`)) return;
+    try {
+      await fetch(`/api/runs/${run.id}`, { method: "DELETE" });
+      await loadHistory();
+    } catch (err) {
+      alert("Could not delete this run.");
+    }
+  });
+  row.appendChild(deleteButton);
+
+  row.addEventListener("click", async () => {
+    closeHistoryDrawer();
+    setError("");
+    summaryContainer.classList.add("hidden");
+    resultsEl.classList.add("hidden");
+    setStatus(`Loading "${run.filename}"…`);
+
+    try {
+      const response = await fetch(`/api/runs/${run.id}`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || "Could not load this run.");
+      }
+      const data = await response.json();
+      setStatus("");
+      renderResults(data);
+    } catch (err) {
+      setStatus("");
+      setError(err.message || String(err));
+    }
+  });
+
+  return row;
+}
+
+function renderHistoryList() {
+  const query = historySearch.value.trim().toLowerCase();
+  const filtered = query
+    ? historyRuns.filter(
+        (run) => run.filename.toLowerCase().includes(query) || run.model.toLowerCase().includes(query)
+      )
+    : historyRuns;
+
+  historyList.innerHTML = "";
+  for (const run of filtered) historyList.appendChild(historyRow(run));
+  historyEmpty.classList.toggle("hidden", filtered.length > 0);
+  historyEmpty.textContent = historyRuns.length ? "No runs match your search." : "No runs yet.";
+}
+
+async function loadHistory() {
+  try {
+    const response = await fetch("/api/runs");
+    historyRuns = await response.json();
+  } catch (err) {
+    historyRuns = [];
+  }
+  renderHistoryList();
+}
+
+historySearch.addEventListener("input", renderHistoryList);
 
 fileInput.addEventListener("change", () => {
   selectedFile = fileInput.files[0] || null;
@@ -388,6 +512,7 @@ runButton.addEventListener("click", async () => {
     const data = await readDetectStream(response, setStatus);
     setStatus("");
     renderResults(data);
+    loadHistory();
   } catch (err) {
     setError(err.message || String(err));
   } finally {
@@ -433,3 +558,4 @@ async function readDetectStream(response, onProgress) {
 }
 
 loadConfig();
+loadHistory();

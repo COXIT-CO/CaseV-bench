@@ -291,3 +291,56 @@ def detect(
     logger.info("detect() total: %.3fs for %d page(s)", total_elapsed, page_count)
     progress(f"Finishing up… (total {total_elapsed:.1f}s)")
     return sorted(results, key=lambda result: result.page)
+
+
+def _rebuild_one_page(pdf_bytes: bytes, render_px: int, meta: dict[str, object]) -> PageResult:
+    page_number = int(meta["page"])  # type: ignore[arg-type]
+    boxes = meta.get("boxes") or []
+    # A fresh Document per task, not a shared one: PyMuPDF/MuPDF documents aren't safe to
+    # render from multiple threads at once. Reopening from the already-in-memory bytes is
+    # cheap (parses the xref table, doesn't re-decode any page) compared to the rendering
+    # and overlay work each task then does, so this doesn't cost the concurrency it buys.
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as document:
+        rendered = PageRenderer.render_page(document, page_number, render_px)
+    annotated_png = _annotate(rendered.png_bytes, boxes)  # type: ignore[arg-type]
+    return PageResult(
+        page=page_number,
+        width=rendered.width,
+        height=rendered.height,
+        original_png=rendered.png_bytes,
+        annotated_png=annotated_png,
+        boxes=boxes,  # type: ignore[arg-type]
+        dropped=int(meta.get("dropped") or 0),
+        complete=bool(meta.get("complete", True)),
+        status=str(meta["status"]),
+        error=meta.get("error"),  # type: ignore[arg-type]
+    )
+
+
+def rebuild_pages(
+    pdf_bytes: bytes, render_px: int, pages_meta: list[dict[str, object]], threads: int = 8
+) -> list[PageResult]:
+    """Replays a history entry without calling the model: re-renders each stored page
+    from the original PDF and redraws the overlay from its stored boxes. `pages_meta`
+    is one dict per page — `{page, status, error, dropped, complete, boxes}` — exactly
+    what history.save_run persisted.
+
+    Unlike detect() (where rendering is sequential and only the model call/parse/annotate
+    step is threaded, since that step is what's actually slow there), every page here does
+    real work — render *and* annotate — with nothing waiting on a network call, so all of
+    it is threaded. A higher default thread count than detect()'s than makes sense too:
+    this is local, CPU-bound work with no external rate limit to respect.
+    """
+    started = time.monotonic()
+    call = functools.partial(_rebuild_one_page, pdf_bytes, render_px)
+    worker_count = min(threads, len(pages_meta)) or 1
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [executor.submit(call, meta) for meta in pages_meta]
+        results = [future.result() for future in as_completed(futures)]
+    logger.info(
+        "rebuilt %d page(s) from history in %.3fs (%d threads)",
+        len(results),
+        time.monotonic() - started,
+        worker_count,
+    )
+    return sorted(results, key=lambda result: result.page)
