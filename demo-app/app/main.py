@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import queue
 import threading
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -12,9 +14,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.detect import PageResult, detect
+from app.detect import PROMPT_TEXT, PageResult, detect
 from core.client import ApiKeyError, OpenRouterClient
-from core.config import DEFAULT_MAX_PX, MODEL_ROSTER, PROMPT_PATH
+from core.config import DEFAULT_MAX_PX, MODEL_ROSTER
 from core.dataset import ALLOWED_LABELS
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -32,6 +34,14 @@ LABEL_ORDER = [
 # `detect()` returns or raises, so the async generator knows to stop draining the queue.
 _DONE = object()
 
+logger = logging.getLogger("casev.demo.api")
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s [timing] %(message)s", "%H:%M:%S"))
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
 app = FastAPI(title="CaseV-Bench demo")
 
 
@@ -47,7 +57,11 @@ def _client() -> OpenRouterClient:
 
 
 def _result_payload(
-    model: str, target_max_px: int, provider_cap: int | None, results: list[PageResult]
+    model: str,
+    target_max_px: int,
+    provider_cap: int | None,
+    custom_prompt: bool,
+    results: list[PageResult],
 ) -> dict[str, object]:
     pages = []
     detections = []
@@ -82,6 +96,7 @@ def _result_payload(
         "model": model,
         "render_px": target_max_px,
         "used_provider_cap": provider_cap is not None,
+        "custom_prompt": custom_prompt,
         "pages": pages,
         "detections": detections,
     }
@@ -92,11 +107,14 @@ async def _detect_stream(
     *,
     client: OpenRouterClient,
     model: str,
+    prompt: str,
     target_max_px: int,
     provider_cap: int | None,
 ) -> AsyncIterator[bytes]:
     events: queue.Queue = queue.Queue()
     outcome: dict[str, object] = {}
+    request_started = time.monotonic()
+    custom_prompt = prompt != PROMPT_TEXT
 
     def on_progress(message: str) -> None:
         events.put({"type": "progress", "message": message})
@@ -108,6 +126,7 @@ async def _detect_stream(
                 client=client,
                 model=model,
                 max_px=target_max_px,
+                prompt=prompt,
                 on_progress=on_progress,
             )
         except ValueError as exc:
@@ -123,11 +142,19 @@ async def _detect_stream(
             break
         yield (json.dumps(event) + "\n").encode()
 
+    request_elapsed = time.monotonic() - request_started
     if "error" in outcome:
+        logger.info("request for %s failed in %.3fs: %s", model, request_elapsed, outcome["error"])
         yield (json.dumps({"type": "error", "message": outcome["error"]}) + "\n").encode()
         return
 
-    payload = _result_payload(model, target_max_px, provider_cap, outcome["results"])
+    logger.info(
+        "request for %s completed in %.3fs (server-side, excludes upload, custom_prompt=%s)",
+        model,
+        request_elapsed,
+        custom_prompt,
+    )
+    payload = _result_payload(model, target_max_px, provider_cap, custom_prompt, outcome["results"])
     yield (json.dumps({"type": "result", "data": payload}) + "\n").encode()
 
 
@@ -136,7 +163,7 @@ def get_config() -> dict[str, object]:
     return {
         "models": MODEL_ROSTER,
         "labels": LABEL_ORDER,
-        "prompt": PROMPT_PATH.read_text(),
+        "default_prompt": PROMPT_TEXT,
         "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
     }
 
@@ -145,6 +172,7 @@ def get_config() -> dict[str, object]:
 async def run_detect(
     file: UploadFile = File(...),
     model: str = Form(...),
+    prompt: str = Form(""),
 ) -> StreamingResponse:
     model = model.strip()
     if not model:
@@ -156,7 +184,20 @@ async def run_detect(
     if not is_pdf:
         raise HTTPException(status_code=400, detail="upload must be a PDF")
 
+    # A blank submission (cleared textarea) falls back to the default rather than sending an
+    # empty prompt to the model — that would just be a wasted, confusing call.
+    prompt_text = prompt.strip() or PROMPT_TEXT
+
+    upload_started = time.monotonic()
     pdf_bytes = await file.read()
+    logger.info(
+        "received %s (%.2f MB) in %.3fs, model=%s, custom_prompt=%s",
+        file.filename,
+        len(pdf_bytes) / (1024 * 1024),
+        time.monotonic() - upload_started,
+        model,
+        prompt_text != PROMPT_TEXT,
+    )
     if len(pdf_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
@@ -172,6 +213,7 @@ async def run_detect(
             pdf_bytes,
             client=client,
             model=model,
+            prompt=prompt_text,
             target_max_px=target_max_px,
             provider_cap=provider_cap,
         ),

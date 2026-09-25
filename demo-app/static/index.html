@@ -4,52 +4,86 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CaseV-Bench demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Matches casevbench.com's design tokens: warm near-black ink, a single burnt-orange
+    // accent, a forest green for positive/data emphasis, and sharp (unrounded) corners
+    // throughout — see each token's --css-custom-property name on the live site.
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: "#19201d",
+            muted: "#5c645f",
+            line: "#c9ceca",
+            soft: "#f3f5f3",
+            brand: "#c93913",
+            "brand-bright": "#f34b20",
+            forest: "#167044",
+          },
+          fontFamily: {
+            sans: ['"DM Sans"', "Arial", "sans-serif"],
+            heading: ['"Barlow Semi Condensed"', '"Arial Narrow"', "Arial", "sans-serif"],
+            mono: ['"IBM Plex Mono"', "monospace"],
+          },
+        },
+      },
+    };
+  </script>
 </head>
-<body class="h-full bg-gray-50 text-gray-900">
+<body class="h-full bg-white font-sans text-ink">
   <button
     id="config-toggle"
-    class="fixed top-4 right-4 z-20 rounded-full border border-gray-200 bg-white p-2 shadow hover:bg-gray-100"
+    class="fixed top-4 right-4 z-20 border border-line bg-white p-2 hover:bg-soft"
     title="Settings"
     type="button"
   >
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-ink" viewBox="0 0 20 20" fill="currentColor">
       <path fill-rule="evenodd" clip-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" />
     </svg>
   </button>
 
   <div
     id="config-panel"
-    class="fixed top-14 right-4 z-20 hidden w-72 rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
+    class="fixed top-14 right-4 z-20 hidden w-72 border border-line bg-white p-4 shadow-lg"
   >
-    <h2 class="mb-3 text-sm font-semibold text-gray-700">Settings</h2>
+    <h2 class="mb-3 font-mono text-xs font-medium uppercase tracking-wide text-muted">Settings</h2>
 
-    <label class="mb-1 block text-xs font-medium text-gray-500">Model</label>
-    <select id="model-select" class="mb-3 w-full rounded border border-gray-300 px-2 py-1.5 text-sm"></select>
+    <label class="mb-1 block font-mono text-xs uppercase tracking-wide text-muted">Model</label>
+    <select
+      id="model-select"
+      class="mb-3 w-full border border-line px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
+    ></select>
     <input
       id="model-custom"
       type="text"
       placeholder="e.g. openai/gpt-6-astra"
-      class="mb-3 hidden w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
+      class="mb-3 hidden w-full border border-line px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
     />
 
     <button
       id="show-prompt"
       type="button"
-      class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+      class="w-full border border-line px-2 py-1.5 text-sm text-ink hover:bg-soft"
     >
-      Show prompt
+      Edit prompt
     </button>
   </div>
 
   <!-- Image lightbox -->
   <div
     id="lightbox"
-    class="fixed inset-0 z-30 hidden items-center justify-center bg-black/80 p-6"
+    class="fixed inset-0 z-30 hidden items-center justify-center bg-ink/90 p-6"
   >
     <button
       id="lightbox-close"
-      class="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+      class="absolute top-4 right-4 border border-white/20 bg-white/10 p-2 text-white hover:bg-white/20"
       type="button"
       title="Close"
     >
@@ -58,23 +92,26 @@
       </svg>
     </button>
     <figure class="flex max-h-full max-w-full flex-col items-center">
-      <img id="lightbox-image" class="max-h-[85vh] max-w-[90vw] rounded-lg object-contain" src="" alt="" />
-      <figcaption id="lightbox-caption" class="mt-3 text-sm text-gray-200"></figcaption>
+      <img id="lightbox-image" class="max-h-[85vh] max-w-[90vw] border border-white/10 object-contain" src="" alt="" />
+      <figcaption id="lightbox-caption" class="mt-3 font-mono text-xs text-white/70"></figcaption>
     </figure>
   </div>
 
   <!-- Prompt popup -->
   <div
     id="prompt-modal"
-    class="fixed inset-0 z-30 hidden items-center justify-center bg-black/50 p-6"
+    class="fixed inset-0 z-30 hidden items-center justify-center bg-ink/70 p-6"
   >
-    <div class="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl">
-      <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-        <h2 class="text-sm font-semibold text-gray-700">Prompt</h2>
+    <div class="flex h-[85vh] w-full max-w-5xl flex-col border border-line bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-line bg-soft px-5 py-3">
+        <div>
+          <h2 class="font-mono text-xs font-medium uppercase tracking-wide text-muted">Prompt</h2>
+          <p id="prompt-modal-status" class="mt-0.5 text-xs text-muted"></p>
+        </div>
         <button
           id="prompt-modal-close"
           type="button"
-          class="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          class="p-1 text-muted hover:bg-white hover:text-ink"
           title="Close"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -82,43 +119,58 @@
           </svg>
         </button>
       </div>
-      <pre
+      <textarea
         id="prompt-modal-body"
-        class="flex-1 overflow-y-auto whitespace-pre-wrap p-5 font-mono text-xs text-gray-600"
-      ></pre>
+        spellcheck="false"
+        class="min-h-0 flex-1 resize-none overflow-y-auto p-5 font-mono text-sm text-ink focus:outline-none"
+      ></textarea>
+      <div class="flex items-center justify-between border-t border-line bg-soft px-5 py-3">
+        <p class="text-xs text-muted">Editing this changes what's sent to the model for every page.</p>
+        <button
+          id="prompt-reset"
+          type="button"
+          class="border border-line bg-white px-3 py-1.5 text-xs text-ink hover:bg-soft"
+        >
+          Reset to default
+        </button>
+      </div>
     </div>
   </div>
 
   <main class="mx-auto max-w-6xl px-6 py-12">
-    <h1 class="mb-1 text-2xl font-semibold">CaseV-Bench demo</h1>
-    <p class="mb-6 text-gray-500">Upload a drawing sheet PDF and see what the model finds.</p>
-
-    <div class="rounded-xl border-2 border-dashed border-gray-300 bg-white p-8 text-center">
-      <input id="file-input" type="file" accept="application/pdf" class="hidden" />
-      <label for="file-input" class="cursor-pointer font-medium text-blue-600 hover:underline">Choose a PDF</label>
-      <span id="file-name" class="mt-2 block text-sm text-gray-500">No file selected</span>
+    <div class="mb-6 flex items-center gap-2">
+      <span class="inline-block h-3 w-3 bg-brand"></span>
+      <span class="font-mono text-xs font-medium uppercase tracking-widest text-brand">CaseVBench</span>
     </div>
-    <p id="upload-note" class="mt-2 text-xs text-gray-400"></p>
+    <h1 class="mb-1 font-heading text-4xl font-semibold text-ink">Detection demo</h1>
+    <p class="mb-8 text-muted">Upload a drawing sheet PDF and see what the model finds.</p>
 
-    <div id="summary-container" class="mt-6 hidden"></div>
+    <div class="border-2 border-dashed border-line bg-white p-8 text-center">
+      <input id="file-input" type="file" accept="application/pdf" class="hidden" />
+      <label for="file-input" class="cursor-pointer font-medium text-brand hover:text-brand-bright hover:underline">Choose a PDF</label>
+      <span id="file-name" class="mt-2 block text-sm text-muted">No file selected</span>
+    </div>
+    <p id="upload-note" class="mt-2 font-mono text-xs text-muted"></p>
 
     <button
       id="run-button"
       disabled
-      class="mt-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+      class="mt-4 w-full bg-brand px-4 py-3 font-medium text-white hover:bg-brand-bright disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
       type="button"
     >
       Run detection
     </button>
 
-    <div id="status" class="mt-6 hidden items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
-      <svg id="status-spinner" class="h-4 w-4 flex-shrink-0 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
+    <div id="summary-container" class="mt-6 hidden"></div>
+
+    <div id="status" class="mt-6 hidden items-center gap-3 border border-line bg-soft px-4 py-3 font-mono text-sm text-ink">
+      <svg id="status-spinner" class="h-4 w-4 flex-shrink-0 animate-spin text-brand" viewBox="0 0 24 24" fill="none">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
       </svg>
       <span id="status-text"></span>
     </div>
-    <div id="error" class="mt-6 hidden rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+    <div id="error" class="mt-6 hidden border border-brand/30 bg-brand/5 p-4 text-sm text-brand"></div>
 
     <div id="results" class="mt-10 hidden space-y-8"></div>
   </main>

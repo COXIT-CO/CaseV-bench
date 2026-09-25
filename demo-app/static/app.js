@@ -17,6 +17,8 @@ const showPromptButton = document.getElementById("show-prompt");
 const promptModal = document.getElementById("prompt-modal");
 const promptModalBody = document.getElementById("prompt-modal-body");
 const promptModalClose = document.getElementById("prompt-modal-close");
+const promptModalStatus = document.getElementById("prompt-modal-status");
+const promptResetButton = document.getElementById("prompt-reset");
 
 const lightbox = document.getElementById("lightbox");
 const lightboxImage = document.getElementById("lightbox-image");
@@ -25,7 +27,7 @@ const lightboxClose = document.getElementById("lightbox-close");
 
 let selectedFile = null;
 let labelOrder = [];
-let promptText = "";
+let defaultPromptText = "";
 
 configToggle.addEventListener("click", () => configPanel.classList.toggle("hidden"));
 document.addEventListener("click", (event) => {
@@ -36,10 +38,25 @@ document.addEventListener("click", (event) => {
   }
 });
 
+// The textarea itself is the source of truth for the current prompt — edits persist across
+// opening/closing the modal, and are only reverted by explicitly clicking "Reset to default".
+function isPromptEdited() {
+  return promptModalBody.value.trim() !== defaultPromptText.trim();
+}
+
+function updatePromptStatus() {
+  const edited = isPromptEdited();
+  promptModalStatus.textContent = edited ? "Edited — differs from the default" : "Default";
+  showPromptButton.textContent = edited ? "Edit prompt (edited)" : "Edit prompt";
+}
+
 function openPromptModal() {
-  promptModalBody.textContent = promptText;
+  updatePromptStatus();
   promptModal.classList.remove("hidden");
   promptModal.classList.add("flex");
+  promptModalBody.focus();
+  promptModalBody.setSelectionRange(0, 0);
+  promptModalBody.scrollTop = 0;
 }
 
 function closePromptModal() {
@@ -54,6 +71,12 @@ showPromptButton.addEventListener("click", () => {
 promptModalClose.addEventListener("click", closePromptModal);
 promptModal.addEventListener("click", (event) => {
   if (event.target === promptModal) closePromptModal();
+});
+promptModalBody.addEventListener("input", updatePromptStatus);
+promptResetButton.addEventListener("click", () => {
+  promptModalBody.value = defaultPromptText;
+  updatePromptStatus();
+  promptModalBody.focus();
 });
 
 function openLightbox(src, caption) {
@@ -103,7 +126,8 @@ async function loadConfig() {
     }
 
     labelOrder = config.labels || [];
-    promptText = config.prompt || "";
+    defaultPromptText = config.default_prompt || "";
+    promptModalBody.value = defaultPromptText;
     if (config.max_upload_mb) {
       uploadNote.textContent = `PDF only, up to ${config.max_upload_mb}MB.`;
     }
@@ -138,12 +162,11 @@ function setError(text) {
 function imageBlock(label, src, caption) {
   const wrap = document.createElement("div");
   const captionEl = document.createElement("p");
-  captionEl.className = "mb-1 text-xs uppercase tracking-wide text-gray-400";
+  captionEl.className = "mb-1 font-mono text-xs uppercase tracking-wide text-muted";
   captionEl.textContent = label;
   const img = document.createElement("img");
   img.src = src;
-  img.className =
-    "w-full cursor-zoom-in rounded-lg border border-gray-100 transition hover:opacity-90";
+  img.className = "w-full cursor-zoom-in border border-line transition hover:opacity-90";
   img.addEventListener("click", () => openLightbox(src, caption));
   wrap.appendChild(captionEl);
   wrap.appendChild(img);
@@ -151,15 +174,18 @@ function imageBlock(label, src, caption) {
 }
 
 // Rows are the fixed object taxonomy (from /api/config), columns are the pages actually
-// present in this run, plus a Total column/row. Pages aren't capped, so this wraps in a
-// horizontal-scroll container with a sticky label column for sheets with many pages.
+// present in this run, plus a Total column. Pages aren't capped, so this wraps in a
+// horizontal-scroll container with a sticky label column for sheets with many pages — that
+// column needs its own opaque background (not just inherited from the row) or the page
+// columns scrolling underneath show through it.
 function summaryTable(pages, detections) {
   const wrap = document.createElement("div");
-  wrap.className = "overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm";
+  wrap.className = "border border-line bg-white";
 
   const heading = document.createElement("div");
-  heading.className = "border-b border-gray-100 px-5 py-3";
-  heading.innerHTML = '<h3 class="text-sm font-semibold text-gray-700">Summary</h3>';
+  heading.className = "border-b border-line bg-soft px-5 py-3";
+  heading.innerHTML =
+    '<h3 class="font-mono text-xs font-medium uppercase tracking-wide text-muted">Summary</h3>';
   wrap.appendChild(heading);
 
   const pageNumbers = pages.map((page) => page.page);
@@ -182,7 +208,7 @@ function summaryTable(pages, detections) {
 
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
-  headRow.className = "bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500";
+  headRow.className = "bg-soft font-mono text-xs font-medium uppercase tracking-wide text-muted";
   headRow.appendChild(th("Label", true));
   for (const page of pageNumbers) headRow.appendChild(th(`Page ${page}`));
   headRow.appendChild(th("Total", false, true));
@@ -190,35 +216,21 @@ function summaryTable(pages, detections) {
   table.appendChild(thead);
 
   const tbody = document.createElement("tbody");
-  const pageTotals = Object.fromEntries(pageNumbers.map((page) => [page, 0]));
-  let grandTotal = 0;
 
   labels.forEach((label, index) => {
+    const zebra = index % 2 === 1;
     const tr = document.createElement("tr");
-    tr.className =
-      "border-t border-gray-100" + (index % 2 === 1 ? " bg-gray-50/60" : "") + " hover:bg-blue-50/60";
-    tr.appendChild(td(label, true));
+    tr.className = "group border-t border-line" + (zebra ? " bg-soft/60" : "") + " hover:bg-soft";
+    tr.appendChild(td(label, true, false, zebra));
     let rowTotal = 0;
     for (const page of pageNumbers) {
-      const count = counts[label][page] || 0;
-      rowTotal += count;
-      pageTotals[page] += count;
-      tr.appendChild(td(String(count)));
+      rowTotal += counts[label][page] || 0;
+      tr.appendChild(td(String(counts[label][page] || 0)));
     }
-    grandTotal += rowTotal;
     tr.appendChild(td(String(rowTotal), false, true));
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
-
-  const tfoot = document.createElement("tfoot");
-  const totalRow = document.createElement("tr");
-  totalRow.className = "border-t-2 border-gray-200 font-semibold text-gray-900";
-  totalRow.appendChild(td("Total", true));
-  for (const page of pageNumbers) totalRow.appendChild(td(String(pageTotals[page])));
-  totalRow.appendChild(td(String(grandTotal), false, true));
-  tfoot.appendChild(totalRow);
-  table.appendChild(tfoot);
 
   const scroller = document.createElement("div");
   scroller.className = "overflow-x-auto";
@@ -231,18 +243,22 @@ function th(text, sticky, accent) {
   const el = document.createElement("th");
   el.className =
     "px-5 py-2.5" +
-    (sticky ? " sticky left-0 bg-gray-50" : "") +
-    (accent ? " text-blue-600" : "");
+    (sticky ? " sticky left-0 z-10 bg-soft" : "") +
+    (accent ? " text-forest" : "");
   el.textContent = text;
   return el;
 }
 
-function td(text, sticky, bold) {
+// `zebra` picks the sticky cell's own opaque background to match its row: `bg-inherit` would
+// pick up the row's *semi-transparent* stripe color (or nothing, on a plain row), which is
+// exactly what let page columns scrolling underneath show through the label column.
+function td(text, sticky, accent, zebra) {
   const el = document.createElement("td");
+  const stickyBg = zebra ? "bg-soft" : "bg-white";
   el.className =
     "px-5 py-2" +
-    (sticky ? " sticky left-0 bg-inherit font-medium text-gray-700" : " text-gray-600") +
-    (bold ? " font-semibold text-gray-900" : "");
+    (sticky ? ` sticky left-0 z-10 ${stickyBg} group-hover:bg-soft font-medium text-ink` : " font-mono text-muted") +
+    (accent ? " font-semibold text-forest" : "");
   el.textContent = text;
   return el;
 }
@@ -252,13 +268,11 @@ function detectionsDetail(detections) {
 
   const toggle = document.createElement("button");
   toggle.type = "button";
-  toggle.className =
-    "w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-700";
+  toggle.className = "w-full bg-brand px-4 py-3 font-medium text-white hover:bg-brand-bright";
   toggle.textContent = `Show all detections (${detections.length})`;
 
   const tableWrap = document.createElement("div");
-  tableWrap.className =
-    "mt-4 hidden overflow-x-auto rounded-xl border border-gray-200 bg-white p-4";
+  tableWrap.className = "mt-4 hidden overflow-x-auto border border-line bg-white p-4";
 
   toggle.addEventListener("click", () => {
     const isHidden = tableWrap.classList.contains("hidden");
@@ -273,7 +287,7 @@ function detectionsDetail(detections) {
     table.className = "w-full text-left text-sm";
     table.innerHTML = `
       <thead>
-        <tr class="border-b border-gray-200 text-gray-500">
+        <tr class="border-b border-line font-mono text-xs uppercase tracking-wide text-muted">
           <th class="py-1.5 pr-4">Page</th>
           <th class="py-1.5 pr-4">Label</th>
           <th class="py-1.5 pr-4">x_min</th>
@@ -286,7 +300,7 @@ function detectionsDetail(detections) {
     const tbody = document.createElement("tbody");
     for (const row of detections) {
       const tr = document.createElement("tr");
-      tr.className = "border-b border-gray-100";
+      tr.className = "border-b border-line font-mono text-ink";
       tr.innerHTML = `
         <td class="py-1.5 pr-4">${row.page}</td>
         <td class="py-1.5 pr-4">${row.label}</td>
@@ -308,6 +322,10 @@ function detectionsDetail(detections) {
 
 function renderResults(data) {
   summaryContainer.innerHTML = "";
+  const meta = document.createElement("p");
+  meta.className = "mb-2 font-mono text-xs text-muted";
+  meta.textContent = data.model + (data.custom_prompt ? " · custom prompt" : "");
+  summaryContainer.appendChild(meta);
   summaryContainer.appendChild(summaryTable(data.pages, data.detections));
   summaryContainer.classList.remove("hidden");
 
@@ -316,16 +334,16 @@ function renderResults(data) {
 
   for (const page of data.pages) {
     const card = document.createElement("div");
-    card.className = "rounded-xl border border-gray-200 bg-white p-6";
+    card.className = "border border-line bg-white p-6";
 
     const title = document.createElement("h3");
-    title.className = "mb-4 text-sm font-semibold text-gray-700";
+    title.className = "mb-4 font-mono text-xs font-medium uppercase tracking-wide text-muted";
     title.textContent = `Page ${page.page}` + (page.status === "failed" ? " — failed" : "");
     card.appendChild(title);
 
     if (page.status === "failed") {
       const err = document.createElement("p");
-      err.className = "text-sm text-red-600";
+      err.className = "text-sm text-brand";
       err.textContent = page.error;
       card.appendChild(err);
     } else {
@@ -358,6 +376,7 @@ runButton.addEventListener("click", async () => {
   const form = new FormData();
   form.append("file", selectedFile);
   form.append("model", model);
+  form.append("prompt", promptModalBody.value);
 
   try {
     const response = await fetch("/api/detect", { method: "POST", body: form });
