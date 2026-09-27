@@ -1,6 +1,6 @@
 # CaseV-Bench: Methodology
 
-*Version of September 17, 2026*
+*Version of September 27, 2026*
 
 *A benchmark for evaluating vision-language models on architectural millwork
 drawing detection.*
@@ -15,9 +15,9 @@ detection strategies against a shared, hand-labeled ground-truth dataset of
 real construction-document PDFs, using IoU-based bounding-box matching and
 provider-reported cost accounting. **Single-pass ("One-Stage") detection is
 the method under active development**, and has now been evaluated
-comprehensively: eleven current VLMs from five providers (Google, Anthropic,
-OpenAI, xAI, Alibaba/Qwen), on nine annotated document sets (1,353
-ground-truth objects), under one fixed prompt and protocol. That evaluation —
+comprehensively: fourteen current VLMs from five providers (Google,
+Anthropic, OpenAI, xAI, Alibaba/Qwen), on nine annotated document sets (119
+pages, 1,430 ground-truth objects), under one fixed prompt and protocol. That evaluation —
 its full prompt text, results tables, and discussion of failure modes — is
 written up in the accompanying paper,
 `docs/one-stage-benchmark/one-stage-benchmark-paper.md`; this document
@@ -35,7 +35,7 @@ history. That earlier comparison (§7) — run on an earlier, four-type
 taxonomy and a three-document subset of the current dataset — found
 Two-Stage the strongest method by a clear margin. It has not been repeated
 under the current five-type taxonomy, the current nine-document set, or
-against the current eleven-model roster; doing so, for both Two-Stage and
+against the current fourteen-model roster; doing so, for both Two-Stage and
 Grid, is planned future work (see the paper's Conclusion and Future Work)
 and has not yet been done — no number from that earlier comparison should be
 read as still current.
@@ -68,8 +68,9 @@ the cheapest and fastest of the three by a wide margin (§7), and question
 (2) above was, until recently, open only in the direction of "how much of
 One-Stage's accuracy gap against the more expensive two-pass method can be
 closed by prompt design and per-model configuration alone." The paper now
-answers that for One-Stage itself across eleven models — one of them closes
-the gap this document used to describe as structural almost entirely — which
+answers that for One-Stage itself across fourteen models — one of them
+closes the gap this document used to describe as structural almost entirely,
+and a second, much cheaper one closes a good part of it — which
 shifts the open part of question (2) onto the other two methods: whether
 Two-Stage's and Grid's earlier, smaller-scale advantage over One-Stage still
 holds now that One-Stage has been pushed this far. That comparison is the
@@ -81,23 +82,24 @@ next planned piece of work (§7), not yet run.
 
 The dataset's current, active set consists of **nine** real millwork/casework
 drawing sets, submitted as multi-page PDFs and stored under
-`drafts/trimmed/trim_prj{1..9}.pdf`:
+`drafts/trimmed/trim_prj{1..9}.pdf` (referred to in the paper simply as
+`prj1`–`prj9`):
 
 | Document | Pages | GT objects |
 |---|---:|---:|
-| `trim_prj1` | 3 | 74 |
+| `trim_prj1` | 3 | 149 |
 | `trim_prj2` | 2 | 48 |
-| `trim_prj3` | 7 | 34 |
+| `trim_prj3` | 7 | 36 |
 | `trim_prj4` | 9 | 241 |
 | `trim_prj5` | 2 | 80 |
 | `trim_prj6` | 24 | 323 |
-| `trim_prj7` | 34 | 234 |
+| `trim_prj7` | 34 | 228 |
 | `trim_prj8` | 29 | 231 |
 | `trim_prj9` | 9 | 94 |
-| **Total** | **119** | **1,353** |
+| **Total** | **119** | **1,430** |
 
 Documents vary substantially in length and object density — from a 2-page,
-48-object set (`trim_prj2`) to a 34-page, 234-object set (`trim_prj7`) — which
+48-object set (`trim_prj2`) to a 34-page, 228-object set (`trim_prj7`) — which
 is a deliberate property of the dataset, not an artifact: it lets
 per-document difficulty separate "hard because dense" from "hard because
 large." This set superseded an earlier, smaller five-project set
@@ -106,6 +108,13 @@ that the original completed comparison in §7 was run against; the two sets
 cover substantially the same kind of real construction documents, but are
 not the same documents and are not directly interchangeable for a
 before/after comparison.
+
+The ground-truth files stored alongside the PDFs
+(`drafts/trimmed/prj{1..9}.json`) match the object counts above exactly,
+per document and per type; they spell the plan label as `floor plan` (with a
+space), which corresponds to `floor_plan` in the current taxonomy (§2.2).
+Only the counts have been cross-checked against the evaluated ground truth,
+not the individual box coordinates.
 
 All rendering is done at request time by the application itself
 (`pdf2image`/poppler), never pre-rendered — every run controls its own DPI
@@ -137,12 +146,13 @@ every type, is required to be **tight**: each of its four edges touches the
 object's own outermost drawn line, with no padding.
 
 By ground-truth object count across the current nine documents, the
-taxonomy is dominated by `callout` (480, 35.5%) and `elevation` (300,
-22.2%), with `floor_plan` (166, 12.3%), `cabinet` (317, 23.4%), and
-`countertop` (90, 6.7%) making up the rest. `callout`'s share is inflated by
+taxonomy is dominated by `callout` (557, 39.0%), followed by `cabinet` (317,
+22.2%) and `elevation` (300, 21.0%), with `floor_plan` (166, 11.6%) and
+`countertop` (90, 6.3%) making up the rest. `callout`'s share is inflated by
 two outlier-dense documents (`trim_prj4`: 181 of 241 objects; `trim_prj8`:
 130 of 231) that contain long runs of plan-view reference symbols;
-excluding those two documents, the label distribution is closer to even
+excluding those two documents, `callout` falls to about a quarter of the
+remaining objects (246 of 958) and the label distribution is closer to even
 across the five types.
 
 **This is the current, five-type taxonomy.** It is a revision of an earlier,
@@ -199,14 +209,11 @@ generalize.
 
 ### 2.4 Data and code availability
 
-CaseV-Bench is a public benchmark. Aggregate, headline results are published at
-[casevbench.com](https://casevbench.com/) and
-[coxit.co/ai-drawing-benchmark](https://coxit.co/ai-drawing-benchmark/), alongside a
-companion methodology write-up on the COXIT blog. The evaluation code — including the
+CaseV-Bench is a public benchmark. The evaluation code — including the
 IoU greedy-matching scorer used throughout §5 — is public at
 [github.com/COXIT-CO/CaseV-bench](https://github.com/COXIT-CO/CaseV-bench/). That
 repository also carries a **subset** of the annotated dataset as a public reference; the
-complete nine-document, 1,353-object ground-truth set described in §2.1 has not been
+complete nine-document, 1,430-object ground-truth set described in §2.1 has not been
 publicly released.
 
 ## 3. Detection methods
@@ -423,10 +430,10 @@ request usage). See §4.2 for the reasoning-effort policy this budget is
 paired with.
 
 **What is, and is not, confirmed about the harness behind the paper's
-eleven-model results.** The paper's own prompt text and scored detections
+fourteen-model results.** The paper's own prompt text and scored detections
 are known with confidence, since both are recoverable directly from the
 shared results table each run was written to. Whether that specific run of
-eleven models used exactly this section's rendering DPI, request
+fourteen models used exactly this section's rendering DPI, request
 granularity, and retry/repair behavior, as opposed to some other
 configuration of the same underlying pipeline, is not independently
 documented and is called out as an open item in both the paper's own
@@ -493,20 +500,22 @@ current.
 Two evaluations exist at different scope, and should not be conflated:
 
 **The current One-Stage evaluation** (fully reported in the paper) covers
-**eleven models across five providers**, all accessed through OpenRouter:
+**fourteen models across five providers**:
 
 | Provider | Models |
 |---|---|
-| OpenAI | `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra` |
+| OpenAI | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra` |
 | Google | `gemini-3.8-flash`, `gemini-3.5-flash`, `gemini-3.1-pro-preview` |
-| Anthropic | `claude-fable-5.1`, `claude-opus-5`, `claude-sonnet-5` |
+| Anthropic | `claude-opus-5.5`, `claude-opus-5`, `claude-sonnet-5` |
 | Qwen | `qwen3.8-max` |
-| xAI | `grok-4.6` |
+| xAI | `grok-4.7`, `grok-4.6` |
 
 This is the primary, up-to-date accuracy/cost picture for the One-Stage
 method (§3.1) on the current nine-document, five-type dataset (§2); full
 per-model precision/recall/F1, cost, and latency are in the paper's §6, not
-repeated here.
+repeated here. Two models' costs (`gpt-5.6-sol`, `gemini-3.8-flash`) were
+billed at a 50% promotional discount during the evaluation and are flagged
+as such in the paper.
 
 **The original, completed cross-method comparison** (§7) — the only
 comparison that includes Two-Stage and Grid at all — covered **four**
@@ -515,10 +524,10 @@ models: `google/gemini-3.1-pro-preview`, `google/gemini-3.6-flash`,
 three-document, four-type version of the dataset. The application itself is
 not limited to these four for any method — any OpenRouter-served vision
 model can be configured per run — but Two-Stage and Grid have not been
-re-run against the current eleven-model roster, and their numbers from the
-original comparison should not be compared directly against the current
+re-run against the current fourteen-model roster, and their numbers from
+the original comparison should not be compared directly against the current
 One-Stage results, which use a different dataset, taxonomy, and (for most
-of the eleven) different models entirely.
+of the fourteen) different models entirely.
 
 ### 4.2 Reasoning-budget equalization
 
@@ -545,7 +554,7 @@ reasoning pass produced its own failure mode — runaway length or, on some
 requests, no content at all. "Low" effort was chosen as enough room to scan
 systematically without triggering either failure mode. The same low-effort
 value is used identically by all three detection methods. Whether the
-harness behind the paper's eleven-model results applies this same policy is
+harness behind the paper's fourteen-model results applies this same policy is
 not independently confirmed (§3.1.4, §7).
 
 ### 4.3 Per-model input limits — DPI and pixel dimensions
@@ -568,12 +577,12 @@ determined empirically:**
 | `claude-sonnet-5` | 180 | The lowest of the four — compounded by the internal downsampling below. |
 
 These four numbers are the only ones measured directly. **The equivalent
-ceiling for the other models in the current eleven-model roster (§4.1) —
+ceiling for the other models in the current fourteen-model roster (§4.1) —
 including newer entries in the Gemini and Claude families, and every
-OpenAI, Qwen, and xAI model — has not been measured.** The paper identifies
-a per-model image-resolution ceiling as one of two structural bottlenecks
-behind its results, without pinning down a number per current model; this
-document does not fill that gap with an estimate.
+OpenAI, Qwen, and xAI model — has not been measured.** The paper names
+image resolution as one of the more likely causes of its small-object
+failures, without pinning down a number per current model; this document
+does not fill that gap with an estimate.
 
 **Internal downsample target — the pixel size a model's own encoder
 actually reduces an oversized image to, independent of the DPI it was
@@ -595,7 +604,7 @@ less in upload size than the ceiling number alone suggests, and why it
 cannot be worked around by rendering at a higher DPI.
 
 The equivalent downsample target for every other model — in both the
-original four-model comparison and the current eleven-model roster — has
+original four-model comparison and the current fourteen-model roster — has
 **not been independently measured**. This should be read as an open item
 (§8), not a measured fact.
 
@@ -644,14 +653,15 @@ Two consequences worth keeping in mind when configuring any method:
 ### 5.1 Matching and metrics
 
 Scoring is performed by a shared internal package, `location-scorer`
-(pinned at `v0.1.0` for the current eleven-model One-Stage evaluation),
+(pinned at `v0.1.0` for the current fourteen-model One-Stage evaluation),
 identical across all three detection methods and both the original
 completed comparison and the current evaluation, so that a difference in
 measured accuracy reflects the detection approach, not a difference in how
 it was scored. For each page, predicted and ground-truth boxes are bucketed
 by `(page, object_type)` and matched greedily by IoU; a match counts as a
-true positive at or above a configured IoU threshold (0.5 throughout, in
-both the original comparison and the current evaluation), with unmatched
+true positive at or above a configured IoU threshold (0.5 as the canonical
+operating point, in both the original comparison and the current
+evaluation), with unmatched
 predictions counted as false positives and unmatched ground truth as false
 negatives. Precision, recall, and F1 are reported as **aggregate
 ("overall") metrics** — true positives, false positives, and false
@@ -670,8 +680,22 @@ distinguished from "the box is nowhere near any real object" — a
 distinction that matters most for the grid method (§3.3), whose cell-derived
 boxes are structurally incapable of hugging an object that does not align to
 a cell boundary, independent of whether the underlying detection was
-correct, and is also how the paper separates a placement problem from a
-detection problem in its own results.
+correct.
+
+For the current One-Stage evaluation, every run is additionally re-scored
+across a sweep of IoU thresholds from 0.10 to 0.90 in steps of 0.05, with the
+same matching rule at each step; 0.5 remains the canonical threshold for
+every headline number. Because matching is best-IoU-first, lowering the
+threshold only adds lower-IoU pairs to the matches already found at a
+stricter one, so the true-positive count at each threshold traces out the
+distribution of matched IoU values. The paper uses this sweep to check that
+its model ranking does not depend on the choice of 0.5, to estimate each
+model's mean IoU of matches, and — by comparing recall at a lenient
+threshold (0.10) with recall at 0.5 — to separate a placement problem (the
+object was reported, but the box is too loose) from a detection problem
+(the object was not reported at all). Recall at 0.10 can overstate how many
+objects a model really located in dense runs, since a loose box can overlap
+a neighbouring object, so that split is indicative rather than exact.
 
 Multi-file runs (several PDFs submitted together) fold `(file_index, page)`
 into a single synthetic integer key before matching, so that "page 1" of one
@@ -690,7 +714,12 @@ table, which keeps them correct as provider pricing changes and comparable
 across models without the application needing to know anything about
 pricing itself. Reasoning-token and cached-token counts are read
 defensively where a provider reports them, since not every provider/model
-combination includes those fields. A scoring or cost-accounting failure is
+combination includes those fields. The paper reports both cost and latency
+per processed page, as a mean (a run's total divided by its page count) and
+as a median: pages range from a single object to more than sixty, so the
+mean is pulled up by the densest pages and the median is closer to a typical
+page. Where a provider billed at a promotional rate during the evaluation,
+the cost is reported as billed and flagged. A scoring or cost-accounting failure is
 isolated from the detection result itself: an unscoreable run (e.g. no
 ground truth supplied) or a failed usage lookup never turns an otherwise
 successful detection request into a failed one.
@@ -773,22 +802,22 @@ still helping specific coordinate-unreliable models (§8).
 
 **The current evaluation**, reported in full in the paper, covers **only
 One-Stage**, run against the current nine-document, five-type dataset (§2)
-across eleven models from five providers (§4.1). Since the original
+across fourteen models from five providers (§4.1). Since the original
 comparison was run:
 
 - The taxonomy was revised to five types (§2.2), and later corrected against
   direct ground-truth inspection (§3.1.3) — but **only the One-Stage prompt
   currently targets the current, corrected five-type taxonomy**; Two-Stage's
   and Grid's prompts still target the original four types.
-- The dataset was replaced by the current nine-document, 1,353-object set
+- The dataset was replaced by the current nine-document, 1,430-object set
   (§2.1) — larger and more varied than the original three-to-five-document
   set the original comparison and its immediate follow-ups used.
 - One-Stage's prompt underwent the multi-round refinement described in
   §3.1.3 (including reverting the coordinate scale from 0–1000 integers back
   to 0–1 fractions), and gained an optional `max_dim` pixel cap (§4.3) —
   neither existed at the time of the original comparison.
-- The model roster grew from four to eleven, across five providers instead
-  of four (§4.1).
+- The model roster grew from four to fourteen, across five providers
+  instead of four (§4.1).
 
 **A benchmark re-run of Two-Stage and Grid under the current dataset,
 taxonomy, and model roster is therefore a distinct, not-yet-conducted
@@ -796,7 +825,7 @@ experiment**, and is the concrete next step both this document and the
 paper's Conclusion and Future Work identify. Until that re-run happens, no
 number from `COMPARISON.md` should be read as describing Two-Stage's or
 Grid's current standing relative to One-Stage's now much stronger,
-eleven-model results — the comparison that would establish that has simply
+fourteen-model results — the comparison that would establish that has simply
 not been run yet.
 
 One methodological principle is worth naming explicitly, since it shapes how
@@ -808,7 +837,68 @@ definition — its prompt, its per-model settings — never by folding in a
 structural change (such as tiling the page into overlapping regions) that
 would make it a different method mid-measurement. Such changes are
 legitimate future work, but are scoped and evaluated as their own new
-method, not retrofitted into an existing comparison.
+method, not retrofitted into an existing comparison — which is exactly how
+the sliding-window and zoom-search experiments in §7.1 are treated.
+
+### 7.1 Exploratory region-focused experiments
+
+Separately from the two comparisons above, three exploratory experiments
+(September 2026) tried to recover the fine detail that a single downscaled
+full-sheet image loses — the same limitation the paper's small-object
+results point to. None of them was run through the
+evaluation protocol in §5 on the current dataset, and their numbers are not
+comparable to the paper's; they are recorded here because they shape which
+methods are worth benchmarking next.
+
+- **Two-Stage vs. sliding window.** This experiment ran the Two-Stage
+  method (§3.2): a first pass over the downscaled sheet asks only for
+  large, view-level objects (`elevation`, `floor_plan`, and callouts),
+  which remain identifiable at reduced resolution from their titles and
+  geometry; a second pass crops each region from the original
+  full-resolution image, padded by 6% (widened from 2% after edge clipping
+  was observed), and asks a narrower prompt for `cabinet`, `countertop`, and
+  callouts inside it. The sliding-window variant instead splits the whole
+  full-resolution sheet into overlapping tiles, sends each tile with a
+  tile-specific prompt that accepts geometric evidence alone (a view's title
+  often falls in a different tile than the drawing it labels), and fuses the
+  per-tile detections back into page coordinates — merging duplicates in
+  tile overlaps by IoU and joining objects cut by a tile boundary with an
+  edge-proximity heuristic. Two-Stage came out ahead on both accuracy and
+  cost. Sliding window was more expensive at every tile size tried, spent
+  full requests on tiles with no objects, and depended heavily on tile size:
+  going from 1400 px to 2400 px tiles nearly doubled its F1 (0.541 → 0.785
+  in that experiment), suggesting that its ceiling is set by how much
+  surrounding context each tile sees. Two-Stage's own weaknesses were its
+  dependence on the first pass classifying and sizing each region correctly,
+  the substantial engineering needed to deduplicate and reconcile the two
+  passes' outputs, and two failure modes still open when the work paused
+  (callouts orphaned between dense adjacent panels, and over-detection after
+  the callout definition was widened). These runs used the earlier taxonomy
+  (`elevation_callout`), which is why the sliding-window run is excluded from
+  the paper (see the paper's scope notes).
+- **Zoom-search.** The model is shown the sheet (or, on later passes, a
+  region of it) at reduced resolution and asked to nominate areas worth a
+  closer look, each with a short reason — deliberately biased toward recall.
+  Overlapping proposals are merged and padded; each merged area is then
+  either zoomed into again or, depending on its size and how many times it
+  has already been zoomed, settled and handed to a detection pass over the
+  corresponding full-resolution region for all five types. Detections are
+  mapped back to page coordinates and deduplicated. Qualitatively, the
+  nominated areas follow the sheet's real content well, but the areas vary
+  from run to run, the request count per sheet is hard to predict (it is
+  driven mainly by how many areas the first pass flags, not by zoom depth),
+  and the useful zoom depth differs by page — sparse pages resolve after one
+  pass, dense ones benefit from a second. **This method has not yet been
+  scored against ground truth at all**; its assessment so far is qualitative.
+
+These experiments also point to concrete next steps that apply beyond a
+single method: a density-stratified comparison (F1 reported separately for
+sparse and dense pages), a hybrid that keeps Two-Stage's global first pass but
+sub-tiles only the densest crops, and — for zoom-search — a more specific
+first-pass prompt (naming the expected object type per area) and a
+confidence signal in the zoom decision to reduce the request count. A shared
+blind spot on one sheet (`AE101`-style content missed by both Two-Stage and
+sliding window) was noted but not diagnosed.
 
 ## 8. Known open issues
 
@@ -820,9 +910,9 @@ method, not retrofitted into an existing comparison.
   result of any method under Grid detection in the original comparison
   (§3.3), where it never emits a coordinate at all — evidence the failure is
   in the coordinate-reporting contract, not in the model's ability to
-  locate the objects. It remains the weakest model in the current
-  eleven-model One-Stage evaluation as well (see the paper's §6), consistent
-  with this being unresolved. Several rounds of prompt-wording fixes
+  locate the objects. It remains among the weakest models in the current
+  fourteen-model One-Stage evaluation as well (second-lowest F1; see the
+  paper's §6), consistent with this being unresolved. Several rounds of prompt-wording fixes
   (§3.1.3) did not resolve it. Verifying a spatial claim like this against
   the actual document, rather than trusting that internally self-consistent
   output implies correct placement, was itself a lesson learned during
@@ -834,12 +924,18 @@ method, not retrofitted into an existing comparison.
   unreliable at emitting coordinates and hurt models that were already
   accurate at it, because cell-derived boxes structurally cannot hug an
   object that does not align to a grid boundary. Whether this still holds
-  for the current eleven-model roster is unknown, since Grid has not been
+  for the current fourteen-model roster is unknown, since Grid has not been
   re-run against it (§7).
 - **Two-Stage's and Grid's standing relative to the current, much stronger
   One-Stage results is unknown** (§7) — the single most consequential open
   item in this document, and the one both this document and the paper's
-  Conclusion and Future Work identify as the next planned study.
+  Conclusion and Future Work identify as the next planned study. The
+  exploratory Two-Stage vs. sliding-window comparison (§7.1) favours
+  Two-Stage, but was run on the earlier taxonomy and outside the §5
+  protocol.
+- **Zoom-search has not been scored against ground truth** (§7.1). Wiring it
+  into the §5 scorer is the prerequisite for any accuracy or cost claim about
+  it, and its request count per sheet is not yet predictable.
 - **Non-Claude internal downsample targets are unmeasured** (§4.3), for
   both the original four models and every model added since. Only Claude's
   ~1568 px ceiling has been directly pinned down.
@@ -853,7 +949,7 @@ method, not retrofitted into an existing comparison.
   accuracy lever once a model's internal downsampling threshold is passed —
   the DPI/method choice has to be made per model, not once globally. This
   ceiling is documented for only four models total (§4.3).
-- **The execution harness behind the current eleven-model results is not
+- **The execution harness behind the current fourteen-model results is not
   independently documented** beyond its prompt and scored outputs (§3.1.4,
   §7) — its exact rendering DPI, request granularity, and retry/repair
   behavior are not confirmed to match this section's description of the
