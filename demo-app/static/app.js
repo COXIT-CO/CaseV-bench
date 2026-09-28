@@ -253,7 +253,7 @@ async function loadConfig() {
     defaultPromptText = config.default_prompt || "";
     promptModalBody.value = defaultPromptText;
     if (config.max_upload_mb) {
-      uploadNote.textContent = `PDF only, up to ${config.max_upload_mb}MB.`;
+      uploadNote.textContent = `PDF only, up to ${config.max_upload_mb}MB and ${config.max_pages} pages.`;
     }
   } catch (err) {
     // Config fetch failed; the custom model field below still lets someone type a slug.
@@ -445,18 +445,23 @@ function detectionsDetail(detections) {
 }
 
 function renderResults(data) {
+  // Defensive: a stale tab running old JS against an already-redeployed backend (or any
+  // other shape mismatch) should show an empty state, not crash on .map of undefined.
+  const pages = data.pages || [];
+  const detections = data.detections || [];
+
   summaryContainer.innerHTML = "";
   const meta = document.createElement("p");
   meta.className = "mb-2 font-mono text-xs text-muted";
   meta.textContent = data.model + (data.custom_prompt ? " · custom prompt" : "");
   summaryContainer.appendChild(meta);
-  summaryContainer.appendChild(summaryTable(data.pages, data.detections));
+  summaryContainer.appendChild(summaryTable(pages, detections));
   summaryContainer.classList.remove("hidden");
 
   resultsEl.innerHTML = "";
   resultsEl.classList.remove("hidden");
 
-  for (const page of data.pages) {
+  for (const page of pages) {
     const card = document.createElement("div");
     card.className = "border border-line bg-white p-6";
 
@@ -480,7 +485,7 @@ function renderResults(data) {
     resultsEl.appendChild(card);
   }
 
-  resultsEl.appendChild(detectionsDetail(data.detections));
+  resultsEl.appendChild(detectionsDetail(detections));
 }
 
 runButton.addEventListener("click", async () => {
@@ -502,60 +507,151 @@ runButton.addEventListener("click", async () => {
   form.append("model", model);
   form.append("prompt", promptModalBody.value);
 
+  let jobId;
   try {
     const response = await fetch("/api/detect", { method: "POST", body: form });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw new Error(data.detail || "Detection failed.");
     }
+    ({ job_id: jobId } = await response.json());
+    if (!jobId) {
+      // /api/detect used to stream the whole result over one long connection; it now
+      // starts a background job and hands back just an id. Getting here with no job_id
+      // means this tab is still running JS from before that change — a hard refresh
+      // picks up the current version.
+      throw new Error("This page is out of date — please refresh and try again.");
+    }
+  } catch (err) {
+    setStatus("");
+    setError(err.message || String(err));
+    runButton.disabled = !selectedFile;
+    return;
+  }
 
-    const data = await readDetectStream(response, setStatus);
+  await watchJob(jobId, selectedFile.name);
+});
+
+// Tracks whichever job this tab is currently waiting on, so a page refresh (or closing and
+// reopening the tab) doesn't orphan it: the detect job itself runs entirely server-side and
+// keeps going regardless, but without this the *browser* would have no way left to find it
+// again — the user would just see an empty form with no sign anything was ever started,
+// until it quietly showed up in history minutes later.
+const ACTIVE_JOB_KEY = "casev-active-job";
+
+function saveActiveJob(jobId, filename) {
+  try {
+    localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify({ jobId, filename }));
+  } catch (err) {
+    // Unavailable (private browsing, storage quota) — resuming after a refresh just
+    // won't work in that case; not worth failing the run itself over.
+  }
+}
+
+function clearActiveJob() {
+  try {
+    localStorage.removeItem(ACTIVE_JOB_KEY);
+  } catch (err) {
+    // ignore
+  }
+}
+
+function loadActiveJob() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_JOB_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Shared by both a freshly-started run and a resumed one (see resumeActiveJob below) — the
+// only difference is whether a 404 (job already gone) is treated as a real failure. For a
+// resume, "gone" most likely just means it finished and was cleaned up while this tab was
+// away, not that anything went wrong.
+async function watchJob(jobId, filename, { isResume = false } = {}) {
+  saveActiveJob(jobId, filename);
+  setError("");
+  summaryContainer.classList.add("hidden");
+  resultsEl.classList.add("hidden");
+  runButton.disabled = true;
+  setStatus(isResume ? `Resuming "${filename}"…` : "Processing…");
+
+  try {
+    const data = await pollJob(jobId, setStatus);
     setStatus("");
     renderResults(data);
     loadHistory();
   } catch (err) {
-    setError(err.message || String(err));
+    setStatus("");
+    if (!(isResume && err.status === 404)) {
+      setError(err.message || String(err));
+    }
   } finally {
+    clearActiveJob();
     runButton.disabled = !selectedFile;
   }
-});
+}
 
-// The backend streams newline-delimited JSON: a "progress" line per step as it happens,
-// then one "result" line at the end. Reading it incrementally (rather than one big response
-// body) is what lets the status text track what's actually happening page by page.
-async function readDetectStream(response, onProgress) {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let result = null;
+async function resumeActiveJob() {
+  const active = loadActiveJob();
+  if (!active) return;
+  await watchJob(active.jobId, active.filename, { isResume: true });
+}
+
+const JOB_POLL_INTERVAL_MS = 1500;
+
+// A large multi-page run can take minutes end to end — long enough that keeping one HTTP
+// connection open for the whole thing risks a reverse-proxy timeout cutting it before the
+// backend ever gets to respond (which is still running regardless; it just can't tell
+// anyone). Polling instead means no single request is ever more than a couple seconds old,
+// so it doesn't matter what that timeout is. `after` is a cursor: each poll asks for events
+// since the last one it saw, and the server evicts anything at or before that once it's been
+// delivered, so a long run's memory doesn't pile up server-side either.
+async function pollJob(jobId, onProgress) {
+  let after = 0;
+  let summary = null;
+  const pages = [];
+  const detections = [];
 
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    const response = await fetch(`/api/jobs/${jobId}?after=${after}`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const err = new Error(data.detail || "Lost track of this run.");
+      err.status = response.status;
+      throw err;
+    }
+    const payload = await response.json();
+    after = payload.next_after;
 
-    let newlineIndex;
-    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-      if (!line) continue;
-
-      const event = JSON.parse(line);
+    for (const event of payload.events) {
       if (event.type === "progress") {
-        onProgress(event.message);
+        onProgress(event.data);
+      } else if (event.type === "page") {
+        const { detections: pageDetections, ...page } = event.data;
+        pages.push(page);
+        detections.push(...pageDetections);
       } else if (event.type === "error") {
-        throw new Error(event.message);
+        throw new Error(event.data.message);
       } else if (event.type === "result") {
-        result = event.data;
+        summary = event.data;
       }
     }
+
+    if (payload.status !== "running") break;
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
   }
 
-  if (!result) {
+  fetch(`/api/jobs/${jobId}`, { method: "DELETE" }).catch(() => {});
+
+  if (!summary) {
     throw new Error("Detection ended without a result.");
   }
-  return result;
+  pages.sort((a, b) => a.page - b.page);
+  return { ...summary, pages, detections };
 }
 
 loadConfig();
 loadHistory();
+resumeActiveJob();
