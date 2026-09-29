@@ -19,6 +19,14 @@ dependencies = [
 runner = { path = "../src/runner", editable = true }
 location-overlay = { path = "../src/packages/location-overlay", editable = true }
 
+[dependency-groups]
+# httpx: not a runtime dependency, only pulled in because fastapi.testclient.TestClient
+# requires it.
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
 build-backend = "uv_build"
@@ -26,3 +34,6 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-root = ""
 module-name = "app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
