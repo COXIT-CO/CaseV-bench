@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,14 +13,26 @@ PROMPT_PATH = Path(__file__).parent / "prompts" / "object_location_v1.md"
 
 DEFAULT_MAX_PX = 5000
 
-# Model roster: slug -> max long-edge in pixels for rendered pages sent to that provider. Read by
-# casev run for per-model image caps, and by the weekly benchmark workflow to build its job matrix.
-MODEL_ROSTER: dict[str, int] = {
+MODEL_ROSTER_ENV_VAR = "CASEV_MODEL_ROSTER"
+
+# Fallback model roster: slug -> max long-edge in pixels for rendered pages sent to that
+# provider. Overridden wholesale by CASEV_MODEL_ROSTER (a JSON object with the same shape) when
+# that env var is set.
+DEFAULT_MODEL_ROSTER: dict[str, int] = {
     "google/gemini-3.8-flash": DEFAULT_MAX_PX,
     "anthropic/claude-fable-5.1": DEFAULT_MAX_PX,
     "openai/gpt-6-astra": DEFAULT_MAX_PX,
 }
 
+
+def _load_model_roster() -> dict[str, int]:
+    raw = os.environ.get(MODEL_ROSTER_ENV_VAR)
+    if not raw:
+        return DEFAULT_MODEL_ROSTER
+    return {model: int(max_px) for model, max_px in json.loads(raw).items()}
+
+
+MODEL_ROSTER: dict[str, int] = _load_model_roster()
 DEFAULT_TEMPERATURE = 0.0
 DEFAULT_MAX_OUTPUT_TOKENS = 50000
 

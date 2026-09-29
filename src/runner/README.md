@@ -19,17 +19,16 @@ uv sync
 ## Dataset layout
 
 Each drawing lives in its own directory containing exactly one PDF and one
-`*-obj-location.json` ground-truth file:
+`*obj-location.json` ground-truth file (`obj-location.json` or `<name>-obj-location.json`).
 
 ```
 dataset/
-  prj1/
-    prj1.pdf
-    prj1-obj-location.json
-  prj2/
-    prj2.pdf
-    prj2-obj-location.json
+  public/
+    drawing.pdf
+    obj-location.json
 ```
+
+The drawing is named after `project_id` in the JSON, falling back to the directory name.
 
 Point the CLI at the dataset root (a directory of drawing directories) or at a single drawing
 directory, either via `--dataset-dir` or the `CASEV_DATASET_DIR` environment variable.
@@ -60,8 +59,34 @@ Useful `run` flags:
 | `--max-px` | `5000` | Target long edge in pixels, if the model isn't in `MODEL_ROSTER` (`core/config.py`) |
 | `--threads` | `1` | Pages to send to the model concurrently |
 
+`casev run --model <slug>` accepts any OpenRouter model, roster or not — a model missing from
+the roster just prints a warning and falls back to `--max-px`. The model roster (`core/config.py`)
+only controls (1) the max-px cap applied automatically to a *listed* model, so you don't have to
+pass `--max-px` yourself, and (2) which models the weekly benchmark workflow runs, since its CI
+job builds its matrix from the roster's keys. Override it without a PR by setting
+`CASEV_MODEL_ROSTER` to a JSON object of the same shape, e.g.:
+
+```bash
+export CASEV_MODEL_ROSTER='{"vendor/model-x": 5000}'
+```
+
+Set it this way (or in a `.env` file — see [`.env.example`](../../.env.example) at the repo
+root) to change a local run's max-px cap, or as a GitHub Actions repo Variable (Settings >
+Secrets and variables > Actions > Variables) to change what the weekly benchmark runs.
+
 A run that's already partially written (matching `run-id`) resumes: pages already scored
 successfully are skipped, and only the rest are sent to the model.
+
+### Prompt versioning
+
+The prompt sent to the model lives in `core/prompts/` as a plain `.md` file named
+`<name>_v<N>.md` (currently `object_location_v1.md`, pinned by `PROMPT_PATH` in
+`core/config.py`). A prompt file is never edited once a run has used it — a change to the
+wording ships as a new `_v<N+1>.md` file and a new `PROMPT_PATH`, so old runs stay
+reproducible. Every run also records a sha256 hash of the exact prompt text in `run.json`
+(`prompt_hash`), which feeds the run's `compatibility_key` alongside dataset version and
+render settings, so runs that used a different prompt are never silently compared as if they
+matched.
 
 ### Output
 

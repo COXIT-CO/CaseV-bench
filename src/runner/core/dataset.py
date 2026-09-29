@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 import pymupdf
 
-LOCATION_GLOB = "*-obj-location.json"
+LOCATION_GLOB = "*obj-location.json"
 ALLOWED_LABELS = frozenset({"cabinet", "countertop", "elevation", "floor_plan", "callout"})
 LABEL_ALIASES: dict[str, str] = {"floor plan": "floor_plan"}
 

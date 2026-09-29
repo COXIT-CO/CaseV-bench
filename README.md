@@ -35,7 +35,7 @@ A GitHub Actions workflow runs every Monday, sends the whole dataset through eac
 roster and rewrites the table below. Prompt, dataset, render settings and temperature are fixed
 between runs, so a change in the numbers means the model behind the slug changed.
 
-This is a drift check, not a leaderboard. Three drawings are enough to notice that a model
+This is a drift check, not a leaderboard. The dataset is small enough to notice that a model
 behaves differently from the previous week, but not enough to rank models against each other.
 
 <!-- BENCHMARK_DASHBOARD:START -->
@@ -47,8 +47,13 @@ _No runs published yet. This section is filled in automatically after the first 
 Requires Docker and an [OpenRouter](https://openrouter.ai/) API key. Any OpenRouter model slug
 is accepted.
 
+All configuration is environment variables — see [`.env.example`](.env.example) for the full
+list. `docker compose` reads a `.env` file in this directory automatically, so copy it and fill
+in your key:
+
 ```bash
-export OPENROUTER_API_KEY=...
+cp .env.example .env
+# edit .env, or just: export OPENROUTER_API_KEY=...
 
 docker compose build runner
 
@@ -68,27 +73,37 @@ and per-drawing scores. An interrupted run resumes when started again with the s
 `--threads N` sends N pages concurrently.
 
 Flags, output format and running without Docker are documented in
-[`src/runner/README.md`](src/runner/README.md).
+[`src/runner/README.md`](src/runner/README.md), including how prompt versions are named and
+pinned ([Prompt versioning](src/runner/README.md#prompt-versioning)).
 
 ## Dataset
 
-[`dataset/`](dataset) contains three drawings, each a PDF sheet and a JSON file with the
-ground-truth boxes. Annotators used the same object definitions as the prompt. Current
-counts:
+[`dataset/`](dataset) is the *balanced* subset of the full internal dataset — roughly 10% of it,
+picked to be representative rather than exhaustive. It is not a complete set used for internal
+evaluation. It doubles as the sample sent through every model in the weekly run, so it needs to
+be small enough to run weekly but varied enough that a shift in a model's numbers over time is
+meaningful rather than noise.
+
+It is a single multi-page PDF, [`drawing.pdf`](dataset/public/drawing.pdf), of 10 sheets, with the
+ground-truth boxes in [`obj-location.json`](dataset/public/obj-location.json). Annotators used the
+same object definitions as the prompt, drawing boxes with [`annotation_tool/`](annotation_tool),
+a small PDF viewer with annotating functionality. Current counts:
 
 | Object | Boxes |
 |---|---:|
-| `cabinet` | 73 |
-| `elevation` | 40 |
-| `callout` | 21 |
-| `countertop` | 17 |
-| `floor_plan` | 13 |
+| `callout` | 83 |
+| `elevation` | 54 |
+| `cabinet` | 39 |
+| `floor_plan` | 30 |
+| `countertop` | 9 |
+| **Total** | **215** |
 
 ## Layout
 
 | Path | |
 |---|---|
 | [`dataset/`](dataset) | Drawings and ground truth |
+| [`annotation_tool/`](annotation_tool) | GUI used to annotate the dataset's ground-truth boxes |
 | [`src/runner/`](src/runner) | The `casev` CLI: render, prompt, parse, score |
 | [`src/packages/location-scorer/`](src/packages/location-scorer) | Scoring library, versioned and tagged separately |
 | [`src/results_store/`](src/results_store) | Schema for the shared Postgres table that weekly scores are published to |

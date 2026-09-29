@@ -3,6 +3,7 @@ import random
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 
 import pymupdf
@@ -13,6 +14,7 @@ from core.config import MODEL_ROSTER, RunConfig
 from core.dataset import DrawingGroundTruth, LocalDatasetSource, PageGroundTruth, resolve_dataset
 from core.parse import ResponseParser, ZeroDetectionsError
 from core.render import PageRenderer, RenderedPage
+from core.reporting import NullRunObserver, RunObserver
 from core.scoring import Box, DrawingScore, ScorerWrapper
 
 # Technical failures are retried this many times in total before the page
@@ -26,6 +28,13 @@ RENDER_CACHE_DIRNAME = ".render-cache"
 
 
 _PendingPage = tuple[str, PageGroundTruth, RenderedPage]
+
+
+@dataclass(frozen=True, slots=True)
+class _PageResult:
+    cost_usd: float | None
+    latency_seconds: float | None
+    error: str | None
 
 
 class RawPipeline:
@@ -141,7 +150,7 @@ class RawPipeline:
         params: GenerationParams,
         max_attempts: int,
         artifacts: RunArtifacts,
-    ) -> float | None:
+    ) -> _PageResult:
         drawing_name, page, rendered = item
         try:
             response = self._generate_with_retries(
@@ -159,7 +168,7 @@ class RawPipeline:
                 error=str(exc),
                 attempts=max_attempts,
             )
-            return None
+            return _PageResult(cost_usd=None, latency_seconds=None, error=str(exc))
         artifacts.write_call_record(
             drawing=drawing_name,
             page=page.page,
@@ -167,7 +176,11 @@ class RawPipeline:
             response=response,
             rendered=rendered,
         )
-        return response.usage.cost_usd or 0.0
+        return _PageResult(
+            cost_usd=response.usage.cost_usd or 0.0,
+            latency_seconds=response.latency_seconds,
+            error=None,
+        )
 
     def execute_run(
         self,
@@ -180,7 +193,9 @@ class RawPipeline:
         render_cache_dir: Path | None = None,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
         threads: int = 1,
+        observer: RunObserver | None = None,
     ) -> Path:
+        observer = observer or NullRunObserver()
         dataset_dir, drawings = resolve_dataset(dataset_dir)
         provider_cap = MODEL_ROSTER.get(model)
         if provider_cap is None:
@@ -196,6 +211,13 @@ class RawPipeline:
             max_px=provider_cap or max_px,
             provider_cap=provider_cap,
             requested_max_px=max_px,
+        )
+        observer.run_started(
+            run_id=config.run_id,
+            model=config.model,
+            dataset_dir=dataset_dir,
+            drawings_total=len(drawings),
+            pages_total=sum(d.page_count for d in drawings.values()),
         )
         run_dir = out_dir / run_id
         cache_dir = render_cache_dir or out_dir / RENDER_CACHE_DIRNAME
@@ -220,11 +242,13 @@ class RawPipeline:
         with ThreadPoolExecutor(max_workers=threads) as executor:
             for drawing_name, drawing in sorted(drawings.items()):
                 pending: list[_PendingPage] = []
+                cached_pages = 0
                 with pymupdf.open(drawing.pdf_path) as document:
                     for page in drawing.pages:
                         existing = artifacts.read_call_record_if_exists(drawing_name, page.page)
                         if RunArtifacts.call_succeeded(existing):
                             pages_scored += 1
+                            cached_pages += 1
                             run_effective_dpi = (
                                 run_effective_dpi or existing["render"]["effective_dpi"]
                             )
@@ -237,12 +261,27 @@ class RawPipeline:
                         run_effective_dpi = run_effective_dpi or rendered.effective_dpi
                         pending.append((drawing_name, page, rendered))
 
-                for cost in executor.map(call, pending):
-                    if cost is None:
+                observer.drawing_started(
+                    drawing_name, total_pages=drawing.page_count, cached_pages=cached_pages
+                )
+                for offset, ((_, page, _), result) in enumerate(
+                    zip(pending, executor.map(call, pending), strict=True), start=1
+                ):
+                    observer.page_done(
+                        drawing_name,
+                        page.page,
+                        index=cached_pages + offset,
+                        total=drawing.page_count,
+                        cost_usd=result.cost_usd,
+                        latency_seconds=result.latency_seconds,
+                        error=result.error,
+                    )
+                    if result.error is not None:
                         continue
-                    cost_spent_usd += cost
+                    cost_spent_usd += result.cost_usd or 0.0
                     pages_scored += 1
 
+        observer.scoring_started()
         artifacts.write_run_metadata(
             config=config,
             effective_dpi=run_effective_dpi or 0.0,
