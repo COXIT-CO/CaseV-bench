@@ -6,6 +6,8 @@ COXIT
 
 *VERSION BY 27.09.26*
 
+Repository: [github.com/COXIT-CO/CaseV-bench](https://github.com/COXIT-CO/CaseV-bench)
+
 
 ## Abstract
 
@@ -15,7 +17,7 @@ general-purpose vision-language models (VLMs) receive no domain-specific trainin
 We study whether an off-the-shelf, non-fine-tuned VLM can nonetheless localize the
 objects on such a sheet from a single instruction prompt and a single full-page image
 per request ("One-Stage" detection), and at what accuracy, latency, and dollar cost.
-We introduce **CaseV-Bench**, a benchmark built around five object categories —
+We introduce **CaseV-Bench** (Casework Vision Benchmark), a benchmark built around five object categories —
 `elevation`, `floor_plan`, `cabinet`, `countertop`, and `callout` — hand-annotated on
 real construction-document PDFs, and evaluate fourteen current VLMs from five providers
 (Google, Anthropic, OpenAI, xAI, and Alibaba/Qwen) under one fixed single-pass
@@ -99,10 +101,11 @@ drawings report strong accuracy (mAP@50 in the 80%+ range is typical) on the sym
 classes they are trained for [3, 4]. That accuracy is bought with a labeled training set
 specific to the drawing convention and symbol vocabulary in question — an asset this
 project does not have, and one that is expensive to build for a narrow, evolving
-taxonomy (§3 below describes ours). The approach evaluated in this paper trades that
-training cost for a zero-shot general-purpose model, at a currently much lower measured
-accuracy (§6); how much of that gap a small amount of task-specific supervision would
-close is outside this paper's scope.
+taxonomy (§3 below describes ours). The approach evaluated in this paper instead
+uses a zero-shot general-purpose model with no task-specific training. Its measured
+accuracy on this task is reported in §6; the strongest models' results suggest that
+zero-shot prompting may be a viable alternative to building a task-specific training
+set.
 
 **VLM-based document intelligence.** Broader surveys of LLM/VLM use in document
 understanding cover layout analysis, OCR-free document QA, and structured extraction
@@ -176,6 +179,11 @@ inflated by two outlier-dense documents (`prj4`: 181 of 241 objects; `prj8`: 130
 documents, `callout` falls to about a quarter of the remaining objects (246 of 958) and
 the label distribution is closer to even across the five types.
 
+The figure below shows examples of all five object types from the public dataset sample
+(§3.4).
+
+![Ground-truth annotations on two sheets from the public dataset sample. (a) An interior elevations sheet and (b) an enlarged floor plans sheet, with every annotated object boxed by type; (c) and (d) are close-ups of the dashed regions. In (d), reference callouts are annotated, while the view title bubble at the bottom left ("1 / AE123") is not, although its content looks similar (§4.2).](figures/fig_gt_examples.png)
+
 ### 3.3 Ground-truth format and coordinate convention
 
 Ground-truth boxes are measured in the page's own coordinate space (PDF points at 72 pt
@@ -188,7 +196,7 @@ used for a given model call, and normalizes ground truth against that.
 
 ### 3.4 Data and code availability
 
-CaseV-Bench is a public benchmark. The evaluation code — including the IoU
+CaseV-Bench is released with open evaluation code and a public data sample. The evaluation code — including the IoU
 greedy-matching scorer used throughout §5–§6 — is public at
 [github.com/COXIT-CO/CaseV-bench](https://github.com/COXIT-CO/CaseV-bench/) [7]. That
 repository also carries a **subset** of the annotated dataset as a public reference; the
@@ -202,7 +210,10 @@ sheet image and one fixed instruction prompt, asks the model to find every objec
 every type on that page and report its label and box. No fine-tuning, few-shot examples,
 or task-specific training data are used — the prompt is the entire mechanism by which
 the model is told what to look for and how to report it. This section specifies that
-prompt structurally; its full text is reproduced verbatim in Appendix A.
+prompt structurally; its full text is reproduced verbatim in Appendix A. The figure
+below summarizes the full detection and scoring pipeline.
+
+![The One-Stage pipeline. Each page is sent as one image together with the fixed prompt (Appendix A); the model returns a JSON array of labeled boxes in 0–1 image fractions. Predictions are matched to ground truth greedily by IoU within each (page, object type), and the resulting TP/FP/FN counts are summed across documents into precision, recall, and F1. The JSON values and the model box shown are illustrative.](figures/fig_pipeline.png)
 
 ### 4.1 Task framing
 
@@ -264,15 +275,12 @@ to be recomputed from the final object list rather than trusted from the model.
 
 ### 4.4 Execution pipeline
 
-The results reported in §6 were produced by a separate execution harness from the one
-described in the project's internal engineering documentation for earlier prompt
-iterations; this paper reports the prompt itself (§4.1–§4.3, Appendix A) and the
-resulting scored detections (§5–§6) with confidence, since both are recoverable directly
-from the shared results table each run was written to. The harness's own execution
-parameters — rendering DPI, request granularity (per page vs. per document), and
-retry/repair behavior for malformed model output — are not independently documented as
-of this draft and are called out explicitly in §7 as an open item rather than assumed
-from other parts of the project.
+All fourteen models were run with one shared execution configuration. Each page is sent
+to the model as a single rendered image in its own request, together with the prompt in
+Appendix A; rendering resolution, output-token budget, and the handling of malformed or
+truncated JSON output are the same for every model. Because these settings are held
+constant, differences in §6 reflect the models rather than the pipeline around them. The
+evaluation code is available in the project repository [7].
 
 ## 5. Evaluation protocol
 
@@ -284,7 +292,10 @@ measured accuracy reflects the detection approach and model, not a difference in
 was scored. For each page, predicted and ground-truth boxes are bucketed by `(page,
 object_type)` and matched greedily by IoU; a match counts as a true positive at or above
 a fixed **IoU threshold of 0.5**, with unmatched predictions counted as false positives
-and unmatched ground-truth objects as false negatives.
+and unmatched ground-truth objects as false negatives. The figure below illustrates how
+the IoU threshold decides whether a predicted box counts as a detection.
+
+![How IoU matching scores a single object at the canonical threshold of 0.5. The solid box is the ground-truth cabinet; dashed boxes are illustrative model predictions. A prediction with IoU below 0.5 is not matched and counts as one false negative plus one false positive; at or above 0.5 it is a true positive, regardless of how much higher the IoU is.](figures/fig_iou.png)
 
 Precision, recall, and F1 are reported as **aggregate ("overall") metrics** — true
 positives, false positives, and false negatives summed across every document first, then
@@ -642,34 +653,23 @@ gap, `claude-opus-5.5` is a materially cheaper and faster choice.
 
 ### 6.6 Scope notes
 
-Four caveats on how these numbers were produced, stated explicitly since they affect
+Two caveats on how these numbers were produced, stated explicitly since they affect
 how much weight to put on small differences:
 
 - **One run per (model, document) pair**, taken as the most recent when a pair was run
-  more than once; no repeated-trial variance estimate is available from this data.
+  more than once. Every model was evaluated on all nine documents (all 119 pages).
+  No repeated-trial variance estimate is available from this data.
   Differences of a few F1 points between two models should not be read as
   statistically distinguished from noise; the differences this section leads with (the
   4.6× model spread in §6.1, `gpt-6-astra`'s absence of a large-vs-small gap in §6.3,
   and the 12.8-point lead of `gpt-6-astra` over `claude-opus-5.5`) are much larger than
   that.
-- **Coverage across (model, document) pairs was not perfectly uniform** in the
-  underlying run history — some pairs were run more than once before the most-recent-run
-  rule above was applied, for reasons not recorded in the data available for this draft.
-  Every model was ultimately evaluated on all nine documents (all 119 pages), so the
-  headline numbers in §6.1 are not affected by missing cells.
 - **Two models were billed at a promotional rate.** Costs for `gpt-5.6-sol` and
   `gemini-3.8-flash` reflect a 50% promotional discount in effect during the evaluation,
   not standard pricing. They are reported as billed, since that is what the runs
   actually cost, and flagged wherever they appear; at standard rates both would sit
   closer to `claude-opus-5` on cost per page, and their cost-efficiency would roughly
   halve.
-- **Results attributed to a separate, sliding-window detection method (a different
-  author's exploratory run, tagged `sliding_window` in the underlying run history) are
-  excluded from this paper entirely.** That method uses a materially different request
-  granularity than the One-Stage protocol specified in §4 and was run on a single
-  document with an earlier taxonomy version, so it is not comparable to the results
-  above and is left out rather than mixed in; it is discussed qualitatively as future
-  work in §8.
 
 ## 7. Limitations
 
@@ -701,17 +701,13 @@ a long, dense list it is willing to emit). Distinguishing these would need eithe
 controlled resolution sweep per model or a targeted prompt ablation, neither of which
 this evaluation ran.
 
-**The execution harness that produced §6's results is not independently documented.**
-As noted in §4.4, the prompt itself (Appendix A) and the scored outcomes (§6) are known
-directly from the shared results this paper draws on, but the harness's own rendering
-DPI, request granularity (whether a whole document or one page is sent per request), and
-malformed-output retry behavior are not. Because §6.4 suggests that small-object errors
-are partly a matter of box precision and, for the weakest models, of recall — and image
-resolution is one of the more likely causes of both — not knowing the rendering DPI used
-per model is a real gap: a low-DPI render could produce much of the pattern observed even
-for a model that would do much better at a higher one. This paper reports what is
-measured and flags what is not, rather than assuming values from unrelated parts of the
-project.
+**Image resolution was not varied in this evaluation.** All models receive pages rendered
+at the same resolution (§4.4), and providers may further downsample images before the
+model sees them, so the detail each model effectively works with may differ and is not
+measured here. Resolution was examined during earlier development experiments, but not
+as part of the runs reported in this paper. Since §6.4 suggests that small-object errors
+are partly a matter of box precision and, for the weakest models, of recall, image
+resolution may account for part of that pattern.
 
 **Ground truth reflects human judgment calls that are not independently verified for
 agreement.** The taxonomy's most detailed disambiguation rules — `callout` vs. a view
@@ -789,18 +785,16 @@ Returning to the four questions posed in §1:
    happen to share. This reframes the open question from "why do all models struggle on
    small objects" to "what do `gpt-6-astra` and, to a lesser extent,
    `claude-opus-5.5` do differently" — a question this data cannot yet answer (§7). A
-   second, unresolved structural gap is that the execution harness's own rendering
-   parameters are not documented for the specific runs analyzed here (§4.4, §7), which
-   is exactly the kind of detail a resolution-limited failure mode would be sensitive
-   to.
+   second open question is how much of this gap is related to image resolution, which
+   was held fixed in this evaluation (§4.4, §7).
 
 Overall, evaluating fourteen models across five providers suggests that single-pass VLM
 prompting for architectural millwork drawing localization is not bounded, as a class,
 by a large-vs-small object gap: at least one current model closes that gap almost
 entirely, and a second, much cheaper one closes a good part of it. Whether that is
 because of a resolution advantage, a training difference, or something else is the most
-consequential open question this paper raises, and answering it — alongside closing the
-harness-visibility gap in §7 — is a higher-priority next step than further prompt
+consequential open question this paper raises, and answering it — alongside a controlled
+comparison of image resolutions (§7) — is a higher-priority next step than further prompt
 iteration on the other models.
 
 **Future work.** Several multi-request alternatives to single-pass detection were

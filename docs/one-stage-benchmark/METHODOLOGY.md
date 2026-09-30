@@ -209,7 +209,7 @@ generalize.
 
 ### 2.4 Data and code availability
 
-CaseV-Bench is a public benchmark. The evaluation code — including the
+CaseV-Bench is released with open evaluation code and a public data sample. The evaluation code — including the
 IoU greedy-matching scorer used throughout §5 — is public at
 [github.com/COXIT-CO/CaseV-bench](https://github.com/COXIT-CO/CaseV-bench/). That
 repository also carries a **subset** of the annotated dataset as a public reference; the
