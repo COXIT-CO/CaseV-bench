@@ -4,19 +4,20 @@ This tool provides a graphical interface for annotating PDF documents with bound
 
 ## Prerequisites
 
-Before running the annotation tool, ensure you have the following installed:
-
-- **Python 3.12** - This specific version is required for the annotation tool to work properly
+- **[uv](https://docs.astral.sh/uv/)** (recommended). The make target uses it to download a Python 3.12 that already includes Tk, so you don't need to install anything else.
+- Without uv, you need **Python 3.12 with tkinter** on your `PATH` as `python3.12`. tkinter can't be installed with pip. Install it with your system package manager, for example `sudo apt-get install python3.12-tk` or `brew install python-tk@3.12`.
 
 ## Usage
 
-To start the annotation tool, use the dedicated make target from the project root directory:
+From the repository root, run:
 
 ```bash
-make start-test-data-annotator
+make -C annotation_tool start-test-data-annotator
 ```
 
-This target will start the annotation tool.
+Or, from inside `annotation_tool/`, run `make start-test-data-annotator`.
+
+This one command creates the virtual environment `annotation_tool/.venv_quality_tests_annotation` if it doesn't exist yet, installs the requirements, and opens the tool. If an existing environment was built on a Python without tkinter, it is recreated automatically. To start from scratch, run `make -C annotation_tool clean-test-data-annotator`.
 
 **The below videos describe how to use the tool:**
 1. [How to save data for the quality tests](https://drive.google.com/file/d/1O1QV-XPN8v2ypBrj-z-TWdH0nEb-bEnY/view?usp=drive_link).
