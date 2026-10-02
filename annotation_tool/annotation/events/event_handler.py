@@ -166,7 +166,7 @@ class EventHandler:
         self.current_rectangle = self.canvas.create_rectangle(
             self.rect_start_x, self.rect_start_y,
             self.rect_start_x, self.rect_start_y,
-            outline='yellow', fill='yellow', stipple='gray25', width=2
+            outline='yellow', fill='', width=2
         )
 
     def on_left_button_release(self, event):
@@ -221,7 +221,7 @@ class EventHandler:
             # User clicked OK - finalize rectangle
             self.canvas.itemconfig(
                 self.current_rectangle,
-                outline='red', fill='lightblue', width=2
+                outline='red', fill='', width=2
             )
 
             # Store rectangle data with object details

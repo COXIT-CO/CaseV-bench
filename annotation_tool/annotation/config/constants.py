@@ -19,11 +19,13 @@ MIN_RECTANGLE_AREA = 400  # pixels (20x20 minimum)
 CANVAS_BG = "white"
 RECTANGLE_DRAWING_COLOR = "yellow"
 RECTANGLE_FINAL_COLOR = "red"
-RECTANGLE_FILL_COLOR = "lightblue"
+# Fills are empty (outline-only): Tk ignores `stipple` on macOS, so any fill
+# color renders as an opaque box that hides the drawing underneath.
+RECTANGLE_FILL_COLOR = ""
 RECTANGLE_EDITING_COLOR = "orange"
-RECTANGLE_EDITING_FILL = "lightyellow"
+RECTANGLE_EDITING_FILL = ""
 RECTANGLE_ERROR_COLOR = "red"
-RECTANGLE_ERROR_FILL = "pink"
+RECTANGLE_ERROR_FILL = ""
 
 # Temporary line settings
 TEMP_LINE_COLOR = "orange"

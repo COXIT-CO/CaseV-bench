@@ -551,7 +551,7 @@ class DialogManager:
                 # Invalid coordinates - change rectangle color to show error
                 canvas.itemconfig(
                     rect_data['canvas_id'],
-                    outline='red', fill='pink', stipple='gray25', width=3
+                    outline='red', fill='', width=3
                 )
                 return
 
@@ -570,8 +570,7 @@ class DialogManager:
             # Reset rectangle appearance to normal editing style
             canvas.itemconfig(
                 rect_data['canvas_id'],
-                outline='orange', fill='lightyellow',
-                stipple='gray25', width=3
+                outline='orange', fill='', width=3
             )
 
         except tk.TclError:
