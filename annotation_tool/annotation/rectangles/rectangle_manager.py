@@ -19,6 +19,8 @@ from config.constants import (
     COORDINATES_LABEL,
     RECTANGLE_EDITING_COLOR,
     RECTANGLE_EDITING_FILL,
+    RECTANGLE_FILL_COLOR,
+    RECTANGLE_FINAL_COLOR,
     SECTION_FONT,
     SMALL_FONT,
     CATEGORY_CABINET
@@ -173,8 +175,8 @@ class RectangleManager:
                         # Create rectangle on canvas
                         rect_id = self.canvas.create_rectangle(
                             canvas_x0, canvas_y0, canvas_x1, canvas_y1,
-                            outline='red', fill='lightblue', stipple='gray25',
-                            width=2
+                            outline=RECTANGLE_FINAL_COLOR,
+                            fill=RECTANGLE_FILL_COLOR, width=2
                         )
                         rect_data['canvas_id'] = rect_id
                         rectangles_drawn += 1

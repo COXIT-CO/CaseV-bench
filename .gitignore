@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.venv_quality_tests_annotation/
 .pytest_cache/
 .mypy_cache/
 dist/
