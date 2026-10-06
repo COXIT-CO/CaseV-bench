@@ -82,7 +82,11 @@ def render(
     if line_width is not None and line_width < 1:
         raise ValueError(f"line_width must be at least 1 pixel, got {line_width}")
 
-    canvas = image.convert("RGB") if background else Image.new("RGBA", image.size, (0, 0, 0, 0))
+    canvas = (
+        image.convert("RGB")
+        if background
+        else Image.new("RGBA", image.size, (0, 0, 0, 0))
+    )
     draw = ImageDraw.Draw(canvas)
     stroke = line_width if line_width is not None else line_width_for(canvas.size)
 
@@ -103,6 +107,8 @@ def render(
         font = ImageFont.load_default(size=font_size_for(canvas.size))
         for box, rect in drawn:
             object_type = box["object_type"]
-            draw_label(draw, object_type, rect, resolved_colors[object_type], font, canvas.size)
+            draw_label(
+                draw, object_type, rect, resolved_colors[object_type], font, canvas.size
+            )
 
     return canvas

@@ -277,8 +277,12 @@ def test_background_false_leaves_the_image_s_own_pixels_unread():
     real_page = page(color="white")
     red_page = page(color=(255, 0, 0))
 
-    from_real = render(real_page, [quarter()], labels=False, line_width=1, background=False)
-    from_red = render(red_page, [quarter()], labels=False, line_width=1, background=False)
+    from_real = render(
+        real_page, [quarter()], labels=False, line_width=1, background=False
+    )
+    from_red = render(
+        red_page, [quarter()], labels=False, line_width=1, background=False
+    )
 
     assert from_real.tobytes() == from_red.tobytes()
 
@@ -291,7 +295,9 @@ def test_background_false_is_transparent_everywhere_a_box_was_not_drawn():
 
 def test_background_false_box_pixels_are_opaque_and_the_same_colour_as_background_true():
     opaque = render(page(), [quarter()], labels=False, line_width=1)
-    transparent = render(page(), [quarter()], labels=False, line_width=1, background=False)
+    transparent = render(
+        page(), [quarter()], labels=False, line_width=1, background=False
+    )
 
     on_box = transparent.getpixel((100, 100))
     assert on_box[3] == 255
@@ -335,7 +341,9 @@ def test_colors_is_what_keeps_separate_calls_agreeing_on_a_collision():
 
     assert callout_layer.getpixel(callout_point)[:3] == combined.getpixel(callout_point)
     assert plan_layer.getpixel(plan_point)[:3] == combined.getpixel(plan_point)
-    assert callout_layer.getpixel(callout_point)[:3] != plan_layer.getpixel(plan_point)[:3]
+    assert (
+        callout_layer.getpixel(callout_point)[:3] != plan_layer.getpixel(plan_point)[:3]
+    )
 
 
 def test_colors_missing_an_entry_for_a_used_type_raises():

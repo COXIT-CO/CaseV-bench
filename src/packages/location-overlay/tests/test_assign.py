@@ -36,11 +36,15 @@ def test_a_colliding_pair_resolves_in_sorted_name_order():
     # Same pair render()'s own tests use: callout/floor plan hash to the same palette entry.
     alone_callout = assign(["callout"])["callout"]
     alone_plan = assign(["floor plan"])["floor plan"]
-    assert alone_callout == alone_plan  # confirms the collision exists before testing the fix
+    assert (
+        alone_callout == alone_plan
+    )  # confirms the collision exists before testing the fix
 
     together = assign(["callout", "floor plan"])
 
-    assert together["callout"] == alone_callout  # sorts first, keeps its preferred colour
+    assert (
+        together["callout"] == alone_callout
+    )  # sorts first, keeps its preferred colour
     assert together["floor plan"] != alone_callout  # displaced to the next free entry
 
 
