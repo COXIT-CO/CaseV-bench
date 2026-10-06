@@ -3,11 +3,54 @@ no real model calls; StubModelClient/FailingModelClient stand in for the model."
 
 from __future__ import annotations
 
+import importlib
+import inspect
+
 import pytest
 
+import app.detect as detect_module
 from app.detect import MAX_PAGES, PageResult, detect, rebuild_pages
 
 from .helpers import FailingModelClient, StubModelClient, make_pdf_bytes, ok_response
+
+
+class TestMaxPagesEnvVar:
+    def test_falls_back_to_25_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEMO_APP_MAX_PAGES", raising=False)
+        reloaded = importlib.reload(detect_module)
+        try:
+            assert reloaded.MAX_PAGES == 25
+        finally:
+            importlib.reload(detect_module)
+
+    def test_env_var_overrides_the_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEMO_APP_MAX_PAGES", "3")
+        reloaded = importlib.reload(detect_module)
+        try:
+            assert reloaded.MAX_PAGES == 3
+        finally:
+            monkeypatch.delenv("DEMO_APP_MAX_PAGES", raising=False)
+            importlib.reload(detect_module)
+
+
+class TestThreadsEnvVar:
+    def test_falls_back_to_4_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEMO_APP_THREADS", raising=False)
+        reloaded = importlib.reload(detect_module)
+        try:
+            assert reloaded.DEFAULT_THREADS == 4
+        finally:
+            importlib.reload(detect_module)
+
+    def test_env_var_overrides_the_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEMO_APP_THREADS", "8")
+        reloaded = importlib.reload(detect_module)
+        try:
+            assert reloaded.DEFAULT_THREADS == 8
+            assert inspect.signature(reloaded.detect).parameters["threads"].default == 8
+        finally:
+            monkeypatch.delenv("DEMO_APP_THREADS", raising=False)
+            importlib.reload(detect_module)
 
 
 class TestDetect:
@@ -18,9 +61,18 @@ class TestDetect:
 
         assert len(pages_meta) == 2
         for meta in pages_meta:
-            assert set(meta) == {"page", "status", "error", "dropped", "complete", "boxes"}
+            assert set(meta) == {
+                "page",
+                "status",
+                "error",
+                "dropped",
+                "complete",
+                "boxes",
+                "elapsed_seconds",
+            }
             assert meta["status"] == "ok"
             assert len(meta["boxes"]) == 1
+            assert meta["elapsed_seconds"] >= 0
 
     def test_metadata_never_carries_image_bytes(self) -> None:
         # The whole point of streaming pages out via on_page rather than accumulating
@@ -31,7 +83,7 @@ class TestDetect:
         )
         for meta in pages_meta:
             assert "original_png" not in meta
-            assert "annotated_png" not in meta
+            assert "label_layers" not in meta
 
     def test_on_page_receives_the_full_result_including_images(self) -> None:
         streamed: list[PageResult] = []
@@ -45,7 +97,8 @@ class TestDetect:
 
         assert len(streamed) == 1
         assert streamed[0].original_png
-        assert streamed[0].annotated_png
+        assert streamed[0].label_layers.keys() == {"elevation"}
+        assert streamed[0].colors.keys() == {"elevation"}
 
     def test_pages_are_returned_sorted_regardless_of_completion_order(self) -> None:
         pages_meta = detect(
@@ -58,7 +111,7 @@ class TestDetect:
 
         assert [meta["page"] for meta in pages_meta] == [1, 2, 3, 4, 5]
 
-    def test_a_page_with_no_boxes_is_not_annotated(self) -> None:
+    def test_a_page_with_no_boxes_has_no_overlay_layers(self) -> None:
         streamed: list[PageResult] = []
         detect(
             make_pdf_bytes(1),
@@ -69,7 +122,8 @@ class TestDetect:
         )
 
         assert streamed[0].boxes == []
-        assert streamed[0].annotated_png == streamed[0].original_png
+        assert streamed[0].label_layers == {}
+        assert streamed[0].colors == {}
 
     def test_a_failed_page_is_reported_not_raised(self) -> None:
         pages_meta = detect(
@@ -135,12 +189,17 @@ class TestRebuildPages:
                 "dropped": live.dropped,
                 "complete": live.complete,
                 "boxes": live.boxes,
+                "elapsed_seconds": live.elapsed_seconds,
             }
         ]
         rebuilt = rebuild_pages(pdf_bytes, 200, pages_meta)
 
         assert rebuilt[0].original_png == live.original_png
-        assert rebuilt[0].annotated_png == live.annotated_png
+        assert rebuilt[0].label_layers.keys() == live.label_layers.keys()
+        assert rebuilt[0].colors == live.colors
+        # Carried through from the stored meta, not recomputed — rebuilding is a local
+        # re-render with no model call, so its own timing isn't the number worth showing.
+        assert rebuilt[0].elapsed_seconds == live.elapsed_seconds
 
     def test_a_failed_pages_original_image_is_still_rebuilt(self) -> None:
         # Rendering doesn't depend on the model call having succeeded — only the
@@ -160,7 +219,7 @@ class TestRebuildPages:
 
         assert rebuilt[0].status == "failed"
         assert rebuilt[0].original_png
-        assert rebuilt[0].annotated_png == rebuilt[0].original_png
+        assert rebuilt[0].label_layers == {}
 
     def test_pages_are_returned_sorted_regardless_of_completion_order(self) -> None:
         pages_meta = [

@@ -4,6 +4,22 @@ Semver, tagged `location-overlay-vX.Y.Z`. The signature and which colour a type 
 the contract — see [Versioning and releases](README.md#versioning-and-releases). Any visible
 change to what a render looks like is listed here even when it is not breaking.
 
+## 0.2.0 — 2026-10-06
+
+- **`render(..., background=False)`** draws onto a transparent canvas the same size as `image`
+  (never reading its pixels) and returns `RGBA` instead of `RGB`, opaque only where something
+  was drawn — for compositing one separately-toggleable layer per object type over a shared base
+  image instead of baking everything into one flat picture.
+- **`render(..., colors=...)`** fixes the colour for each object type instead of deriving it from
+  `boxes`, so several calls each drawing a subset of a page's types can still agree on colour the
+  way one call drawing all of them would — pass the same `assign()` result (computed once, across
+  every type on the page) to each call. Raises `ValueError` if `colors` has no entry for a type
+  `boxes` actually uses.
+- **`assign(object_types) -> dict[str, (r, g, b)]` is now exported.** Previously internal to
+  `render()`; a caller driving several `render()` calls needs it directly to get one consistent
+  mapping across all of them, and a legend needs it to show a type's colour without rendering
+  anything.
+
 ## 0.1.0 — 2026-08-11
 
 First release.

@@ -5,6 +5,7 @@ OPENROUTER_API_KEY or a live model behind it."""
 
 from __future__ import annotations
 
+import importlib
 import io
 import time
 from collections.abc import Iterator
@@ -16,6 +17,25 @@ from app import history, main
 from app.detect import MAX_PAGES
 
 from .helpers import StubModelClient, make_pdf_bytes
+
+
+class TestMaxUploadBytesEnvVar:
+    def test_falls_back_to_the_default_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEMO_APP_MAX_UPLOAD_MB", raising=False)
+        reloaded = importlib.reload(main)
+        try:
+            assert reloaded.MAX_UPLOAD_BYTES == 10 * 1024 * 1024
+        finally:
+            importlib.reload(main)
+
+    def test_env_var_is_megabytes_not_bytes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEMO_APP_MAX_UPLOAD_MB", "25")
+        reloaded = importlib.reload(main)
+        try:
+            assert reloaded.MAX_UPLOAD_BYTES == 25 * 1024 * 1024
+        finally:
+            monkeypatch.delenv("DEMO_APP_MAX_UPLOAD_MB", raising=False)
+            importlib.reload(main)
 
 
 @pytest.fixture

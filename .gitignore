@@ -11,3 +11,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+# demo-app's local Postgres data when run via demo-app/docker-compose.yml
+volume/

@@ -25,8 +25,32 @@ empty (see [History](#history) below).
 
 ## Run locally with Docker
 
+The easiest way: `docker-compose.yml` in this directory runs the app and a dedicated
+Postgres (for history) together, on their own network — nothing else in the repo.
+
+```bash
+cd demo-app
+OPENROUTER_API_KEY=your-key-here docker compose up --build
+```
+
+Open `http://localhost:8000`. History persists in `./volume/pgdata`, a plain folder on
+disk (gitignored and dockerignored already), across restarts; delete it to wipe history.
+
+`DEMO_APP_MAX_UPLOAD_MB`, `DEMO_APP_MAX_PAGES`, and `DEMO_APP_THREADS` (see
+[Limits](#limits) and [How a run actually works](#how-a-run-actually-works)) are also
+wired up in `docker-compose.yml`, passed the same way as `OPENROUTER_API_KEY` above —
+copy-paste this to set all four at once:
+
+```bash
+DEMO_APP_MAX_UPLOAD_MB=25 DEMO_APP_MAX_PAGES=25 DEMO_APP_THREADS=4 OPENROUTER_API_KEY=your-key-here docker compose up --build
+```
+
+The rest of this section is the same thing done by hand, for when you want just the app
+without history, or want to see what compose is actually doing under the hood.
+
 The Dockerfile depends on `src/runner` and `src/packages/location-overlay` by local
-path, so the build context has to be the **repo root**, not `demo-app/`:
+path, so the build context has to be the **repo root**, not `demo-app/` (compose's
+`docker-compose.yml` already points `context:` at `..` for this reason):
 
 ```bash
 # from the repo root
@@ -34,8 +58,8 @@ docker build -f demo-app/Dockerfile -t casev-demo .
 docker run --rm -p 8000:8000 -e OPENROUTER_API_KEY=your-key-here casev-demo
 ```
 
-To also get history working locally, run Postgres alongside it on a shared network,
-with its data on your own disk so it survives container restarts:
+To also get history working locally this way, run Postgres alongside it on a shared
+network, with its data on your own disk so it survives container restarts:
 
 ```bash
 # one-time: a network so the two containers can reach each other by name
@@ -66,13 +90,16 @@ To wipe history entirely, stop it and delete `volume/pgdata`.
 | `DEMO_APP_DATABASE_URL` | no | Enables the history drawer. A Postgres connection string, entirely separate from `src/results_store`'s shared research store — see [History](#history). |
 | `PORT` | no (default `8000`) | What the Dockerfile's `uvicorn` binds to; Railway injects this itself. |
 | `CASEV_MODEL_ROSTER` | no | Read by `core.config`, not demo-app itself — overrides the model dropdown's options (JSON object, slug → max render px). |
+| `DEMO_APP_MAX_PAGES` | no (default `25`) | Overrides the page-per-PDF cap — see [Limits](#limits). |
+| `DEMO_APP_MAX_UPLOAD_MB` | no (default `10`) | Overrides the upload size cap, in MB — see [Limits](#limits). |
+| `DEMO_APP_THREADS` | no (default `4`) | How many pages run through render → model call → parse at once on a live run — see [How a run actually works](#how-a-run-actually-works). |
 
 ## Limits
 
 | | |
 |---|---|
-| Upload size | 10MB |
-| Pages per PDF | 25 |
+| Upload size | 10MB (`DEMO_APP_MAX_UPLOAD_MB`) |
+| Pages per PDF | 25 (`DEMO_APP_MAX_PAGES`) |
 | Model call timeout | 150s per attempt, 3 attempts |
 
 The page and size caps exist because a large run ties up real wall-clock time (rendering
@@ -94,10 +121,15 @@ deletes the job once it has the final result. This matters for two things:
   `localStorage`; reloading (or reopening the tab later) picks the same job back up and
   resumes showing progress, rather than leaving no sign a run was ever started.
 
-Each page streams out (rendered image, annotated image, detections) the moment that page
-finishes, rather than the server collecting every page before responding — a large run's
-memory is bounded by how many pages are being worked on concurrently, not by total page
-count.
+Each page streams out (rendered image, per-label overlay layers, detections) the moment
+that page finishes, rather than the server collecting every page before responding — a
+large run's memory is bounded by how many pages are being worked on concurrently, not by
+total page count.
+
+Pages aren't processed one at a time either: up to `DEMO_APP_THREADS` (default 4) pages
+run through render → model call → parse at once, each on its own thread with its own
+PyMuPDF document (they aren't safe to share across threads). Pages finish and stream out
+in whatever order they complete, not necessarily page 1 first.
 
 ## History
 
@@ -131,6 +163,7 @@ with a stub client (see `tests/helpers.py`), and the history tests explicitly un
 | `app/history.py` | Postgres persistence for past runs — a no-op wherever `DEMO_APP_DATABASE_URL` isn't set |
 | `static/` | The single-page frontend: plain HTML/CSS/JS, Tailwind via CDN, no build step |
 | `tests/` | pytest suite — see [Testing](#testing) |
+| `docker-compose.yml` | App + dedicated Postgres for local history — see [Run locally with Docker](#run-locally-with-docker) |
 
 ## Deploying
 

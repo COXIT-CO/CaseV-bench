@@ -66,7 +66,7 @@ a plausible-looking picture that is simply wrong, and nothing downstream would c
 ### Options
 
 ```python
-render(image, boxes, *, labels=True, line_width=None)
+render(image, boxes, *, labels=True, line_width=None, background=True, colors=None)
 ```
 
 **`labels=False`** drops the text chips and leaves bare outlines — for thumbnails, and for dense
@@ -78,10 +78,42 @@ across a 400px thumbnail and a 3000px sheet. Label text is sized the same way. P
 override the stroke; the labels keep scaling with the image, so a 1px stroke on a large sheet
 still gets readable text.
 
+**`background=False`** draws onto a transparent canvas the same size as `image` instead of onto
+`image` itself (`image`'s pixels are never read, only its size) and returns `RGBA` instead of
+`RGB`, opaque only where something was drawn. For a caller that wants one separately-toggleable
+layer per object type — a viewer where hiding a type doesn't require a fresh render — draw each
+type's boxes in their own call and stack the results over one shared base image:
+
+```python
+from location_overlay import assign, render
+
+colors = assign(box["object_type"] for box in predictions)  # once, across every type on the page
+layers = {
+    object_type: render(
+        page,
+        [box for box in predictions if box["object_type"] == object_type],
+        background=False,
+        colors=colors,
+    )
+    for object_type in colors
+}
+```
+
+**`colors`** fixes the colour for each object type instead of deriving it from `boxes`. Pass it
+the result of calling `assign()` yourself on *every* type that will ever be drawn in a related
+set of calls (see above) — without it, each call only ever sees its own `boxes` and can't tell
+there was a collision to resolve on the full set. `assign()` is exported for exactly this; see
+[Colours and labels](#colours-and-labels) for what it resolves. Raises `ValueError` if `colors`
+has no entry for a type `boxes` actually uses.
+
 ## Colours and labels
 
 **No two object types on a page are drawn in the same colour.** Colour is the first thing anyone
 reads off an overlay, and two different types sharing one would be read as one type.
+
+`assign(object_types) -> dict[str, (r, g, b)]` is this logic, exported directly — for a caller
+that needs to know a type's colour without rendering anything (a legend, say) or that needs the
+same resolved mapping across several `render()` calls (see `background` above).
 
 Each type prefers the palette entry its name hashes to, which is what keeps a type recognisable
 from page to page and from the demo to an internal diff view without anyone passing a palette

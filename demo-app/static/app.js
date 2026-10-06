@@ -22,6 +22,7 @@ const promptResetButton = document.getElementById("prompt-reset");
 
 const lightbox = document.getElementById("lightbox");
 const lightboxImage = document.getElementById("lightbox-image");
+const lightboxOverlay = document.getElementById("lightbox-overlay");
 const lightboxCaption = document.getElementById("lightbox-caption");
 const lightboxClose = document.getElementById("lightbox-close");
 
@@ -89,22 +90,178 @@ promptResetButton.addEventListener("click", () => {
 });
 
 function openLightbox(src, caption) {
+  lightboxOverlay.classList.add("hidden");
+  lightboxOverlay.innerHTML = "";
+  lightboxImage.classList.remove("hidden");
   lightboxImage.src = src;
   lightboxCaption.textContent = caption;
   lightbox.classList.remove("hidden");
   lightbox.classList.add("flex");
+  resetZoom();
+}
+
+// The "Detected" image's lightbox isn't a plain <img> swap like openLightbox — it rebuilds the
+// same stacked original+layers view (see buildImageLayers/buildLegend) at lightbox scale, as a
+// fresh, independently-toggleable instance, so zooming in doesn't lose the ability to filter
+// labels. The legend sits above the image here too (see renderResults for the card layout),
+// centered as its own row rather than floating over any part of the picture.
+function openDetectionLightbox(page, caption) {
+  lightboxImage.classList.add("hidden");
+  lightboxImage.src = "";
+  lightboxOverlay.innerHTML = "";
+  lightboxOverlay.className = "flex flex-col items-center gap-3";
+
+  const { wrap, layerImgs } = buildImageLayers(page, "lightbox");
+  const legend = buildLegend(page, layerImgs);
+  if (legend) lightboxOverlay.appendChild(legend);
+  lightboxOverlay.appendChild(wrap);
+
+  lightboxCaption.textContent = caption;
+  lightbox.classList.remove("hidden");
+  lightbox.classList.add("flex");
+  resetZoom();
 }
 
 function closeLightbox() {
   lightbox.classList.add("hidden");
   lightbox.classList.remove("flex");
+  resetZoom();
   lightboxImage.src = "";
+  lightboxImage.classList.remove("hidden");
+  lightboxOverlay.classList.add("hidden");
+  lightboxOverlay.innerHTML = "";
 }
 
 lightboxClose.addEventListener("click", closeLightbox);
 lightbox.addEventListener("click", (event) => {
   if (event.target === lightbox) closeLightbox();
 });
+
+// Scroll-to-zoom + drag-to-pan on whichever image is showing in the lightbox, scoped entirely
+// to it — the wheel handler calls preventDefault() so scrolling over the lightbox zooms the
+// picture instead of the whole page (the page itself has nothing to scroll behind a fixed,
+// full-viewport overlay anyway, but pinch-zoom/ctrl+scroll would otherwise zoom the browser).
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 6;
+const ZOOM_WHEEL_SENSITIVITY = 0.0015;
+
+let zoomScale = 1;
+let zoomX = 0;
+let zoomY = 0;
+let isPanning = false;
+let panPointerStartX = 0;
+let panPointerStartY = 0;
+let panOriginX = 0;
+let panOriginY = 0;
+
+// The lightbox shows one of two different trees depending on which image was opened (a plain
+// <img> for "Original", or buildImageLayers's stacked original+layers for "Detected") — this
+// picks whichever is actually visible so the same zoom/pan logic drives both.
+function zoomTarget() {
+  if (!lightboxImage.classList.contains("hidden")) return lightboxImage;
+  return lightboxOverlay.querySelector("[data-zoomable]");
+}
+
+function applyZoomTransform() {
+  const target = zoomTarget();
+  if (!target) return;
+  target.style.transform = `translate(${zoomX}px, ${zoomY}px) scale(${zoomScale})`;
+  target.style.cursor = zoomScale > ZOOM_MIN ? (isPanning ? "grabbing" : "grab") : "zoom-in";
+}
+
+function resetZoom() {
+  zoomScale = 1;
+  zoomX = 0;
+  zoomY = 0;
+  isPanning = false;
+  applyZoomTransform();
+}
+
+lightbox.addEventListener(
+  "wheel",
+  (event) => {
+    if (lightbox.classList.contains("hidden")) return;
+    event.preventDefault();
+    const next = Math.min(
+      ZOOM_MAX,
+      Math.max(ZOOM_MIN, zoomScale * (1 - event.deltaY * ZOOM_WHEEL_SENSITIVITY))
+    );
+    if (next === zoomScale) return;
+    zoomScale = next;
+    if (zoomScale === ZOOM_MIN) {
+      zoomX = 0;
+      zoomY = 0;
+    }
+    applyZoomTransform();
+  },
+  { passive: false }
+);
+
+// A trackpad's two-finger scroll fires the same wheel events a mouse's scroll wheel does, so
+// both already drive the zoom above — but a plain mouse has no pinch gesture, and relying on
+// "scroll to discover zoom" isn't obvious with a mouse anyway. So a click, not just a drag,
+// also does something: a plain click (no real movement between mousedown and mouseup) toggles
+// between 1x and ZOOM_CLICK_STEP; a click-and-drag pans instead, once already zoomed in. Either
+// way it's scoped to the image/overlay itself (data-zoomable) so it never fights with clicking
+// the legend, the caption, or the close button.
+const ZOOM_CLICK_STEP = 2.5;
+const CLICK_VS_DRAG_PX = 5;
+
+let pointerDownTarget = null;
+let pointerDownX = 0;
+let pointerDownY = 0;
+let pointerMoved = false;
+
+function toggleClickZoom() {
+  if (zoomScale > ZOOM_MIN) {
+    resetZoom();
+    return;
+  }
+  zoomScale = ZOOM_CLICK_STEP;
+  zoomX = 0;
+  zoomY = 0;
+  applyZoomTransform();
+}
+
+lightbox.addEventListener("mousedown", (event) => {
+  const target = event.target.closest("[data-zoomable], #lightbox-image");
+  if (!target) return;
+  pointerDownTarget = target;
+  pointerDownX = event.clientX;
+  pointerDownY = event.clientY;
+  pointerMoved = false;
+  if (zoomScale > ZOOM_MIN) {
+    isPanning = true;
+    panPointerStartX = event.clientX;
+    panPointerStartY = event.clientY;
+    panOriginX = zoomX;
+    panOriginY = zoomY;
+  }
+  applyZoomTransform();
+  event.preventDefault();
+});
+
+window.addEventListener("mousemove", (event) => {
+  if (!pointerDownTarget) return;
+  if (
+    Math.abs(event.clientX - pointerDownX) > CLICK_VS_DRAG_PX ||
+    Math.abs(event.clientY - pointerDownY) > CLICK_VS_DRAG_PX
+  ) {
+    pointerMoved = true;
+  }
+  if (!isPanning) return;
+  zoomX = panOriginX + (event.clientX - panPointerStartX);
+  zoomY = panOriginY + (event.clientY - panPointerStartY);
+  applyZoomTransform();
+});
+
+window.addEventListener("mouseup", () => {
+  if (pointerDownTarget && !pointerMoved) toggleClickZoom();
+  pointerDownTarget = null;
+  isPanning = false;
+  applyZoomTransform();
+});
+
 function openHistoryDrawer() {
   historyDrawer.classList.remove("hidden");
   historyDrawer.classList.add("flex");
@@ -297,6 +454,148 @@ function imageBlock(label, src, caption) {
   return wrap;
 }
 
+// Fixed taxonomy order when a label is in it (the normal case); anything outside it (should not
+// happen — the backend only ever produces ALLOWED_LABELS) is appended rather than dropped.
+function orderLabels(labels) {
+  return [...labels].sort((a, b) => labelOrder.indexOf(a) - labelOrder.indexOf(b));
+}
+
+// The "Detected" image: the plain page image with one transparent PNG layer stacked on top per
+// object type (page.label_layers) — every box in every layer was drawn server-side by
+// location_overlay, never by this code; the legend built separately by buildLegend() just shows
+// or hides an already-rendered layer, so toggling one is instant with no re-render needed.
+// `variant` is "card" (inline result grid) or "lightbox" (the zoomed-in view). Returns the image
+// element plus a label -> layer <img> map so a legend can be wired up to it.
+function buildImageLayers(page, variant) {
+  const wrap = document.createElement("div");
+  wrap.className = variant === "lightbox" ? "relative inline-block" : "relative";
+  if (variant === "lightbox") wrap.dataset.zoomable = "true";
+
+  const baseImg = document.createElement("img");
+  baseImg.src = page.original_image;
+  baseImg.className =
+    variant === "lightbox"
+      ? "block max-h-[85vh] max-w-[90vw] border border-white/10 object-contain"
+      : "block w-full cursor-zoom-in border border-line transition hover:opacity-90";
+  wrap.appendChild(baseImg);
+
+  if (variant === "card") {
+    baseImg.addEventListener("click", () =>
+      openDetectionLightbox(page, `Page ${page.page} — detected`)
+    );
+  }
+
+  const layerImgs = {};
+  for (const label of orderLabels(Object.keys(page.label_layers || {}))) {
+    const layerImg = document.createElement("img");
+    layerImg.src = page.label_layers[label];
+    layerImg.className = "pointer-events-none absolute inset-0 h-full w-full";
+    wrap.appendChild(layerImg);
+    layerImgs[label] = layerImg;
+  }
+
+  return { wrap, layerImgs };
+}
+
+// A legend row of checkbox + colour swatch + label name, one per type actually present on the
+// page, wired to show/hide the matching layer in `layerImgs`. Given its own background/border
+// (rather than bare text) so it stays readable regardless of what it's sitting on — a white
+// page card in the result grid, or the dark lightbox backdrop when zoomed in.
+// The checkmark glyph that pops into a chip once it's checked — see .legend-check in
+// index.html for the scale-in animation. `stroke="currentColor"` is what lets one <svg>
+// pick up whichever chip's own colour .legend-chip:has(input:checked) sets as `color`.
+function legendCheckIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 20 20");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "3");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.classList.add("legend-check", "h-3.5", "flex-shrink-0", "overflow-hidden");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", "M4 10l4 4 8-8");
+  svg.appendChild(path);
+  return svg;
+}
+
+function buildLegend(page, layerImgs) {
+  const labels = orderLabels(Object.keys(layerImgs));
+  if (labels.length === 0) return null;
+
+  // No background/border on the row itself — each chip is already its own opaque pill (see
+  // .legend-chip), so it reads fine floating directly on whatever's behind it: the white page
+  // card here, or the dark lightbox backdrop in openDetectionLightbox.
+  // Centered in the page block, not pinned to the left edge under the grid.
+  const legend = document.createElement("div");
+  legend.className = "flex flex-wrap items-center justify-center gap-2.5 font-mono text-sm";
+
+  // A master on/off control, not just another chip — plain bordered button matching the app's
+  // other secondary buttons (e.g. "Edit prompt"), so it reads as an action rather than one more
+  // label to toggle. Label flips between the two states; clicking always drives every chip to
+  // the *other* state from whatever they're mostly in right now.
+  const toggleAll = document.createElement("button");
+  toggleAll.type = "button";
+  toggleAll.className =
+    "border border-line bg-white px-3 py-1.5 text-muted hover:bg-soft hover:text-ink";
+  legend.appendChild(toggleAll);
+
+  const checkboxes = [];
+
+  function updateToggleAllLabel() {
+    const allChecked = checkboxes.every((checkbox) => checkbox.checked);
+    toggleAll.textContent = allChecked ? "Hide all" : "Show all";
+  }
+
+  toggleAll.addEventListener("click", () => {
+    const makeChecked = !checkboxes.every((checkbox) => checkbox.checked);
+    for (const checkbox of checkboxes) {
+      if (checkbox.checked === makeChecked) continue;
+      checkbox.checked = makeChecked;
+      checkbox.dispatchEvent(new Event("change"));
+    }
+  });
+
+  for (const label of labels) {
+    const color = (page.colors || {})[label] || "#19201d";
+
+    // Sharp corners, not pill-shaped — this app has no rounded corners anywhere else (see the
+    // "Run detection" button, the settings/history panels, every input), so a rounded-full chip
+    // stood out as the one rounded thing on the page.
+    const chip = document.createElement("label");
+    chip.className =
+      "legend-chip flex cursor-pointer select-none items-center gap-1.5 border border-line bg-white px-3 py-1.5 text-muted";
+    chip.style.setProperty("--chip", color);
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+    checkbox.className = "sr-only";
+    checkbox.addEventListener("change", () => {
+      layerImgs[label].style.display = checkbox.checked ? "block" : "none";
+      updateToggleAllLabel();
+    });
+    chip.appendChild(checkbox);
+    checkboxes.push(checkbox);
+
+    const swatch = document.createElement("span");
+    swatch.className = "h-2.5 w-2.5 flex-shrink-0 border border-ink/20";
+    swatch.style.backgroundColor = color;
+    chip.appendChild(swatch);
+
+    const text = document.createElement("span");
+    text.textContent = label;
+    chip.appendChild(text);
+
+    chip.appendChild(legendCheckIcon());
+
+    legend.appendChild(chip);
+  }
+
+  updateToggleAllLabel();
+  return legend;
+}
+
 // Rows are the fixed object taxonomy (from /api/config), columns are the pages actually
 // present in this run, plus a Total column. Pages aren't capped, so this wraps in a
 // horizontal-scroll container with a sticky label column for sheets with many pages — that
@@ -467,7 +766,12 @@ function renderResults(data) {
 
     const title = document.createElement("h3");
     title.className = "mb-4 font-mono text-xs font-medium uppercase tracking-wide text-muted";
-    title.textContent = `Page ${page.page}` + (page.status === "failed" ? " — failed" : "");
+    let titleText = `Page ${page.page}`;
+    if (page.elapsed_seconds != null) {
+      titleText += ` (Processing time: ${page.elapsed_seconds.toFixed(1)}s)`;
+    }
+    if (page.status === "failed") titleText += " — failed";
+    title.textContent = titleText;
     card.appendChild(title);
 
     if (page.status === "failed") {
@@ -479,8 +783,26 @@ function renderResults(data) {
       const grid = document.createElement("div");
       grid.className = "grid grid-cols-1 gap-6 lg:grid-cols-2";
       grid.appendChild(imageBlock("Original", page.original_image, `Page ${page.page} — original`));
-      grid.appendChild(imageBlock("Detected", page.annotated_image, `Page ${page.page} — detected`));
+
+      const detectedWrap = document.createElement("div");
+      const detectedCaption = document.createElement("p");
+      detectedCaption.className = "mb-1 font-mono text-xs uppercase tracking-wide text-muted";
+      detectedCaption.textContent = "Detected";
+      detectedWrap.appendChild(detectedCaption);
+      const { wrap: detectedImage, layerImgs } = buildImageLayers(page, "card");
+      detectedWrap.appendChild(detectedImage);
+      grid.appendChild(detectedWrap);
+
       card.appendChild(grid);
+
+      // One legend shared by both images, below the grid rather than above either one — that
+      // keeps Original and Detected starting at the same height (a per-image legend used to
+      // push just the Detected image down, leaving the two misaligned).
+      const legend = buildLegend(page, layerImgs);
+      if (legend) {
+        legend.classList.add("mt-4");
+        card.appendChild(legend);
+      }
     }
     resultsEl.appendChild(card);
   }

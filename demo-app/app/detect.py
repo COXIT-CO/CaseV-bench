@@ -7,6 +7,7 @@ from __future__ import annotations
 import functools
 import io
 import logging
+import os
 import random
 import time
 from collections.abc import Callable
@@ -21,12 +22,15 @@ from core.config import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE, PROMPT_P
 from core.parse import ResponseParser
 from core.render import PageRenderer
 from core.scoring import Box
-from location_overlay import render as render_overlay
+from location_overlay import assign, render as render_overlay
 
 MAX_ATTEMPTS = 3
 BACKOFF_BASE_SECONDS = 1.0
 BACKOFF_MAX_SECONDS = 20.0
-MAX_PAGES = 25
+
+MAX_PAGES = int(os.environ.get("DEMO_APP_MAX_PAGES", 25))
+# How many pages' render+model-call+parse run at once — see detect()'s `threads` param.
+DEFAULT_THREADS = int(os.environ.get("DEMO_APP_THREADS", 4))
 
 PROMPT_TEXT = PROMPT_PATH.read_text()
 
@@ -54,11 +58,16 @@ class PageResult:
     width: int
     height: int
     original_png: bytes
-    annotated_png: bytes
+    # One transparent-background PNG per distinct object type in `boxes` — just that
+    # type's boxes, nothing else — so the frontend can show/hide a type by toggling
+    # which layer is visible instead of asking for a fresh render. See _label_layers().
+    label_layers: dict[str, bytes]
+    colors: dict[str, str]  # object_type -> "#rrggbb", the colour each layer was drawn in
     boxes: list[Box]
     dropped: int
     complete: bool
     status: str  # "ok" | "failed"
+    elapsed_seconds: float
     error: str | None = None
 
 
@@ -136,14 +145,40 @@ def _generate_with_retries(
             time.sleep(delay)
 
 
-def _annotate(original_png: bytes, boxes: list[Box]) -> bytes:
+def _hex(color: tuple[int, int, int]) -> str:
+    return "#%02x%02x%02x" % color
+
+
+def _label_layers(original_png: bytes, boxes: list[Box]) -> tuple[dict[str, bytes], dict[str, str]]:
+    """One transparent-background PNG per distinct object type in `boxes`, plus the colour
+    each type was drawn in (as hex, for the frontend's legend). Every box is still drawn by
+    location_overlay — the browser only ever decides which pre-rendered layer to show, so
+    the interactive legend's toggle is instant and never needs a fresh render.
+
+    Colours are resolved once across every type on the page (`assign`) and the same mapping
+    is passed to every render() call below — a type can be displaced from its preferred
+    colour by a collision with another type on the same page (see location_overlay's
+    README), and that only comes out consistent across these separate per-type calls if
+    they all see the full picture up front rather than each re-deriving it from its own
+    one-type subset.
+    """
     if not boxes:
-        return original_png
+        return {}, {}
+
+    page_colors = assign(box["object_type"] for box in boxes)
+    by_type: dict[str, list[Box]] = {}
+    for box in boxes:
+        by_type.setdefault(box["object_type"], []).append(box)
+
     with Image.open(io.BytesIO(original_png)) as page_image:
-        annotated = render_overlay(page_image, boxes)
-    buffer = io.BytesIO()
-    annotated.save(buffer, format="PNG")
-    return buffer.getvalue()
+        layers: dict[str, bytes] = {}
+        for object_type, type_boxes in by_type.items():
+            layer = render_overlay(page_image, type_boxes, background=False, colors=page_colors)
+            buffer = io.BytesIO()
+            layer.save(buffer, format="PNG")
+            layers[object_type] = buffer.getvalue()
+
+    return layers, {label: _hex(color) for label, color in page_colors.items()}
 
 
 def _page_meta(result: PageResult) -> dict[str, object]:
@@ -157,6 +192,7 @@ def _page_meta(result: PageResult) -> dict[str, object]:
         "dropped": result.dropped,
         "complete": result.complete,
         "boxes": list(result.boxes),
+        "elapsed_seconds": result.elapsed_seconds,
     }
 
 
@@ -216,11 +252,13 @@ def _process_page(
             width=rendered.width,
             height=rendered.height,
             original_png=rendered.png_bytes,
-            annotated_png=rendered.png_bytes,
+            label_layers={},
+            colors={},
             boxes=[],
             dropped=0,
             complete=False,
             status="failed",
+            elapsed_seconds=page_elapsed,
             error=str(exc),
         )
         on_page(result)
@@ -231,18 +269,18 @@ def _process_page(
     parsed = ResponseParser().parse_response(response.text, page_number)
     parse_elapsed = time.monotonic() - parse_started
 
-    annotate_started = time.monotonic()
-    annotated_png = _annotate(rendered.png_bytes, parsed.boxes)
-    annotate_elapsed = time.monotonic() - annotate_started
+    layers_started = time.monotonic()
+    label_layers, colors = _label_layers(rendered.png_bytes, parsed.boxes)
+    layers_elapsed = time.monotonic() - layers_started
 
     page_elapsed = time.monotonic() - page_started
     logger.info(
-        "page %d/%d: done in %.2fs total (parse=%.3fs annotate=%.3fs, %d box(es), %d dropped)",
+        "page %d/%d: done in %.2fs total (parse=%.3fs layers=%.3fs, %d box(es), %d dropped)",
         page_number,
         total_pages,
         page_elapsed,
         parse_elapsed,
-        annotate_elapsed,
+        layers_elapsed,
         len(parsed.boxes),
         parsed.dropped,
     )
@@ -255,11 +293,13 @@ def _process_page(
         width=rendered.width,
         height=rendered.height,
         original_png=rendered.png_bytes,
-        annotated_png=annotated_png,
+        label_layers=label_layers,
+        colors=colors,
         boxes=parsed.boxes,
         dropped=parsed.dropped,
         complete=parsed.complete,
         status="ok",
+        elapsed_seconds=page_elapsed,
         error=None,
     )
     on_page(result)
@@ -273,14 +313,14 @@ def detect(
     model: str,
     max_px: int,
     prompt: str = PROMPT_TEXT,
-    threads: int = 4,
+    threads: int = DEFAULT_THREADS,
     on_progress: ProgressCallback | None = None,
     on_page: PageCallback | None = None,
 ) -> list[dict[str, object]]:
     """Renders and detects every page. Calls `on_page` with each page's full
-    PageResult — original/annotated images included — as soon as that page is ready,
-    from whichever worker thread finished it; the caller is expected to consume or
-    stream it immediately rather than hold onto it.
+    PageResult — the original image and its per-label overlay layers included — as
+    soon as that page is ready, from whichever worker thread finished it; the caller
+    is expected to consume or stream it immediately rather than hold onto it.
 
     That's deliberate: a page's images are tens of MB at inference resolution, and
     the old version of this function rendered every page up front and accumulated
@@ -290,6 +330,12 @@ def detect(
     only thing detect() itself accumulates is this function's *return value* — the
     small `_page_meta` summary (status/boxes, no images) per page, the same shape
     history.save_run persists — so peak memory scales with `threads`, not page count.
+
+    `threads` is how many pages run through render → model call → parse → layers at
+    once, capped at `page_count` regardless of what's passed — all pages are submitted
+    to the pool up front, not released one at a time, so this is the only thing
+    limiting how many are in flight simultaneously. Defaults to `DEFAULT_THREADS`
+    (env `DEMO_APP_THREADS`, default 4).
     """
     progress = on_progress or _NOOP_PROGRESS
     page_cb = on_page or _NOOP_PAGE
@@ -346,17 +392,19 @@ def _rebuild_one_page(pdf_bytes: bytes, render_px: int, meta: dict[str, object])
     # and overlay work each task then does, so this doesn't cost the concurrency it buys.
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as document:
         rendered = PageRenderer.render_page(document, page_number, render_px)
-    annotated_png = _annotate(rendered.png_bytes, boxes)  # type: ignore[arg-type]
+    label_layers, colors = _label_layers(rendered.png_bytes, boxes)  # type: ignore[arg-type]
     return PageResult(
         page=page_number,
         width=rendered.width,
         height=rendered.height,
         original_png=rendered.png_bytes,
-        annotated_png=annotated_png,
+        label_layers=label_layers,
+        colors=colors,
         boxes=boxes,  # type: ignore[arg-type]
         dropped=int(meta.get("dropped") or 0),
         complete=bool(meta.get("complete", True)),
         status=str(meta["status"]),
+        elapsed_seconds=float(meta.get("elapsed_seconds") or 0.0),
         error=meta.get("error"),  # type: ignore[arg-type]
     )
 
@@ -366,8 +414,11 @@ def rebuild_pages(
 ) -> list[PageResult]:
     """Replays a history entry without calling the model: re-renders each stored page
     from the original PDF and redraws the overlay from its stored boxes. `pages_meta`
-    is one dict per page — `{page, status, error, dropped, complete, boxes}` — exactly
-    what history.save_run persisted.
+    is one dict per page — `{page, status, error, dropped, complete, boxes,
+    elapsed_seconds}` — exactly what history.save_run persisted. `elapsed_seconds` is
+    carried through as-is rather than recomputed: it's how long the *original* run's
+    page took (render + model call + parse), which is the number worth showing; this
+    replay's own render time is a different, much smaller thing.
 
     Unlike detect() (where rendering is sequential and only the model call/parse/annotate
     step is threaded, since that step is what's actually slow there), every page here does

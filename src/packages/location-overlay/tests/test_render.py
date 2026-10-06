@@ -1,10 +1,10 @@
-"""Tests for the library's entire public surface: ``render()``.
+"""Tests for ``render()`` — see test_assign.py for the library's other public function.
 
-Everything below it — the pixel scaling, the palette, the label placement — is private and
-is covered here through the pixels it produces. Nothing names an internal helper or asserts
-the shape of an intermediate, so these tests describe *what the picture looks like* and stay
-valid through any refactor of the internals. A colour is never imported, only sampled off a
-rendered image, which is also the only thing a consumer can do.
+Everything below render() — the pixel scaling, the label placement — is private and is covered
+here through the pixels it produces. Nothing names an internal helper or asserts the shape of an
+intermediate, so these tests describe *what the picture looks like* and stay valid through any
+refactor of the internals. A colour is never hand-picked here, only sampled off a rendered image
+or taken from `assign()` directly (the one piece of the palette a consumer can also reach).
 
 Test pages are white and 400x400 unless a test needs otherwise, so a box at 0.25–0.75 lands
 on pixels 100–300 and every expected coordinate is arithmetically obvious. Geometry tests
@@ -19,7 +19,7 @@ import sys
 import pytest
 from PIL import Image
 
-from location_overlay import render
+from location_overlay import assign, render
 
 CABINET = "cabinet"
 COUNTERTOP = "countertop"
@@ -260,6 +260,98 @@ def test_more_types_than_colours_still_renders():
     colors = [result.getpixel(point) for point in points]
     assert WHITE not in colors
     assert len(set(colors)) == 16  # past sixteen, colours repeat
+
+
+# --- Transparent layers (background=False) -------------------------------------------
+
+
+def test_background_false_returns_rgba():
+    result = render(page(), [quarter()], labels=False, line_width=1, background=False)
+
+    assert result.mode == "RGBA"
+
+
+def test_background_false_leaves_the_image_s_own_pixels_unread():
+    # The caller's image contents are never touched, only its size — passing a page full
+    # of real drawing content and a page full of solid red must draw identically.
+    real_page = page(color="white")
+    red_page = page(color=(255, 0, 0))
+
+    from_real = render(real_page, [quarter()], labels=False, line_width=1, background=False)
+    from_red = render(red_page, [quarter()], labels=False, line_width=1, background=False)
+
+    assert from_real.tobytes() == from_red.tobytes()
+
+
+def test_background_false_is_transparent_everywhere_a_box_was_not_drawn():
+    result = render(page(), [quarter()], labels=False, line_width=1, background=False)
+
+    assert result.getpixel((50, 50))[3] == 0  # alpha channel, off the box
+
+
+def test_background_false_box_pixels_are_opaque_and_the_same_colour_as_background_true():
+    opaque = render(page(), [quarter()], labels=False, line_width=1)
+    transparent = render(page(), [quarter()], labels=False, line_width=1, background=False)
+
+    on_box = transparent.getpixel((100, 100))
+    assert on_box[3] == 255
+    assert on_box[:3] == color_of_quarter(opaque)
+
+
+def test_background_false_keeps_the_images_size():
+    result = render(page(size=(1234, 567)), [quarter()], background=False)
+
+    assert result.size == (1234, 567)
+
+
+# --- Explicit colours (colors=) -------------------------------------------------------
+
+
+def test_colors_overrides_the_derived_palette():
+    fixed = {CABINET: (1, 2, 3)}
+
+    result = render(page(), [quarter()], labels=False, line_width=1, colors=fixed)
+
+    assert color_of_quarter(result) == (1, 2, 3)
+
+
+def test_colors_is_what_keeps_separate_calls_agreeing_on_a_collision():
+    # callout/floor plan collide (see test_a_type_moves_off_its_preferred_colour_only_to_avoid_a_
+    # collision above). Rendered together in one call, floor plan is displaced; rendered apart
+    # across two calls with the *same* precomputed colors, it must still come out displaced —
+    # that agreement across calls is the entire reason `colors` exists. Side-by-side boxes
+    # (not overlapping) so each layer's own colour is unambiguous to sample.
+    boxes, points = stacked(("callout", "floor plan"))
+    shared = assign(("callout", "floor plan"))
+
+    callout_point, plan_point = points
+    callout_layer = render(
+        page(), [boxes[0]], labels=False, line_width=1, background=False, colors=shared
+    )
+    plan_layer = render(
+        page(), [boxes[1]], labels=False, line_width=1, background=False, colors=shared
+    )
+    combined = render(page(), boxes, labels=False, line_width=1)
+
+    assert callout_layer.getpixel(callout_point)[:3] == combined.getpixel(callout_point)
+    assert plan_layer.getpixel(plan_point)[:3] == combined.getpixel(plan_point)
+    assert callout_layer.getpixel(callout_point)[:3] != plan_layer.getpixel(plan_point)[:3]
+
+
+def test_colors_missing_an_entry_for_a_used_type_raises():
+    with pytest.raises(ValueError, match="countertop"):
+        render(page(), [quarter(COUNTERTOP)], colors={CABINET: (1, 2, 3)})
+
+
+def test_colors_may_hold_extra_entries_for_types_not_used_here():
+    # A caller drawing one type per call still passes the colour map for every type on the
+    # page (see test_colors_is_what_keeps_separate_calls_agreeing_on_a_collision) — entries
+    # this particular call doesn't use are expected, not an error.
+    fixed = {CABINET: (1, 2, 3), COUNTERTOP: (4, 5, 6)}
+
+    result = render(page(), [quarter()], labels=False, line_width=1, colors=fixed)
+
+    assert color_of_quarter(result) == (1, 2, 3)
 
 
 # --- Labels -------------------------------------------------------------------------

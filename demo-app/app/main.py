@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import dataclasses
 import logging
+import os
 import threading
 import time
 import uuid
@@ -20,7 +21,9 @@ from core.config import DEFAULT_MAX_PX, MODEL_ROSTER
 from core.dataset import ALLOWED_LABELS
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+# In MB, not bytes — nobody wants to do that math by hand for an env var.
+MAX_UPLOAD_BYTES = int(os.environ.get("DEMO_APP_MAX_UPLOAD_MB", 10)) * 1024 * 1024
 # History replay is for looking at a past run, not feeding it back to a model — render at a
 # much smaller size than inference used (up to 5000px per the roster) to keep it fast and the
 # response small. See get_run().
@@ -94,12 +97,20 @@ def _client() -> OpenRouterClient:
 
 
 def _page_payload(result: PageResult) -> dict[str, object]:
-    """The full, wire-ready form of one page: images as data URLs plus its own
-    detections. Used both for streaming a page the moment it's ready (the live
-    /api/detect path) and for history replay (/api/runs/{id}, which still returns
-    everything in one response — a past run's page count is already known and
-    bounded by what completed originally, so accumulating there doesn't have the
-    same unbounded-memory risk a long-running live multi-page detect does)."""
+    """The full, wire-ready form of one page: the original image as a data URL, one
+    transparent-background overlay data URL per object type present on the page
+    (`label_layers` — see detect._label_layers), the colour each type was drawn in
+    (`colors`, for the legend), how long the page took end to end (`elapsed_seconds`),
+    and the page's own detections. The frontend stacks
+    `original_image` with whichever of `label_layers` are currently checked in the
+    legend — every pixel of every box still comes from location_overlay, toggling a
+    type just shows/hides an already-rendered layer rather than asking for a new one.
+
+    Used both for streaming a page the moment it's ready (the live /api/detect path)
+    and for history replay (/api/runs/{id}, which still returns everything in one
+    response — a past run's page count is already known and bounded by what completed
+    originally, so accumulating there doesn't have the same unbounded-memory risk a
+    long-running live multi-page detect does)."""
     detections = []
     for box in result.boxes:
         x_min, y_min, x_max, y_max = box["bbox"]
@@ -118,11 +129,13 @@ def _page_payload(result: PageResult) -> dict[str, object]:
         "width": result.width,
         "height": result.height,
         "original_image": _data_url(result.original_png),
-        "annotated_image": _data_url(result.annotated_png),
+        "label_layers": {label: _data_url(png) for label, png in result.label_layers.items()},
+        "colors": result.colors,
         "status": result.status,
         "error": result.error,
         "dropped": result.dropped,
         "complete": result.complete,
+        "elapsed_seconds": round(result.elapsed_seconds, 1),
         "detections": detections,
     }
 
