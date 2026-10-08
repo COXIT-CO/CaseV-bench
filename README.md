@@ -39,13 +39,13 @@ This is a drift check, not a leaderboard. The dataset is small enough to notice 
 behaves differently from the previous week, but not enough to rank models against each other.
 
 <!-- BENCHMARK_DASHBOARD:START -->
-_Last updated 2026-09-30 11:38 UTC by the weekly benchmark workflow._
+_Last updated 2026-10-05 06:14 UTC by the weekly benchmark workflow._
 
 | Model                        | F1 @ IoU 0.5 | Δ vs. previous run | Last run   |
 |------------------------------|--------------|--------------------|------------|
-| `anthropic/claude-fable-5.1` | 0.646        | ▲ +0.169           | 2026-09-30 |
-| `google/gemini-3.8-flash`    | 0.811        | ▲ +0.356           | 2026-09-30 |
-| `openai/gpt-6-astra`         | 0.950        | ▲ +0.300           | 2026-09-30 |
+| `anthropic/claude-fable-5.1` | 0.705        | ▲ +0.059           | 2026-10-05 |
+| `google/gemini-3.8-flash`    | 0.760        | ▼ -0.051           | 2026-10-05 |
+| `openai/gpt-6-astra`         | 0.955        | ▲ +0.005           | 2026-10-05 |
 
 <!-- BENCHMARK_DASHBOARD:END -->
 
