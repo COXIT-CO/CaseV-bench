@@ -293,18 +293,18 @@ document.addEventListener("keydown", (event) => {
 
 function historyRow(run) {
   const row = document.createElement("div");
-  row.className = "group flex cursor-pointer items-start justify-between gap-2 border-b border-line px-4 py-3 hover:bg-soft";
+  row.className = "group flex cursor-pointer items-start justify-between gap-2 border-b border-border px-4 py-3 hover:bg-surface";
 
   const info = document.createElement("div");
   info.className = "min-w-0";
 
   const filenameEl = document.createElement("p");
-  filenameEl.className = "truncate text-sm font-medium text-ink";
+  filenameEl.className = "truncate text-sm font-medium text-text";
   filenameEl.textContent = run.filename;
   info.appendChild(filenameEl);
 
   const metaEl = document.createElement("p");
-  metaEl.className = "mt-0.5 font-mono text-xs text-muted";
+  metaEl.className = "mt-0.5 font-mono text-xs text-text-3";
   const when = new Date(run.created_at).toLocaleString();
   metaEl.textContent =
     `${run.model} · ${when} · ${run.detection_count} found` + (run.custom_prompt ? " · custom prompt" : "");
@@ -315,7 +315,7 @@ function historyRow(run) {
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.title = "Delete this run";
-  deleteButton.className = "flex-shrink-0 p-1 text-muted hover:text-brand";
+  deleteButton.className = "flex-shrink-0 p-1 text-text-3 hover:text-bad";
   deleteButton.innerHTML =
     '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">' +
     '<path fill-rule="evenodd" clip-rule="evenodd" d="M8 2a1 1 0 00-1 1v1H4a1 1 0 000 2h12a1 1 0 100-2h-3V3a1 1 0 00-1-1H8zM5 7a1 1 0 011 1v8a2 2 0 002 2h4a2 2 0 002-2V8a1 1 0 112 0v8a4 4 0 01-4 4H8a4 4 0 01-4-4V8a1 1 0 011-1z"/>' +
@@ -443,14 +443,23 @@ function setError(text) {
 function imageBlock(label, src, caption) {
   const wrap = document.createElement("div");
   const captionEl = document.createElement("p");
-  captionEl.className = "mb-1 font-mono text-xs uppercase tracking-wide text-muted";
+  captionEl.className = "mb-2 font-mono text-xs uppercase tracking-wide text-text-3";
   captionEl.textContent = label;
+
+  const stage = document.createElement("div");
+  stage.className = "rounded-lg bg-black/5 p-4";
+  const sheet = document.createElement("div");
+  sheet.className = "cx-cropmarks bg-white p-2";
+
   const img = document.createElement("img");
   img.src = src;
-  img.className = "w-full cursor-zoom-in border border-line transition hover:opacity-90";
+  img.className = "block w-full cursor-zoom-in transition hover:opacity-90";
   img.addEventListener("click", () => openLightbox(src, caption));
+
+  sheet.appendChild(img);
+  stage.appendChild(sheet);
   wrap.appendChild(captionEl);
-  wrap.appendChild(img);
+  wrap.appendChild(stage);
   return wrap;
 }
 
@@ -467,17 +476,17 @@ function orderLabels(labels) {
 // `variant` is "card" (inline result grid) or "lightbox" (the zoomed-in view). Returns the image
 // element plus a label -> layer <img> map so a legend can be wired up to it.
 function buildImageLayers(page, variant) {
-  const wrap = document.createElement("div");
-  wrap.className = variant === "lightbox" ? "relative inline-block" : "relative";
-  if (variant === "lightbox") wrap.dataset.zoomable = "true";
+  const stack = document.createElement("div");
+  stack.className = variant === "lightbox" ? "relative inline-block" : "relative";
+  if (variant === "lightbox") stack.dataset.zoomable = "true";
 
   const baseImg = document.createElement("img");
   baseImg.src = page.original_image;
   baseImg.className =
     variant === "lightbox"
-      ? "block max-h-[85vh] max-w-[90vw] border border-white/10 object-contain"
-      : "block w-full cursor-zoom-in border border-line transition hover:opacity-90";
-  wrap.appendChild(baseImg);
+      ? "block max-h-[85vh] max-w-[90vw] border border-ink-border object-contain"
+      : "block w-full cursor-zoom-in transition hover:opacity-90";
+  stack.appendChild(baseImg);
 
   if (variant === "card") {
     baseImg.addEventListener("click", () =>
@@ -490,11 +499,19 @@ function buildImageLayers(page, variant) {
     const layerImg = document.createElement("img");
     layerImg.src = page.label_layers[label];
     layerImg.className = "pointer-events-none absolute inset-0 h-full w-full";
-    wrap.appendChild(layerImg);
+    stack.appendChild(layerImg);
     layerImgs[label] = layerImg;
   }
 
-  return { wrap, layerImgs };
+  if (variant !== "card") return { wrap: stack, layerImgs };
+
+  const stage = document.createElement("div");
+  stage.className = "rounded-lg bg-black/5 p-4";
+  const sheet = document.createElement("div");
+  sheet.className = "cx-cropmarks bg-white p-2";
+  sheet.appendChild(stack);
+  stage.appendChild(sheet);
+  return { wrap: stage, layerImgs };
 }
 
 // A legend row of checkbox + colour swatch + label name, one per type actually present on the
@@ -536,8 +553,7 @@ function buildLegend(page, layerImgs) {
   // the *other* state from whatever they're mostly in right now.
   const toggleAll = document.createElement("button");
   toggleAll.type = "button";
-  toggleAll.className =
-    "border border-line bg-white px-3 py-1.5 text-muted hover:bg-soft hover:text-ink";
+  toggleAll.className = "cx-btn cx-btn--secondary cx-btn--sm";
   legend.appendChild(toggleAll);
 
   const checkboxes = [];
@@ -557,14 +573,11 @@ function buildLegend(page, layerImgs) {
   });
 
   for (const label of labels) {
-    const color = (page.colors || {})[label] || "#19201d";
+    const color = (page.colors || {})[label] || "#0D0D0D";
 
-    // Sharp corners, not pill-shaped — this app has no rounded corners anywhere else (see the
-    // "Run detection" button, the settings/history panels, every input), so a rounded-full chip
-    // stood out as the one rounded thing on the page.
     const chip = document.createElement("label");
     chip.className =
-      "legend-chip flex cursor-pointer select-none items-center gap-1.5 border border-line bg-white px-3 py-1.5 text-muted";
+      "legend-chip flex cursor-pointer select-none items-center gap-1.5 border border-border bg-surface-raised px-3 py-1.5 text-text-2";
     chip.style.setProperty("--chip", color);
 
     const checkbox = document.createElement("input");
@@ -579,7 +592,7 @@ function buildLegend(page, layerImgs) {
     checkboxes.push(checkbox);
 
     const swatch = document.createElement("span");
-    swatch.className = "h-2.5 w-2.5 flex-shrink-0 border border-ink/20";
+    swatch.className = "h-2.5 w-2.5 flex-shrink-0 rounded-full border border-black/20";
     swatch.style.backgroundColor = color;
     chip.appendChild(swatch);
 
@@ -597,18 +610,21 @@ function buildLegend(page, layerImgs) {
 }
 
 // Rows are the fixed object taxonomy (from /api/config), columns are the pages actually
-// present in this run, plus a Total column. Pages aren't capped, so this wraps in a
-// horizontal-scroll container with a sticky label column for sheets with many pages — that
-// column needs its own opaque background (not just inherited from the row) or the page
-// columns scrolling underneath show through it.
+// present in this run, plus a Total column (shown with a magnitude bar, CaseVBench-table
+// style). Pages aren't capped, so this wraps in a horizontal-scroll container with a sticky
+// label column for sheets with many pages — that column needs its own opaque background (not
+// just inherited from the row) or the page columns scrolling underneath show through it.
 function summaryTable(pages, detections) {
   const wrap = document.createElement("div");
-  wrap.className = "border border-line bg-white";
+  // Opaque, not the usual translucent .cx-card — the sticky label column below needs a solid
+  // background to mask horizontally-scrolled columns, and a translucent card would otherwise
+  // show a seam where that opaque column meets the rest of the (translucent) row.
+  wrap.className = "cx-card";
+  wrap.style.background = "var(--surface-raised)";
 
   const heading = document.createElement("div");
-  heading.className = "border-b border-line bg-soft px-5 py-3";
-  heading.innerHTML =
-    '<h3 class="font-mono text-xs font-medium uppercase tracking-wide text-muted">Summary</h3>';
+  heading.className = "cx-card__head";
+  heading.innerHTML = '<p class="cx-eyebrow cx-eyebrow--muted">Summary</p>';
   wrap.appendChild(heading);
 
   const pageNumbers = pages.map((page) => page.page);
@@ -627,61 +643,52 @@ function summaryTable(pages, detections) {
   }
 
   const table = document.createElement("table");
-  table.className = "w-full text-left text-sm";
+  table.className = "cx-table";
 
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
-  headRow.className = "bg-soft font-mono text-xs font-medium uppercase tracking-wide text-muted";
   headRow.appendChild(th("Label", true));
-  for (const page of pageNumbers) headRow.appendChild(th(`Page ${page}`));
+  for (const page of pageNumbers) headRow.appendChild(th(`Page ${page}`, false, true));
   headRow.appendChild(th("Total", false, true));
   thead.appendChild(headRow);
   table.appendChild(thead);
 
   const tbody = document.createElement("tbody");
-
-  labels.forEach((label, index) => {
-    const zebra = index % 2 === 1;
+  for (const label of labels) {
     const tr = document.createElement("tr");
-    tr.className = "group border-t border-line" + (zebra ? " bg-soft/60" : "") + " hover:bg-soft";
-    tr.appendChild(td(label, true, false, zebra));
+    tr.appendChild(td(label, true));
     let rowTotal = 0;
     for (const page of pageNumbers) {
       rowTotal += counts[label][page] || 0;
-      tr.appendChild(td(String(counts[label][page] || 0)));
+      tr.appendChild(td(String(counts[label][page] || 0), false, true));
     }
-    tr.appendChild(td(String(rowTotal), false, true));
+    tr.appendChild(td(String(rowTotal), false, true, true));
     tbody.appendChild(tr);
-  });
+  }
   table.appendChild(tbody);
 
   const scroller = document.createElement("div");
-  scroller.className = "overflow-x-auto";
+  scroller.className = "cx-table-wrap";
   scroller.appendChild(table);
   wrap.appendChild(scroller);
   return wrap;
 }
 
-function th(text, sticky, accent) {
+function th(text, sticky, numeric) {
   const el = document.createElement("th");
-  el.className =
-    "px-5 py-2.5" +
-    (sticky ? " sticky left-0 z-10 bg-soft" : "") +
-    (accent ? " text-forest" : "");
+  el.scope = "col";
+  el.className = (sticky ? "sticky left-0 z-10 bg-surface-raised " : "") + (numeric ? "num" : "");
   el.textContent = text;
   return el;
 }
 
-// `zebra` picks the sticky cell's own opaque background to match its row: `bg-inherit` would
-// pick up the row's *semi-transparent* stripe color (or nothing, on a plain row), which is
-// exactly what let page columns scrolling underneath show through the label column.
-function td(text, sticky, accent, zebra) {
+function td(text, sticky, numeric, emphasis) {
   const el = document.createElement("td");
-  const stickyBg = zebra ? "bg-soft" : "bg-white";
-  el.className =
-    "px-5 py-2" +
-    (sticky ? ` sticky left-0 z-10 ${stickyBg} group-hover:bg-soft font-medium text-ink` : " font-mono text-muted") +
-    (accent ? " font-semibold text-forest" : "");
+  el.className = sticky
+    ? "sticky left-0 z-10 bg-surface-raised code"
+    : numeric
+      ? `num${emphasis ? "" : " muted"}`
+      : "";
   el.textContent = text;
   return el;
 }
@@ -691,11 +698,11 @@ function detectionsDetail(detections) {
 
   const toggle = document.createElement("button");
   toggle.type = "button";
-  toggle.className = "w-full bg-brand px-4 py-3 font-medium text-white hover:bg-brand-bright";
+  toggle.className = "cx-btn cx-btn--secondary w-full";
   toggle.textContent = `Show all detections (${detections.length})`;
 
   const tableWrap = document.createElement("div");
-  tableWrap.className = "mt-4 hidden overflow-x-auto border border-line bg-white p-4";
+  tableWrap.className = "cx-card mt-4 hidden";
 
   toggle.addEventListener("click", () => {
     const isHidden = tableWrap.classList.contains("hidden");
@@ -707,35 +714,40 @@ function detectionsDetail(detections) {
 
   if (detections.length) {
     const table = document.createElement("table");
-    table.className = "w-full text-left text-sm";
-    table.innerHTML = `
-      <thead>
-        <tr class="border-b border-line font-mono text-xs uppercase tracking-wide text-muted">
-          <th class="py-1.5 pr-4">Page</th>
-          <th class="py-1.5 pr-4">Label</th>
-          <th class="py-1.5 pr-4">x_min</th>
-          <th class="py-1.5 pr-4">y_min</th>
-          <th class="py-1.5 pr-4">x_max</th>
-          <th class="py-1.5 pr-4">y_max</th>
-        </tr>
-      </thead>
-    `;
+    table.className = "cx-table";
+
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    for (const [label, numeric] of [
+      ["Page", false],
+      ["Label", false],
+      ["x_min", true],
+      ["y_min", true],
+      ["x_max", true],
+      ["y_max", true],
+    ]) {
+      headRow.appendChild(th(label, false, numeric));
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
     const tbody = document.createElement("tbody");
     for (const row of detections) {
       const tr = document.createElement("tr");
-      tr.className = "border-b border-line font-mono text-ink";
-      tr.innerHTML = `
-        <td class="py-1.5 pr-4">${row.page}</td>
-        <td class="py-1.5 pr-4">${row.label}</td>
-        <td class="py-1.5 pr-4">${row.x_min}</td>
-        <td class="py-1.5 pr-4">${row.y_min}</td>
-        <td class="py-1.5 pr-4">${row.x_max}</td>
-        <td class="py-1.5 pr-4">${row.y_max}</td>
-      `;
+      tr.appendChild(td(String(row.page)));
+      tr.appendChild(td(row.label));
+      tr.appendChild(td(String(row.x_min), false, true));
+      tr.appendChild(td(String(row.y_min), false, true));
+      tr.appendChild(td(String(row.x_max), false, true));
+      tr.appendChild(td(String(row.y_max), false, true));
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
-    tableWrap.appendChild(table);
+
+    const scroller = document.createElement("div");
+    scroller.className = "cx-table-wrap";
+    scroller.appendChild(table);
+    tableWrap.appendChild(scroller);
   }
 
   wrap.appendChild(toggle);
@@ -751,7 +763,7 @@ function renderResults(data) {
 
   summaryContainer.innerHTML = "";
   const meta = document.createElement("p");
-  meta.className = "mb-2 font-mono text-xs text-muted";
+  meta.className = "cx-meta mb-2";
   meta.textContent = data.model + (data.custom_prompt ? " · custom prompt" : "");
   summaryContainer.appendChild(meta);
   summaryContainer.appendChild(summaryTable(pages, detections));
@@ -762,10 +774,10 @@ function renderResults(data) {
 
   for (const page of pages) {
     const card = document.createElement("div");
-    card.className = "border border-line bg-white p-6";
+    card.className = "cx-card cx-card--pad";
 
     const title = document.createElement("h3");
-    title.className = "mb-4 font-mono text-xs font-medium uppercase tracking-wide text-muted";
+    title.className = "mb-4 font-mono text-xs font-medium uppercase tracking-wide text-text-3";
     let titleText = `Page ${page.page}`;
     if (page.elapsed_seconds != null) {
       titleText += ` (Processing time: ${page.elapsed_seconds.toFixed(1)}s)`;
@@ -776,7 +788,7 @@ function renderResults(data) {
 
     if (page.status === "failed") {
       const err = document.createElement("p");
-      err.className = "text-sm text-brand";
+      err.className = "cx-callout cx-callout--bad text-bad";
       err.textContent = page.error;
       card.appendChild(err);
     } else {
@@ -786,7 +798,7 @@ function renderResults(data) {
 
       const detectedWrap = document.createElement("div");
       const detectedCaption = document.createElement("p");
-      detectedCaption.className = "mb-1 font-mono text-xs uppercase tracking-wide text-muted";
+      detectedCaption.className = "mb-2 font-mono text-xs uppercase tracking-wide text-text-3";
       detectedCaption.textContent = "Detected";
       detectedWrap.appendChild(detectedCaption);
       const { wrap: detectedImage, layerImgs } = buildImageLayers(page, "card");
