@@ -1,0 +1,215 @@
+/* Fonts are served from ./fonts so the tool works offline (Mona Sans and DM Mono, SIL OFL 1.1). */
+@font-face {
+  font-family: "Mona Sans";
+  font-weight: 400 600;
+  font-display: swap;
+  src: url(fonts/mona-sans.woff2) format("woff2");
+}
+@font-face {
+  font-family: "DM Mono";
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/dm-mono-400.woff2) format("woff2");
+}
+@font-face {
+  font-family: "DM Mono";
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/dm-mono-500.woff2) format("woff2");
+}
+
+/* COXIT design tokens, copied from the coxit-design skill. Keep in sync with it.
+   Derived from coxit.co (2026) and COXIT client decks.
+   Light is the default for product UI. Dark mirrors the marketing site. */
+
+:root {
+  /* ── Type ─────────────────────────────────────────────── */
+  --font-sans: "Mona Sans", "Mona Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "PP Neue Montreal Mono", "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Scale taken from coxit.co: 64px section titles, 24px card titles,
+     16px body and mono labels, 13px table headers. Apps use the same
+     numbers, just fewer of the big ones. */
+  --text-xs: 0.75rem;    /* 12 — fine print, chart ticks */
+  --text-sm: 0.8125rem;  /* 13 — mono table headers, meta */
+  --text-base: 0.9375rem;/* 15 — dense app text (tables, nav) */
+  --text-md: 1rem;       /* 16 — body, inputs, mono labels (site default) */
+  --text-lg: 1.25rem;    /* 20 — panel titles */
+  --text-xl: 1.5rem;     /* 24 — card titles (site h3) */
+  --text-2xl: 2.5rem;    /* 40 — app page titles, key metrics */
+  --text-3xl: 3rem;      /* 48 — hero metrics, hero titles in apps */
+  --text-4xl: 4rem;      /* 64 — site section titles, report covers */
+
+  --weight-regular: 400;
+  --weight-medium: 500;  /* every heading on the site is 500 */
+  --weight-semibold: 600;/* buttons on gradient, rare emphasis */
+
+  --leading-display: 1;  /* 48px+ */
+  --leading-tight: 1.1;  /* headings */
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --tracking-display: -0.0125em;
+  --tracking-heading: -0.01em;
+  --tracking-body: 0.01em;
+  --tracking-mono: 0.01em;
+
+  /* ── Space (4px grid) ──────────────────────────────────── */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px; --space-20: 80px;
+
+  /* ── Radius ────────────────────────────────────────────── */
+  --radius-sm: 8px;    /* chips, small controls, table row hover */
+  --radius-md: 12px;   /* inputs, menus, small cards */
+  --radius-lg: 16px;   /* panels, app cards */
+  --radius-xl: 24px;   /* feature cards, marketing blocks, big tables */
+  --radius-pill: 999px;/* buttons, badges, toggles */
+
+  /* ── Motion ────────────────────────────────────────────── */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+
+  /* ── Layout ────────────────────────────────────────────── */
+  --sidebar-w: 240px;
+  --topbar-h: 56px;
+  --content-max: 1280px;
+  --reading-max: 720px;
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* ── Ink: always-dark surfaces inside a light app (hero band, nav pill, viewer toolbar) ── */
+  --ink: #0D0D0D;
+  --ink-surface: #181818;
+  --ink-text: #FFFFFF;
+  --ink-text-2: #C2B7B0;     /* the site's headline color on dark */
+  --ink-text-3: #8A8A8A;
+  --ink-border: rgba(255, 255, 255, 0.12);
+  --on-flame: #FFFFFF;       /* text on --gradient-flame, weight 600 */
+
+  /* ── Signature gradients (from coxit.co) ───────────────── */
+  /* Primary button: red-orange at the top-right, warm orange at the bottom-left. */
+  --gradient-flame: radial-gradient(140% 180% at 100% 0%, #CC3C20 0%, #E66B01 48%, #F08B21 100%);
+  --gradient-flame-hover: radial-gradient(140% 180% at 100% 0%, #B8341B 0%, #D66200 48%, #E88019 100%);
+  /* Eclipse corona: the hero video / footer glow. Only on dark surfaces, one per screen. */
+  --gradient-corona: radial-gradient(70% 120% at 100% 100%, rgba(255,182,63,.55) 0%, rgba(240,139,33,.45) 18%, rgba(204,60,32,.35) 38%, rgba(47,24,20,.5) 60%, rgba(13,13,13,0) 80%);
+}
+
+/* ── Light (default) ─────────────────────────────────────── */
+:root, [data-theme="light"] {
+  --bg: #EEE8E5;              /* page canvas — the warm COXIT beige */
+  --surface: #F7F4F2;         /* panels, cards, tables */
+  --surface-raised: #FFFFFF;  /* inputs, menus, popovers, modals */
+  --surface-sunken: #E6DFDB;  /* wells, code, drop zones */
+
+  --text: #0D0D0D;
+  --text-2: #4C4C4C;          /* secondary text — 7:1 */
+  --text-3: #6B6762;          /* meta, captions — lowest for readable text, 5:1 */
+  --text-disabled: #8A8A8A;   /* disabled + decorative only, fails AA */
+
+  --border: rgba(13, 13, 13, 0.16);
+  --border-subtle: rgba(13, 13, 13, 0.08);
+  --border-strong: rgba(13, 13, 13, 0.28);
+
+  --accent: #E66B01;          /* Flame. Fills, bars, focus, the one thing to look at */
+  --accent-hover: #CC5A00;
+  --accent-pressed: #B84A00;
+  --accent-text: #B84A00;     /* orange as TEXT on light bg (#E66B01 text fails contrast) */
+  --on-accent: #0D0D0D;       /* text on FLAT orange (badges, small fills). Buttons use --gradient-flame + --on-flame */
+  --accent-tint: rgba(230, 107, 1, 0.10);
+
+  --good: #2B6B47;  --good-tint: rgba(43, 107, 71, 0.10);
+  --warn: #8A5A12;  --warn-tint: rgba(138, 90, 18, 0.10);
+  --bad:  #A13A2A;  --bad-tint:  rgba(161, 58, 42, 0.10);
+  --info: #005F75;  --info-tint: rgba(0, 95, 117, 0.10);
+
+  --shadow-pop: 0 8px 24px rgba(13, 13, 13, 0.10), 0 1px 2px rgba(13, 13, 13, 0.06);
+  color-scheme: light;
+}
+
+/* ── Dark (mirrors coxit.co) ─────────────────────────────── */
+[data-theme="dark"] {
+  --bg: #0D0D0D;
+  --surface: #121212;
+  --surface-raised: #181818;
+  --surface-sunken: #080808;
+
+  --text: #FFFFFF;
+  --text-2: #C2B7B0;          /* site "nue" */
+  --text-3: #9A9590;
+  --text-disabled: #5E5A57;
+
+  --border: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.24);
+
+  --accent: #E66B01;
+  --accent-hover: #F08B21;
+  --accent-pressed: #CC5A00;
+  --accent-text: #F08B21;
+  --on-accent: #0D0D0D;
+  --accent-tint: rgba(240, 139, 33, 0.14);
+
+  --good: #6FB38A;  --good-tint: rgba(111, 179, 138, 0.14);
+  --warn: #D9A54A;  --warn-tint: rgba(217, 165, 74, 0.14);
+  --bad:  #E07A68;  --bad-tint:  rgba(224, 122, 104, 0.14);
+  --info: #5FB4C9;  --info-tint: rgba(95, 180, 201, 0.14);
+
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+/* ── Base ────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-body);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-heading);
+  line-height: var(--leading-snug);
+  text-wrap: balance;
+}
+p { margin: 0; text-wrap: pretty; }
+a { color: var(--accent-text); text-underline-offset: 2px; }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.num, td.num { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
+
+/* ── Dark, following the OS setting (same values as [data-theme="dark"]) ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D0D0D;
+    --surface: #121212;
+    --surface-raised: #181818;
+    --surface-sunken: #080808;
+    --text: #FFFFFF;
+    --text-2: #C2B7B0;
+    --text-3: #9A9590;
+    --text-disabled: #5E5A57;
+    --border: rgba(255, 255, 255, 0.12);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-strong: rgba(255, 255, 255, 0.24);
+    --accent-hover: #F08B21;
+    --accent-pressed: #CC5A00;
+    --accent-text: #F08B21;
+    --accent-tint: rgba(240, 139, 33, 0.14);
+    --good: #6FB38A;  --good-tint: rgba(111, 179, 138, 0.14);
+    --warn: #D9A54A;  --warn-tint: rgba(217, 165, 74, 0.14);
+    --bad:  #E07A68;  --bad-tint:  rgba(224, 122, 104, 0.14);
+    --info: #5FB4C9;  --info-tint: rgba(95, 180, 201, 0.14);
+    --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}

@@ -65,6 +65,7 @@ example `floor plan`. The runner normalises them.
 |---|---|
 | `serve.py` | Local server: static files plus PyMuPDF page rendering |
 | `index.html`, `styles.css` | The page |
+| `tokens.css`, `fonts/` | COXIT design tokens (copied from the `coxit-design` skill) and the Mona Sans and DM Mono fonts (SIL OFL 1.1), served locally |
 | `src/main.js` | UI wiring: files, sidebar, toolbar, shortcuts, drafts |
 | `src/viewer.js` | Page display, zoom, and the base and detail render layers |
 | `src/overlay.js` | SVG boxes and mouse gestures (draw, select, move, resize, pan, measure) |
