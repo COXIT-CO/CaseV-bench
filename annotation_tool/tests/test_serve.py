@@ -7,47 +7,15 @@ boxes live in the rotated (displayed) space, and getting that wrong shifts every
 scorer reads.
 """
 
-import functools
-import http.server
 import json
-import sys
-import threading
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 import pymupdf
 import pytest
+from conftest import DATASET_DIR, make_pdf
 
-TOOL_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(TOOL_DIR))
-
-import serve  # noqa: E402
-
-DATASET_DIR = TOOL_DIR.parent / "dataset" / "public"
-
-
-@pytest.fixture(scope="module")
-def server():
-    handler = functools.partial(serve.Handler, directory=str(TOOL_DIR))
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{httpd.server_address[1]}"
-    httpd.shutdown()
-    httpd.server_close()
-
-
-def make_pdf(*pages, marker=""):
-    """A PDF with one page per ``(width, height, rotation)``. ``marker`` makes the bytes unique."""
-    doc = pymupdf.open()
-    for width, height, rotation in pages:
-        page = doc.new_page(width=width, height=height)
-        page.insert_text((10, 20), f"page {page.number} {marker}")
-        page.set_rotation(rotation)
-    data = doc.tobytes()
-    doc.close()
-    return data
+import serve
 
 
 def request(url, data=None, content_type="application/pdf"):

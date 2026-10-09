@@ -20,14 +20,17 @@ stop:
 	if [ -n "$$pids" ]; then kill $$pids && echo "Stopped annotation tool on port $(PORT)."; \
 	else echo "Nothing is listening on port $(PORT)."; fi
 
-# Server tests (pytest) and UI logic tests (Node's built-in runner, Node >= 22). Same runner
-# choice as `start`: uv when present, otherwise the local .venv.
+# Server and browser tests (pytest + Playwright) and UI logic tests (Node's built-in runner,
+# Node >= 22). Same runner choice as `start`: uv when present, otherwise the local .venv.
+# `playwright install` downloads Chromium once and is a no-op after that.
 test:
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run --quiet --no-project --with-requirements requirements.txt --with pytest pytest tests -q; \
+		uv run --quiet --no-project --with-requirements requirements-test.txt sh -c \
+			'python -m playwright install chromium && pytest -q'; \
 	else \
-		$(MAKE) --no-print-directory setup && "$(VENV_PYTHON)" -m pip install --quiet --disable-pip-version-check pytest \
-			&& "$(VENV_PYTHON)" -m pytest tests -q; \
+		$(MAKE) --no-print-directory setup \
+			&& "$(VENV_PYTHON)" -m pip install --quiet --disable-pip-version-check -r requirements-test.txt \
+			&& "$(VENV_PYTHON)" -m playwright install chromium && "$(VENV_PYTHON)" -m pytest -q; \
 	fi
 	node --test 'tests/*.test.mjs'
 
