@@ -174,11 +174,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")
             pdf = export_document(doc_id, body.get("objects", []), body.get("colors", {}))
-        except LookupError as err:
-            self.send_json(404, {"error": str(err)})
-            return
+        # KeyError first: it is a LookupError too, but means a malformed object, not a missing document.
         except (ValueError, KeyError, TypeError) as err:
             self.send_json(400, {"error": f"bad export request: {err}"})
+            return
+        except LookupError as err:
+            self.send_json(404, {"error": str(err)})
             return
         self.send_response(200)
         self.send_header("Content-Type", "application/pdf")

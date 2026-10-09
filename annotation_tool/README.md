@@ -71,8 +71,12 @@ example `floor plan`. The runner normalises them.
 | `src/store.js` | Boxes, selection, undo history |
 | `src/projectFile.js` | Reading and writing the JSON file |
 | `src/categories.js` | Categories, id prefixes, colors |
+| `tests/` | Server tests (pytest) and UI logic tests (`node --test`) |
 
 There is no build step. Edit a file and reload the page.
+
+Run the tests with `make -C annotation_tool test` (needs Node 22 or newer for the UI tests). CI
+runs the same tests on every pull request that touches the tool or `dataset/public/`.
 
 The previous Tk desktop app was replaced by this tool. It is still in git history; to run it, check
 out a commit from before the replacement, for example `git worktree add ../old main`.
