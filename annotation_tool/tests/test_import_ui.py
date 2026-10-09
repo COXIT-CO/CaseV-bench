@@ -9,41 +9,26 @@ and stubs the picker instead, because that path is what lets Save write back to 
 """
 
 import json
-import os
 
 import pytest
 from conftest import DATASET_DIR, make_pdf
-
-# Skipped locally without Playwright; in CI a missing Playwright must fail, not skip silently.
-if os.environ.get("CI"):
-    import playwright.sync_api as playwright_api
-else:
-    playwright_api = pytest.importorskip("playwright.sync_api")
-expect = playwright_api.expect
+from ui import (  # noqa: F401  (browser, context and page are fixtures)
+    boxes_shown,
+    browser,
+    click_import,
+    context,
+    draw_box,
+    expect,
+    fail_on_dialog,
+    obj,
+    open_pdf,
+    page,
+    project,
+    toast,
+    write_json,
+)
 
 PAGE = (300, 200, 0)
-NO_FILE_PICKER = "delete window.showOpenFilePicker; delete window.showSaveFilePicker;"
-
-
-@pytest.fixture(scope="module")
-def browser():
-    with playwright_api.sync_playwright() as p:
-        browser = p.chromium.launch()
-        yield browser
-        browser.close()
-
-
-@pytest.fixture
-def page(browser, server):
-    context = browser.new_context()
-    page = context.new_page()
-    page.add_init_script(NO_FILE_PICKER)
-    errors = []
-    page.on("pageerror", lambda err: errors.append(err))
-    page.goto(f"{server}/")
-    yield page
-    context.close()
-    assert not errors, errors
 
 
 @pytest.fixture
@@ -51,42 +36,6 @@ def pdf_file(tmp_path, request):
     path = tmp_path / "kitchen.pdf"
     path.write_bytes(make_pdf(PAGE, PAGE, marker=request.node.name))
     return path
-
-
-def project(*objects, project_id="kitchen-project"):
-    return {"project_id": project_id, "objects": list(objects)}
-
-
-def obj(page, x, y, width=40, height=30, category="cabinet"):
-    return {"id": "x", "category": category, "page": page, "bbox": {"x": x, "y": y, "width": width, "height": height}}
-
-
-def write_json(tmp_path, data, name="kitchen-obj-location.json"):
-    path = tmp_path / name
-    path.write_text(data if isinstance(data, str) else json.dumps(data))
-    return path
-
-
-def open_pdf(page, path):
-    page.set_input_files("#pdf-input", path)
-    expect(page.locator("#page")).to_be_visible()
-    expect(page.locator("#loading")).to_be_hidden()
-
-
-def click_import(page, path):
-    with page.expect_file_chooser() as chooser:
-        page.click("#import-json")
-    chooser.value.set_files(path)
-
-
-def draw_box(page):
-    """Drags out a box in the middle of the page with the default box tool."""
-    area = page.locator("#overlay").bounding_box()
-    x, y = area["x"] + area["width"] * 0.4, area["y"] + area["height"] * 0.4
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.mouse.move(x + 60, y + 40, steps=5)
-    page.mouse.up()
 
 
 def drop_files(page, *files):
@@ -100,18 +49,6 @@ def drop_files(page, *files):
         }""",
         payload,
     )
-
-
-def boxes_shown(page):
-    return page.locator("#overlay g.box")
-
-
-def toast(page, text):
-    return page.locator("#toasts .toast", has_text=text)
-
-
-def fail_on_dialog(page):
-    page.on("dialog", lambda dialog: pytest.fail(f"unexpected dialog: {dialog.message}"))
 
 
 # --- the Import button --------------------------------------------------------------------
@@ -268,13 +205,11 @@ window.showSaveFilePicker = async () => { throw new Error("Save should write to 
 
 
 @pytest.fixture
-def picker_page(browser, server):
-    context = browser.new_context()
+def picker_page(context, server):
     page = context.new_page()
     page.add_init_script(FAKE_PICKER)
     page.goto(f"{server}/")
-    yield page
-    context.close()
+    return page
 
 
 def test_import_with_the_file_picker_saves_back_to_the_same_file(picker_page, pdf_file):

@@ -1,4 +1,4 @@
-# For `make test` and CI. Playwright drives headless Chromium for the import tests.
+# For `make test` and CI. Playwright drives headless Chromium for the browser tests.
 -r requirements.txt
 pytest==9.1.1
 playwright==1.63.0
