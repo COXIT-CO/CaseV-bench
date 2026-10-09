@@ -217,9 +217,9 @@ def test_escape_deselects(nested):
 def test_clicking_a_listed_box_on_another_page_goes_there_and_selects_it(nested):
     page = nested
     page.click("#object-list .object:has-text('ctp-001')")
+    expect(page.locator("#object-list .object.selected .oid")).to_have_text("ctp-001")
     expect(page.locator("#page-select")).to_have_value("1")
     assert selected(page) == (1, "countertop", 20, 20, 60, 50)
-    expect(page.locator("#object-list .object.selected .oid")).to_have_text("ctp-001")
     expect(boxes_shown(page)).to_have_count(1)
 
 
@@ -455,10 +455,12 @@ def test_the_page_select_counts_boxes_per_page(nested):
 def test_leaving_a_page_clears_its_selection(nested):
     page = nested
     click_at(page, 60, 60)
+    expect(page.locator("#inspector")).to_be_visible()
     page.keyboard.press("]")
+    # The page select changes at once, the selection only once the new page has rendered.
+    expect(page.locator("#inspector")).to_be_hidden()
     expect(page.locator("#page-select")).to_have_value("1")
     assert selected(page) is None
-    expect(page.locator("#inspector")).to_be_hidden()
 
 
 def test_the_list_shows_all_pages_or_only_the_current_one(nested):
