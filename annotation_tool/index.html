@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CaseV Annotator</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='5' width='22' height='22' rx='4' fill='none' stroke='%230D0D0D' stroke-width='3'/%3E%3Ccircle cx='25' cy='7' r='5' fill='%23E66B01'/%3E%3C/svg%3E" />
+    <link rel="preload" href="fonts/mona-sans.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="src/main.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 59 18" role="img" aria-label="COXIT">
+          <path fill="currentColor" d="M9.95075 9.63752C9.30497 9.19445 8.51244 8.83445 7.66119 8.83445C5.95871 8.83445 4.60846 10.0529 4.60846 11.6314C4.60846 13.2929 5.9 14.456 7.74925 14.456C8.54179 14.456 9.39303 14.1791 9.9801 13.6806V17.1144C9.01144 17.5575 7.92537 17.7514 6.8393 17.7514C3.11144 17.7514 0 15.2314 0 11.7698C0 8.08675 3.08209 5.53906 7.01542 5.53906C8.04279 5.53906 9.07015 5.7606 9.95075 6.20368V9.63752Z M25.8011 11.6317C25.8011 15.5363 22.4548 17.724 18.6095 17.724C14.7936 17.724 11.418 15.5363 11.418 11.6317C11.418 7.7271 14.7642 5.51172 18.6095 5.51172C22.4548 5.51172 25.8011 7.7271 25.8011 11.6317ZM15.8797 11.8533C15.8797 13.3486 16.8777 14.5117 18.6095 14.5117C20.3414 14.5117 21.3394 13.3486 21.3394 11.8533C21.3394 10.3856 20.3414 9.1671 18.6095 9.1671C16.907 9.1671 15.8797 10.3856 15.8797 11.8533Z M26.799 5.89844H32.112L34.2254 8.33536L36.3388 5.89844H41.7692L36.8965 11.3261L42.7965 17.7507H37.2781L34.2254 14.2338L31.1726 17.7507H25.6836L31.5836 11.3261L26.799 5.89844Z M48.7273 17.7507H44.2656V5.89844H48.7273V17.7507Z M56.2125 17.7504H51.7508V9.35967H50.3125V5.89813H51.7508V2.35352H56.2125V5.89813H58.7369V9.35967H56.2125V17.7504Z" />
+          <path fill="#E66B01" d="M46.5263 4.70769C47.9059 4.70769 49.0213 3.65538 49.0213 2.35385C49.0213 1.05231 47.8765 0 46.5263 0C45.1467 0 44.0312 1.05231 44.0312 2.35385C44.0312 3.65538 45.1467 4.70769 46.5263 4.70769Z" />
+        </svg>
+        <span class="product">Annotator</span>
+      </div>
+
+      <div class="toolpill" role="toolbar" aria-label="View">
+        <button id="undo" class="btn icon" title="Undo (⌘Z)" aria-label="Undo"><i data-icon="undo"></i></button>
+        <button id="redo" class="btn icon" title="Redo (⇧⌘Z)" aria-label="Redo"><i data-icon="redo"></i></button>
+        <span class="sep"></span>
+        <span class="segmented" role="radiogroup" aria-label="Tool">
+          <button class="btn icon" data-tool="box" title="Draw boxes (B)" aria-label="Draw boxes"><i data-icon="box"></i></button>
+          <button class="btn icon" data-tool="hand" title="Pan (H, or hold Space)" aria-label="Pan"><i data-icon="hand"></i></button>
+          <button class="btn icon" data-tool="measure" title="Measure (M, or right-drag)" aria-label="Measure"><i data-icon="ruler"></i></button>
+        </span>
+        <span class="sep"></span>
+        <button id="prev-page" class="btn icon" title="Previous page ([)" aria-label="Previous page"><i data-icon="left"></i></button>
+        <select id="page-select" class="select" aria-label="Page"></select>
+        <button id="next-page" class="btn icon" title="Next page (])" aria-label="Next page"><i data-icon="right"></i></button>
+        <span class="sep"></span>
+        <button id="zoom-out" class="btn icon" title="Zoom out (−)" aria-label="Zoom out"><i data-icon="minus"></i></button>
+        <button id="zoom-label" class="btn zoom-label" title="Fit width (0)">100%</button>
+        <button id="zoom-in" class="btn icon" title="Zoom in (+)" aria-label="Zoom in"><i data-icon="plus"></i></button>
+        <span class="sep"></span>
+        <button id="toggle-boxes" class="btn icon" title="Hide boxes (O)" aria-label="Hide or show boxes"><i data-icon="eye"></i></button>
+        <button id="help" class="btn icon" title="Shortcuts (?)" aria-label="Shortcuts"><i data-icon="help"></i></button>
+      </div>
+
+      <div class="actions">
+        <button id="open-pdf" class="btn ghost" title="Open PDF (⌘O)"><i data-icon="file"></i><span>Open PDF</span></button>
+        <button id="import-json" class="btn ghost" title="Import project JSON"><i data-icon="upload"></i><span>Import</span></button>
+        <button id="export-pdf" class="btn secondary" title="Export PDF with boxes drawn in (⌘E)"><i data-icon="download"></i><span>Export PDF</span></button>
+        <button id="save" class="btn primary" title="Save JSON (⌘S, ⇧⌘S to save as)"><i data-icon="save"></i><span>Save</span></button>
+      </div>
+    </header>
+
+    <div class="main">
+      <aside class="sidebar">
+        <section class="panel">
+          <div class="doc-name" id="doc-name"></div>
+          <label class="field">
+            <span class="field-label">Project ID</span>
+            <input id="project-id" class="input" spellcheck="false" placeholder="kitchen-project" />
+          </label>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel-title">Category <span class="hint">new boxes</span></h2>
+          <div id="categories" class="categories"></div>
+        </section>
+
+        <section id="inspector" class="panel inspector" hidden></section>
+
+        <section class="panel objects">
+          <h2 class="panel-title">
+            Objects <span id="object-count" class="count"></span>
+            <span class="segmented small" role="radiogroup" aria-label="Show">
+              <button class="btn" data-scope="page">Page</button>
+              <button class="btn" data-scope="all">All</button>
+            </span>
+          </h2>
+          <div id="object-list" class="object-list"></div>
+        </section>
+      </aside>
+
+      <main id="stage" class="stage tool-box">
+        <div class="stage-inner">
+          <div id="page" class="page" hidden>
+            <canvas id="pdf-canvas"></canvas>
+            <canvas id="pdf-detail" hidden></canvas>
+            <svg id="overlay" class="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+        <div id="empty" class="page-empty">
+          <div class="drop-card">
+            <p class="drop-title">Drop a PDF here</p>
+            <p class="drop-sub">Add its <code>obj-location.json</code> to keep editing.</p>
+            <button id="empty-open" class="btn primary"><i data-icon="file"></i><span>Open PDF</span></button>
+          </div>
+        </div>
+        <div id="loading" class="loading" hidden>Rendering…</div>
+      </main>
+    </div>
+
+    <footer class="statusbar">
+      <span id="status-cursor" class="mono">—</span>
+      <span id="status-measure" class="mono measure-readout" hidden></span>
+      <span class="spacer"></span>
+      <span id="status-page" class="mono"></span>
+      <span id="status-saved"></span>
+    </footer>
+
+    <dialog id="help-dialog" class="dialog">
+      <form method="dialog">
+        <h2>Shortcuts</h2>
+        <div class="shortcuts">
+          <section>
+            <h3>Annotate</h3>
+            <dl>
+              <dt>Drag</dt><dd>Draw a box in the active category</dd>
+              <dt>Click</dt><dd>Select the smallest box under the cursor</dd>
+              <dt>Drag edge</dt><dd>Move the selected box; resize by its handles</dd>
+              <dt><kbd>⌥</kbd> Drag</dt><dd>Draw even when starting on a selected edge</dd>
+              <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Pick category (and recategorise the selected box)</dd>
+              <dt><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Nudge 1 pt (<kbd>⇧</kbd> 10 pt)</dd>
+              <dt><kbd>Tab</kbd></dt><dd>Select next box on the page</dd>
+              <dt><kbd>⌫</kbd></dt><dd>Delete selected box</dd>
+              <dt><kbd>Esc</kbd></dt><dd>Cancel / clear measure / deselect</dd>
+              <dt><kbd>⌘Z</kbd> <kbd>⇧⌘Z</kbd></dt><dd>Undo / redo</dd>
+            </dl>
+          </section>
+          <section>
+            <h3>View</h3>
+            <dl>
+              <dt><kbd>B</kbd> <kbd>H</kbd> <kbd>M</kbd></dt><dd>Box, pan, measure tools</dd>
+              <dt><kbd>Space</kbd> Drag</dt><dd>Pan (also middle mouse)</dd>
+              <dt>Right-drag</dt><dd>Measure in inches (72 pt = 1 in)</dd>
+              <dt><kbd>⌘</kbd> Scroll</dt><dd>Zoom at cursor (or pinch)</dd>
+              <dt><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></dt><dd>Zoom in, out, fit width</dd>
+              <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous / next page</dd>
+              <dt><kbd>O</kbd></dt><dd>Hide / show boxes</dd>
+              <dt><kbd>⌘O</kbd> <kbd>⌘S</kbd></dt><dd>Open PDF, save JSON</dd>
+              <dt><kbd>⌘E</kbd></dt><dd>Export the PDF with boxes drawn in</dd>
+            </dl>
+          </section>
+        </div>
+        <div class="dialog-actions"><button class="btn ink" value="close">Done</button></div>
+      </form>
+    </dialog>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden />
+    <input id="json-input" type="file" accept="application/json,.json" hidden />
+  </body>
+</html>
