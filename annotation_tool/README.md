@@ -12,7 +12,8 @@ make -C annotation_tool start
 This serves the tool at <http://localhost:8765> and opens it in your browser. The only dependency
 is PyMuPDF, which renders the pages. With [uv](https://docs.astral.sh/uv/) installed, nothing else
 is needed. Without uv, the first run creates `annotation_tool/.venv` using any `python3` ≥ 3.9.
-Use `PORT=9000 make -C annotation_tool start` to change the port.
+Use `PORT=9000 make -C annotation_tool start` to change the port. Stop it with `Ctrl+C`, or with
+`make -C annotation_tool stop` (add `PORT=...` if you changed it) when it runs in the background.
 
 Everything runs locally: the PDF is uploaded only to this local server, and nothing goes to the
 internet.
