@@ -1,19 +1,19 @@
 # Annotation tool
 
 A browser-based tool for drawing ground-truth boxes on PDF drawings. It writes the project file
-the benchmark reads (`<project>-obj-location.json`, as in [`dataset/public/`](../dataset/public)).
+the benchmark reads (`<project>-obj-location.json`, as in [`dataset/public/`](../../dataset/public)).
 
 ## Start
 
 ```bash
-make -C annotation_tool start
+make -C tools/annotation_tool start
 ```
 
 This serves the tool at <http://localhost:8765> and opens it in your browser. The only dependency
 is PyMuPDF, which renders the pages. With [uv](https://docs.astral.sh/uv/) installed, nothing else
-is needed. Without uv, the first run creates `annotation_tool/.venv` using any `python3` ≥ 3.9.
-Use `PORT=9000 make -C annotation_tool start` to change the port. Stop it with `Ctrl+C`, or with
-`make -C annotation_tool stop` (add `PORT=...` if you changed it) when it runs in the background.
+is needed. Without uv, the first run creates `tools/annotation_tool/.venv` using any `python3` ≥ 3.9.
+Use `PORT=9000 make -C tools/annotation_tool start` to change the port. Stop it with `Ctrl+C`, or with
+`make -C tools/annotation_tool stop` (add `PORT=...` if you changed it) when it runs in the background.
 
 Everything runs locally: the PDF is uploaded only to this local server, and nothing goes to the
 internet.
@@ -76,7 +76,7 @@ example `floor plan`. The runner normalises them.
 
 There is no build step. Edit a file and reload the page.
 
-Run the tests with `make -C annotation_tool test`. It needs Node 22 or newer, and the first run
+Run the tests with `make -C tools/annotation_tool test`. It needs Node 22 or newer, and the first run
 downloads a headless Chromium for the browser tests. CI runs the same tests on every pull request
 that touches the tool or `dataset/public/`.
 

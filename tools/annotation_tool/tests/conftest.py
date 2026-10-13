@@ -10,7 +10,7 @@ import pymupdf
 import pytest
 
 TOOL_DIR = Path(__file__).resolve().parents[1]
-DATASET_DIR = TOOL_DIR.parent / "dataset" / "public"
+DATASET_DIR = TOOL_DIR.parents[1] / "dataset" / "public"
 
 sys.path.insert(0, str(TOOL_DIR))
 

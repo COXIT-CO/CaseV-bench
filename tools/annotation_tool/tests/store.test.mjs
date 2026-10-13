@@ -1,5 +1,5 @@
 // Tests for the annotation state (`src/store.js`): boxes, selection and undo history.
-// Run with `make -C annotation_tool test`.
+// Run with `make -C tools/annotation_tool test`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

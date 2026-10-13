@@ -1,5 +1,5 @@
 // Tests for reading and writing the project file (`src/projectFile.js`): the JSON the benchmark
-// reads. Run with `make -C annotation_tool test`.
+// reads. Run with `make -C tools/annotation_tool test`.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -117,7 +117,7 @@ test("save then load gives back the same boxes", () => {
 });
 
 test("the public dataset loads completely and saves back to the same boxes", () => {
-  const text = readFileSync(new URL("../../dataset/public/obj-location.json", import.meta.url), "utf8");
+  const text = readFileSync(new URL("../../../dataset/public/obj-location.json", import.meta.url), "utf8");
   const original = JSON.parse(text);
   const { projectId, boxes, skipped } = parseProject(text, Number.MAX_SAFE_INTEGER);
   assert.equal(projectId, original.project_id);
