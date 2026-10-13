@@ -1,0 +1,11 @@
+services:
+  runner:
+    build:
+      context: src/runner
+    environment:
+      - OPENROUTER_API_KEY
+      - CASEV_MODEL_ROSTER
+      - CASEV_DATASET_DIR=/dataset
+    volumes:
+      - ./dataset:/dataset
+      - ./src/runner/results:/results

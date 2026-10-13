@@ -1,0 +1,5 @@
+{
+  "//": "Only for the tests: tells Node that src/*.js are ES modules, as the browser loads them. No dependencies, no build.",
+  "private": true,
+  "type": "module"
+}

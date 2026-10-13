@@ -1,0 +1,2 @@
+# Renders PDF pages for the browser UI (the same library the benchmark runner renders with).
+pymupdf==1.28.2
