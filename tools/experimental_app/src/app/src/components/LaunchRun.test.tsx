@@ -1,0 +1,219 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { LaunchRunForm } from "@/components/LaunchRun";
+import { LAUNCH_OPTIONS } from "@/test/fixtures";
+import { renderWithProviders } from "@/test/render";
+
+// The Advanced knobs (ticket 04): the form pre-fills sensible defaults for the common
+// one-click launch, and lets a developer tune max_tokens, temperature and reasoning effort.
+// Temperature is a number or "provider default" (→ no temperature in the request), which is
+// the pre-filled choice since a reasoning Model either ignores it or rejects it outright.
+
+vi.mock("@/api", async () => {
+  const actual = await vi.importActual<typeof import("@/api")>("@/api");
+  return {
+    ...actual,
+    api: { launchOptions: vi.fn(), createRun: vi.fn() },
+  };
+});
+import { api } from "@/api";
+
+function renderForm() {
+  return renderWithProviders(<LaunchRunForm onLaunched={() => {}} />);
+}
+
+/** Pick a model so the form has a valid launch selection. */
+async function pickModel() {
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Claude Sonnet 4.5" }),
+  );
+}
+
+async function launch() {
+  await userEvent.click(screen.getByRole("button", { name: "Launch run" }));
+}
+
+/** The efforts the form currently offers — the band every selected Model accepts. */
+function effortOptions(): string[] {
+  return [...screen.getByLabelText("reasoning effort").children].map(
+    (option) => option.textContent ?? "",
+  );
+}
+
+describe("Launch form Advanced knobs", () => {
+  beforeEach(() => {
+    vi.mocked(api.launchOptions).mockReset();
+    vi.mocked(api.createRun).mockReset();
+    vi.mocked(api.launchOptions).mockResolvedValue(LAUNCH_OPTIONS);
+    vi.mocked(api.createRun).mockResolvedValue({
+      id: 1,
+      status: "queued",
+      total_units: 1,
+    });
+  });
+
+  it("offers only the benchmark's own prompts, never a leftover counting one", async () => {
+    renderForm();
+
+    // The endpoint still returns every prompt version (ticket 04 flattens it), so the form
+    // filters — otherwise picking a counting prompt would launch a counting Run (ADR 0032).
+    expect(
+      await screen.findByRole("option", { name: "boxes — v3" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Prompt version")).not.toHaveTextContent(
+      "count-totals",
+    );
+  });
+
+  it("carries the pre-filled defaults for the one-click launch", async () => {
+    renderForm();
+    await pickModel();
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dpi: 300,
+          downsample_px: 1568,
+          max_tokens: 16384,
+          temperature: null,
+          reasoning_effort: "medium",
+        }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("submits the chosen DPI and downsample from the Advanced section", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+
+    const dpi = screen.getByLabelText("DPI");
+    await userEvent.clear(dpi);
+    await userEvent.type(dpi, "600");
+    const downsamplePx = screen.getByLabelText("downsample (px)");
+    await userEvent.clear(downsamplePx);
+    await userEvent.type(downsamplePx, "2000");
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ dpi: 600, downsample_px: 2000 }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("sends downsample_px null when full resolution is chosen", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+    await userEvent.click(
+      screen.getByLabelText("Full resolution (no downsample)"),
+    );
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ downsample_px: null }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("submits the chosen max_tokens and temperature from the Advanced section", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+
+    const maxTokens = screen.getByLabelText("max_tokens");
+    await userEvent.clear(maxTokens);
+    await userEvent.type(maxTokens, "8192");
+    // An explicit temperature is reachable only by leaving the pre-filled provider default.
+    await userEvent.click(
+      screen.getByLabelText("Use provider default (omit temperature)"),
+    );
+    const temperature = screen.getByLabelText("temperature");
+    await userEvent.clear(temperature);
+    await userEvent.type(temperature, "0.7");
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ max_tokens: 8192, temperature: 0.7 }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("submits the chosen reasoning effort", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("reasoning effort"),
+      "high",
+    );
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ reasoning_effort: "high" }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("offers the whole band to a selection that accepts it", async () => {
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+
+    expect(effortOptions()).toEqual(["low", "medium", "high", "xhigh"]);
+  });
+
+  it("narrows the band to what every selected Model accepts", async () => {
+    // A Run asks every Model the same effort, so adding one that stops at `high` takes xhigh
+    // off the table rather than letting the launch be refused server-side.
+    renderForm();
+    await pickModel();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Gemini 2.5 Flash" }),
+    );
+    await userEvent.click(screen.getByText("Advanced"));
+
+    expect(effortOptions()).toEqual(["low", "medium", "high"]);
+  });
+
+  it("drops an effort the selection no longer allows", async () => {
+    // xhigh chosen first, then a Model that caps at `high` is added. The form must submit the
+    // strongest still-allowed effort, never the stale choice the server would 422.
+    renderForm();
+    await pickModel();
+    await userEvent.click(screen.getByText("Advanced"));
+    await userEvent.selectOptions(
+      screen.getByLabelText("reasoning effort"),
+      "xhigh",
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Gemini 2.5 Flash" }),
+    );
+
+    await launch();
+
+    await waitFor(() =>
+      expect(api.createRun).toHaveBeenCalledWith(
+        expect.objectContaining({ reasoning_effort: "high" }),
+        expect.anything(),
+      ),
+    );
+  });
+});

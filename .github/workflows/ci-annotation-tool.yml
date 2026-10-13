@@ -4,14 +4,14 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "annotation_tool/**"
+      - "tools/annotation_tool/**"
       # The tests check that the public ground truth loads in the tool and fits its drawing.
       - "dataset/public/**"
       - ".github/workflows/ci-annotation-tool.yml"
   push:
     branches: [main]
     paths:
-      - "annotation_tool/**"
+      - "tools/annotation_tool/**"
       - "dataset/public/**"
       - ".github/workflows/ci-annotation-tool.yml"
 
@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: annotation_tool
+        working-directory: tools/annotation_tool
     steps:
       - uses: actions/checkout@v4
 
@@ -41,8 +41,8 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: |
-            annotation_tool/requirements.txt
-            annotation_tool/requirements-test.txt
+            tools/annotation_tool/requirements.txt
+            tools/annotation_tool/requirements-test.txt
 
       # The UI tests use Node's built-in test runner, so there is nothing to npm install.
       - uses: actions/setup-node@v4
