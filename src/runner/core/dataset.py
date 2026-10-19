@@ -7,6 +7,7 @@ from typing import Any, Literal
 import pymupdf
 
 LOCATION_GLOB = "*obj-location.json"
+DRAWING_PDF_NAME = "drawing.pdf"
 ALLOWED_LABELS = frozenset({"cabinet", "countertop", "elevation", "floor_plan", "callout"})
 LABEL_ALIASES: dict[str, str] = {"floor plan": "floor_plan"}
 
@@ -106,7 +107,7 @@ class LocalDatasetSource:
     def _is_drawing_dir(path: Path) -> bool:
         return (
             path.is_dir()
-            and len(list(path.glob("*.pdf"))) == 1
+            and (path / DRAWING_PDF_NAME).is_file()
             and len(list(path.glob(LOCATION_GLOB))) == 1
         )
 
@@ -118,8 +119,8 @@ class LocalDatasetSource:
         ]
         _require(
             len(drawing_dirs) > 0,
-            f"no drawing directories (one *.pdf and one {LOCATION_GLOB} each) found under "
-            f"{self.root}",
+            f"no drawing directories ({DRAWING_PDF_NAME} and one {LOCATION_GLOB} each) found "
+            f"under {self.root}",
         )
         return drawing_dirs
 
@@ -136,7 +137,7 @@ class LocalDatasetSource:
         return drawings
 
     def _load_drawing(self, drawing_dir: Path) -> DrawingGroundTruth:
-        pdf_path = next(drawing_dir.glob("*.pdf"))
+        pdf_path = drawing_dir / DRAWING_PDF_NAME
         location_path = next(drawing_dir.glob(LOCATION_GLOB))
 
         try:
