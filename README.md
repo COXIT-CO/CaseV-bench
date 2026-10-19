@@ -39,7 +39,7 @@ This is a drift check, not a leaderboard. The dataset is small enough to notice 
 behaves differently from the previous week, but not enough to rank models against each other.
 
 <!-- BENCHMARK_DASHBOARD:START -->
-_Last updated 2026-10-12 06:08 UTC by the weekly benchmark workflow._
+_Last updated 2026-10-19 06:08 UTC by the weekly benchmark workflow._
 
 | Model                        | F1 @ IoU 0.5 | Δ vs. previous run | Last run   |
 |------------------------------|--------------|--------------------|------------|
