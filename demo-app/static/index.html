@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en" data-theme="light" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CaseVBench — detection demo</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400..600&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/tokens.css" />
+  <link rel="stylesheet" href="/components.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind utilities point at the same CSS custom properties tokens.css/components.css
+    // use, so `bg-ink`, `text-text-2`, etc. and the .cx-* classes always agree.
+    const cxVar = (name) => `var(--${name})`;
+    tailwind.config = {
+      darkMode: ["selector", '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          fontFamily: { sans: [cxVar("font-sans")], mono: [cxVar("font-mono")] },
+          colors: {
+            bg: cxVar("bg"),
+            surface: { DEFAULT: cxVar("surface"), raised: cxVar("surface-raised"), sunken: cxVar("surface-sunken") },
+            text: { DEFAULT: cxVar("text"), 2: cxVar("text-2"), 3: cxVar("text-3"), disabled: cxVar("text-disabled") },
+            border: { DEFAULT: cxVar("border"), subtle: cxVar("border-subtle"), strong: cxVar("border-strong") },
+            accent: { DEFAULT: cxVar("accent"), hover: cxVar("accent-hover"), text: cxVar("accent-text"), tint: cxVar("accent-tint") },
+            "on-accent": cxVar("on-accent"),
+            "on-flame": cxVar("on-flame"),
+            ink: { DEFAULT: cxVar("ink"), surface: cxVar("ink-surface"), text: cxVar("ink-text"), "text-2": cxVar("ink-text-2"), "text-3": cxVar("ink-text-3"), border: cxVar("ink-border") },
+            good: { DEFAULT: cxVar("good"), tint: cxVar("good-tint") },
+            warn: { DEFAULT: cxVar("warn"), tint: cxVar("warn-tint") },
+            bad: { DEFAULT: cxVar("bad"), tint: cxVar("bad-tint") },
+            info: { DEFAULT: cxVar("info"), tint: cxVar("info-tint") },
+          },
+          borderRadius: { sm: cxVar("radius-sm"), md: cxVar("radius-md"), lg: cxVar("radius-lg"), xl: cxVar("radius-xl") },
+          boxShadow: { pop: cxVar("shadow-pop") },
+          backgroundImage: { flame: cxVar("gradient-flame"), "flame-hover": cxVar("gradient-flame-hover"), corona: cxVar("gradient-corona") },
+          fontSize: { "2xl": "2.5rem", "3xl": "3rem", "4xl": "4rem" },
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Legend chips (see app.js buildLegend) — a pill per object type, its own colour (--chip,
+       set inline per chip) only taking over the border/text/checkmark once checked, so an
+       unchecked type visibly recedes instead of all chips looking the same until you read the
+       text. :has() is what lets the checked state of the hidden checkbox drive its own label's
+       styling without any JS beyond toggling the input itself. */
+    .legend-chip {
+      --chip: var(--ink);
+      border-radius: var(--radius-pill);
+      transition:
+        border-color 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+        color 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+        background-color 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+    .legend-chip:has(input:checked) {
+      border-color: var(--chip);
+      color: var(--chip);
+      background-color: color-mix(in srgb, var(--chip) 10%, var(--surface-raised));
+    }
+    .legend-check {
+      width: 0;
+      opacity: 0;
+      transform: scale(0.3) rotate(-20deg);
+      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+    .legend-chip:has(input:checked) .legend-check {
+      width: 0.875rem;
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+  </style>
+</head>
+<body class="h-full">
+  <button
+    id="config-toggle"
+    class="cx-btn cx-btn--ink cx-btn--icon fixed top-4 right-4 z-20"
+    title="Settings"
+    aria-label="Settings"
+    type="button"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" />
+    </svg>
+  </button>
+
+  <button
+    id="history-toggle"
+    class="cx-btn cx-btn--ink cx-btn--icon fixed top-4 left-4 z-20"
+    title="History"
+    aria-label="History"
+    type="button"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.75 6.5a.75.75 0 00-1.5 0v4a.75.75 0 00.4.664l3 1.5a.75.75 0 00.67-1.342l-2.57-1.286V6.5z" />
+    </svg>
+  </button>
+
+  <!-- History drawer -->
+  <div id="history-backdrop" class="fixed inset-0 z-10 hidden bg-black/40"></div>
+  <div
+    id="history-drawer"
+    class="fixed inset-y-0 left-0 z-20 hidden w-80 flex-col border-r border-border bg-surface-raised shadow-pop"
+  >
+    <div class="flex items-center justify-between border-b border-border bg-surface px-4 py-3">
+      <h2 class="cx-eyebrow cx-eyebrow--muted">History</h2>
+      <button id="history-close" type="button" class="cx-btn cx-btn--ghost cx-btn--icon" title="Close" aria-label="Close history">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+        </svg>
+      </button>
+    </div>
+    <div class="border-b border-border p-3">
+      <input
+        id="history-search"
+        type="search"
+        placeholder="Filename or model"
+        aria-label="Filter history by filename or model"
+        class="cx-input cx-search w-full"
+      />
+    </div>
+    <div id="history-list" class="flex-1 overflow-y-auto"></div>
+    <p id="history-empty" class="hidden p-4 text-sm text-text-2">No runs yet.</p>
+  </div>
+
+  <div
+    id="config-panel"
+    class="fixed top-16 right-4 z-20 hidden w-72 rounded-xl border border-border bg-surface-raised shadow-pop"
+  >
+    <div class="p-5">
+      <p class="cx-eyebrow cx-eyebrow--muted mb-4">Settings</p>
+
+      <div class="cx-field mb-4">
+        <label class="cx-label" for="model-select">Model</label>
+        <select id="model-select" class="cx-select w-full"></select>
+      </div>
+      <input
+        id="model-custom"
+        type="text"
+        placeholder="openai/gpt-6-astra"
+        class="cx-input mb-4 hidden w-full"
+      />
+
+      <button id="show-prompt" type="button" class="cx-btn cx-btn--secondary w-full">
+        Edit prompt
+      </button>
+    </div>
+  </div>
+
+  <!-- Image lightbox -->
+  <div
+    id="lightbox"
+    class="fixed inset-0 z-30 hidden items-center justify-center bg-black/90 p-6"
+  >
+    <button
+      id="lightbox-close"
+      class="cx-btn cx-btn--icon absolute top-4 right-4 border border-ink-border bg-white/10 text-white hover:bg-white/20"
+      type="button"
+      title="Close"
+      aria-label="Close image"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+      </svg>
+    </button>
+    <figure class="flex max-h-full max-w-full flex-col items-center">
+      <img id="lightbox-image" class="max-h-[85vh] max-w-[90vw] border border-ink-border object-contain" src="" alt="" />
+      <div id="lightbox-overlay" class="hidden"></div>
+      <figcaption id="lightbox-caption" class="cx-meta mt-3 text-white/70"></figcaption>
+    </figure>
+  </div>
+
+  <!-- Prompt popup -->
+  <div
+    id="prompt-modal"
+    class="fixed inset-0 z-30 hidden items-center justify-center bg-black/70 p-6"
+  >
+    <div class="flex h-[85vh] w-full max-w-5xl flex-col rounded-xl border border-border bg-surface-raised shadow-pop">
+      <div class="flex items-center justify-between border-b border-border bg-surface px-5 py-3">
+        <div>
+          <p class="cx-eyebrow cx-eyebrow--muted">Prompt</p>
+          <p id="prompt-modal-status" class="cx-meta mt-0.5"></p>
+        </div>
+        <button
+          id="prompt-modal-close"
+          type="button"
+          class="cx-btn cx-btn--ghost cx-btn--icon"
+          title="Close"
+          aria-label="Close prompt editor"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+          </svg>
+        </button>
+      </div>
+      <textarea
+        id="prompt-modal-body"
+        spellcheck="false"
+        class="min-h-0 flex-1 resize-none overflow-y-auto p-5 font-mono text-sm text-text focus:outline-none"
+      ></textarea>
+      <div class="flex items-center justify-between border-t border-border bg-surface px-5 py-3">
+        <p class="cx-meta">Changes what's sent to the model for every page.</p>
+        <button
+          id="prompt-reset"
+          type="button"
+          class="cx-btn cx-btn--secondary cx-btn--sm"
+        >
+          Reset to default
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main class="mx-auto max-w-6xl px-6 py-12">
+    <section class="cx-hero mb-8">
+      <p class="cx-eyebrow cx-eyebrow--accent">CaseVBench</p>
+      <h1 class="cx-display mt-4">Detection demo</h1>
+      <p class="cx-meta mt-3 text-base">Upload a drawing sheet PDF and see what the model finds.</p>
+    </section>
+
+    <div id="dropzone" class="cx-dropzone">
+      <input id="file-input" type="file" accept="application/pdf" class="hidden" />
+      <p class="cx-h3" style="color: var(--text)">Drop a PDF here</p>
+      <label for="file-input" class="cx-btn cx-btn--ink cx-btn--sm cursor-pointer">Choose file</label>
+      <span id="file-name" class="cx-meta">No file selected</span>
+      <p id="upload-note" class="cx-meta"></p>
+    </div>
+
+    <button
+      id="run-button"
+      disabled
+      class="cx-btn cx-btn--primary mt-4 w-full"
+      type="button"
+    >
+      Run detection
+    </button>
+
+    <div id="summary-container" class="mt-8 hidden"></div>
+
+    <div id="status" class="mt-6 hidden items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 font-mono text-sm text-text">
+      <svg id="status-spinner" class="h-4 w-4 flex-shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <span id="status-text"></span>
+    </div>
+    <div id="error" class="cx-callout cx-callout--bad mt-6 hidden text-bad"></div>
+
+    <div id="results" class="mt-10 hidden space-y-8"></div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
