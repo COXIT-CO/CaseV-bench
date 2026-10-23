@@ -1,0 +1,316 @@
+"""Native ``objects`` importer for LocationGroundTruth (ticket 03, ADR 0022).
+
+Pure-ish service tests over a temp SQLite DB: a native ``objects`` JSON's absolute pixel
+boxes are converted to normalized 0-1 boxes on the correct Pages, normalized by each Page's
+**native point dimensions** (the source PDF's ``page.rect``, captured at ingest), and anything
+that can't be imported — an off-taxonomy category, a page the Drawing lacks, a box that
+grossly overflows its native frame, a box enclosing no area — is reported rather than silently
+dropped. The importer never calls a model, so no adapter seam is involved.
+"""
+
+import pytest
+from conftest import make_drawing_with_pages
+from sqlmodel import select
+
+from core.models.drawing import Drawing
+from core.models.location_ground_truth import LocationGroundTruth
+from core.services.location_ground_truth import (
+    DEGENERATE_BOX,
+    OUT_OF_FRAME,
+    UNKNOWN_PAGE,
+    UNMAPPED_LABEL,
+    LocationGroundTruthService,
+)
+
+
+def _boxes_by_page(session, drawing: Drawing) -> dict[int, list[LocationGroundTruth]]:
+    grouped: dict[int, list[LocationGroundTruth]] = {}
+    for page in drawing.pages:
+        rows = session.exec(
+            select(LocationGroundTruth).where(LocationGroundTruth.page_id == page.id)
+        ).all()
+        grouped[page.page_number] = list(rows)
+    return grouped
+
+
+def _obj(category: str, page: int, x: int, y: int, width: int, height: int) -> dict:
+    return {
+        "id": f"{category}-{page}-{x}-{y}",
+        "category": category,
+        "page": page,
+        "bbox": {"x": x, "y": y, "width": width, "height": height},
+    }
+
+
+def test_import_creates_normalized_boxes_on_correct_pages(session):
+    drawing = make_drawing_with_pages(session, [(1000, 2000), (500, 400)])
+    document = {
+        "project_id": "prj1",
+        "objects": [
+            # page 1: [x, y, w, h] px -> normalized by native (1000, 2000)
+            _obj("cabinet", 1, 100, 200, 300, 400),
+            # page 2: normalized by native (500, 400)
+            _obj("countertop", 2, 50, 40, 100, 80),
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 2
+    assert result.problems == []
+
+    by_page = _boxes_by_page(session, drawing)
+    assert len(by_page[1]) == 1 and len(by_page[2]) == 1
+
+    box1 = by_page[1][0]
+    assert box1.label == "cabinet"
+    assert box1.x_min == pytest.approx(0.1)
+    assert box1.y_min == pytest.approx(0.1)
+    assert box1.x_max == pytest.approx(0.4)  # (100 + 300) / 1000
+    assert box1.y_max == pytest.approx(0.3)  # (200 + 400) / 2000
+
+    box2 = by_page[2][0]
+    assert box2.label == "countertop"
+    assert box2.x_min == pytest.approx(0.1)  # 50 / 500
+    assert box2.y_min == pytest.approx(0.1)  # 40 / 400
+    assert box2.x_max == pytest.approx(0.3)  # (50 + 100) / 500
+    assert box2.y_max == pytest.approx(0.3)  # (40 + 80) / 400
+
+
+def test_normalization_uses_native_point_dims_not_pixel_dims(session):
+    # The Page's native point dims are authoritative for GT (ADR 0022). The helper sets the
+    # pixel dims to 4x the native frame; normalization must still divide by the native dims.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("cabinet", 1, 100, 100, 200, 200)]}
+
+    LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    box = _boxes_by_page(session, drawing)[1][0]
+    # Divided by the native 1000, not the pixel frame's 4000.
+    assert box.x_min == pytest.approx(0.1)
+    assert box.x_max == pytest.approx(0.3)
+
+
+def test_project_id_is_ignored(session):
+    # The Drawing the import is launched from is authoritative; the file's project_id, even a
+    # mismatched one, is read past.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "project_id": "some-other-project",
+        "objects": [_obj("cabinet", 1, 0, 0, 100, 100)],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 1
+    assert result.problems == []
+
+
+def test_off_taxonomy_category_is_reported_not_dropped(session):
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("windows", 1, 0, 0, 100, 100),  # not in the singular taxonomy
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    # The valid object still imports; the off-taxonomy one is reported, not dropped silently.
+    assert result.created == 1
+    assert len(result.problems) == 1
+    problem = result.problems[0]
+    assert problem.kind == UNMAPPED_LABEL
+    assert "windows" in problem.detail
+
+
+@pytest.mark.parametrize("category", ["floor plan", "Floor Plan", "floor  plan"])
+def test_prose_spelling_of_a_label_is_aliased_onto_the_taxonomy(session, category):
+    # An expert file writes the view type as prose. It imports as the taxonomy identifier,
+    # so the stored answer key speaks one vocabulary regardless of how the source spelled it.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj(category, 1, 0, 0, 100, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.problems == []
+    assert result.created == 1
+    assert [box.label for box in _boxes_by_page(session, drawing)[1]] == ["floor_plan"]
+
+
+def test_a_near_miss_of_an_alias_is_still_reported(session):
+    # The alias table lists spellings we have seen — it is not a fuzzy matcher. A typo of one
+    # stays loud rather than being normalized into the nearest label.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("floorplan", 1, 0, 0, 100, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    assert [problem.kind for problem in result.problems] == [UNMAPPED_LABEL]
+
+
+def test_unknown_page_is_reported_not_dropped(session):
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])  # only page 1 exists
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("cabinet", 9, 0, 0, 100, 100),  # page 9 does not exist
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 1
+    assert len(result.problems) == 1
+    problem = result.problems[0]
+    assert problem.kind == UNKNOWN_PAGE
+    assert "9" in problem.detail
+
+
+def test_gross_overflow_is_reported_out_of_frame_and_skipped(session):
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),  # well inside the frame
+            _obj("cabinet", 1, 900, 900, 400, 400),  # extends to 1300px on a 1000 frame
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 1
+    assert len(result.problems) == 1
+    assert result.problems[0].kind == OUT_OF_FRAME
+    # The in-frame box is the only one that landed.
+    assert len(_boxes_by_page(session, drawing)[1]) == 1
+
+
+def test_within_tolerance_overflow_is_clamped_and_accepted(session):
+    # A flush-to-edge annotation that spills over by <= ~0.5% is accepted and clamped to the
+    # unit square, not rejected as an error.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    # x_max = 1004 / 1000 = 1.004 -> within 0.5% tolerance -> clamp to 1.0.
+    document = {"objects": [_obj("cabinet", 1, 0, 0, 1004, 1004)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 1
+    assert result.problems == []
+    box = _boxes_by_page(session, drawing)[1][0]
+    assert box.x_max == pytest.approx(1.0)
+    assert box.y_max == pytest.approx(1.0)
+    assert box.x_min == pytest.approx(0.0)
+
+
+# --- degenerate boxes (adoption ticket 01, ADR 0031) ----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "named"),
+    [
+        (0, 100, "zero width"),
+        (100, 0, "zero height"),
+        (0, 0, "zero width"),
+        (-100, 100, "inverted"),
+        (100, -100, "inverted"),
+    ],
+)
+def test_degenerate_box_is_reported_and_skipped(session, width, height, named):
+    # A zero-area or inverted GT box can never be matched, so it would be a permanent,
+    # invisible false negative capping the Drawing's recall (ADR 0031). It is skipped with
+    # its own named reason rather than stored.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("cabinet", 1, 400, 400, width, height)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    assert len(result.problems) == 1
+    problem = result.problems[0]
+    assert problem.kind == DEGENERATE_BOX
+    # The reason names the condition, so the box is findable in the source file.
+    assert named in problem.detail
+    assert _boxes_by_page(session, drawing)[1] == []
+
+
+def test_box_that_clamping_collapses_is_reported_not_stored(session):
+    # A box lying entirely outside an edge but within the frame tolerance passes the frame
+    # check, and then *both* its corners clamp onto the same edge — so a well-formed source
+    # box would land as a zero-width row. The degeneracy is what matters, so it is re-checked
+    # on the clamped corners, not only on the source extents.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    # x spans -0.004 -> -0.002 normalized: inside the 0.5% tolerance, entirely left of the
+    # page, and clamps to 0.0 -> 0.0.
+    document = {"objects": [_obj("cabinet", 1, -4, 100, 2, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    assert [problem.kind for problem in result.problems] == [DEGENERATE_BOX]
+    assert _boxes_by_page(session, drawing)[1] == []
+
+
+def test_degenerate_box_does_not_fail_the_rest_of_the_import(session):
+    # One bad object is a per-box skip, not a whole-file reject — the valid boxes around it
+    # still land.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("cabinet", 1, 0, 0, 100, 100),
+            _obj("cabinet", 1, 400, 400, 0, 100),  # zero width
+            _obj("countertop", 1, 600, 600, 100, 100),
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 2
+    assert [problem.kind for problem in result.problems] == [DEGENERATE_BOX]
+    assert sorted(box.label for box in _boxes_by_page(session, drawing)[1]) == [
+        "cabinet",
+        "countertop",
+    ]
+
+
+def test_inverted_box_reports_degeneracy_rather_than_out_of_frame(session):
+    # An inverted box can also land outside the unit square once normalized (here x_max is
+    # negative). The degeneracy is the accurate diagnosis, so it is checked first — reporting
+    # ``out_of_frame`` would send the author looking for the wrong defect.
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("cabinet", 1, 100, 100, -300, 100)]}
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert [problem.kind for problem in result.problems] == [DEGENERATE_BOX]
+
+
+def test_each_distinct_problem_is_reported_once(session):
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {
+        "objects": [
+            _obj("windows", 1, 0, 0, 100, 100),  # unmapped, twice
+            _obj("windows", 1, 10, 10, 100, 100),
+            _obj("cabinet", 9, 0, 0, 100, 100),  # unknown page, twice
+            _obj("cabinet", 9, 10, 10, 100, 100),
+        ],
+    }
+
+    result = LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+    assert result.created == 0
+    kinds = sorted(problem.kind for problem in result.problems)
+    # One report per distinct cause, not one per object.
+    assert kinds == [UNKNOWN_PAGE, UNMAPPED_LABEL]
+
+
+def test_reimport_replaces_rather_than_duplicates(session):
+    drawing = make_drawing_with_pages(session, [(1000, 1000)])
+    document = {"objects": [_obj("cabinet", 1, 0, 0, 100, 100)]}
+    service = LocationGroundTruthService(session)
+
+    service.import_objects(drawing.id, document)
+    service.import_objects(drawing.id, document)
+
+    assert len(_boxes_by_page(session, drawing)[1]) == 1
