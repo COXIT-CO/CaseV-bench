@@ -18,8 +18,9 @@ uv sync
 
 ## Dataset layout
 
-Each drawing lives in its own directory containing exactly one PDF and one
+Each drawing lives in its own directory containing a `drawing.pdf` and one
 `*obj-location.json` ground-truth file (`obj-location.json` or `<name>-obj-location.json`).
+Any other PDFs in the directory (e.g. an annotated reference copy) are ignored.
 
 ```
 dataset/
