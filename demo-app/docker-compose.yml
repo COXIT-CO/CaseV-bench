@@ -1,0 +1,46 @@
+# Local run for demo-app only — a Postgres container for history, the demo-app container
+# itself, and the network connecting them. Nothing else in the repo (src/runner's own
+# docker-compose.yml, src/results_store) is touched by this file.
+#
+# Usage, from this directory:
+#   OPENROUTER_API_KEY=your-key-here docker compose up --build
+# Open http://localhost:8000. History persists in ./volume/pgdata on disk (gitignored,
+# dockerignored) across restarts; delete that folder to wipe it.
+#
+# DEMO_APP_MAX_UPLOAD_MB / DEMO_APP_MAX_PAGES / DEMO_APP_THREADS below have the same
+# defaults app/main.py and app/detect.py fall back to anyway — only set them on the
+# command line (same way as OPENROUTER_API_KEY above) if you actually want to override one.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./volume/pgdata:/var/lib/postgresql/data
+    networks:
+      - casev-demo
+    restart: unless-stopped
+
+  demo-app:
+    build:
+      # The Dockerfile depends on src/runner and src/packages/location-overlay by local
+      # path (see Dockerfile's own comment), so the build context has to be the repo
+      # root, not this directory.
+      context: ..
+      dockerfile: demo-app/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      DEMO_APP_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+      DEMO_APP_MAX_UPLOAD_MB: ${DEMO_APP_MAX_UPLOAD_MB:-10}
+      DEMO_APP_MAX_PAGES: ${DEMO_APP_MAX_PAGES:-25}
+      DEMO_APP_THREADS: ${DEMO_APP_THREADS:-4}
+    depends_on:
+      - postgres
+    networks:
+      - casev-demo
+
+networks:
+  casev-demo:
