@@ -1,0 +1,495 @@
+import type {
+  ApiMeta,
+  DrawingDetailResponse,
+  DrawingsResponse,
+  LaunchOptionsResponse,
+  LeaderboardResponse,
+  LocationImportResponse,
+  ModelsResponse,
+  PromptHistoryResponse,
+  PromptsResponse,
+  ResultDetailResponse,
+  RunDetailResponse,
+  RunHistoryResponse,
+  RunStatusResponse,
+} from "@/types";
+
+/** A representative `GET /api/meta` payload shared across tests. */
+export const META: ApiMeta = {
+  app: "Prompt & Config Lab",
+  labels: ["cabinet", "countertop", "floor_plan", "elevation", "callout"],
+  drawing_count: 3,
+  run_count: 7,
+  result_count: 12,
+};
+
+const DRAWINGS = [
+  { id: 3, name: "prj0001", page_count: 4 },
+  { id: 5, name: "prj0002", page_count: 2 },
+];
+
+/** The board (P/R/F1 columns): two scored rows (a rank-1 leader) and one unscored row. */
+export const LOCATION_BOARD: LeaderboardResponse = {
+  drawing_id: null,
+  prompt_family: null,
+  prompt_version: null,
+  sort: "f1",
+  metrics: ["f1", "precision", "recall"],
+  drawings: DRAWINGS,
+  label_count: 5,
+  iou_threshold: 0.5,
+  canonical_iou: true,
+  canonical_iou_threshold: 0.5,
+  rows: [
+    {
+      rank: 1,
+      result_id: 90,
+      run_id: 12,
+      model: "anthropic/claude-sonnet-4.5",
+      prompt_family: "loc-v1",
+      prompt_version: 2,
+      drawing_id: 3,
+      drawing_name: "prj0001",
+      scored: true,
+      precision: 0.8,
+      recall: 0.67,
+      f1: 0.73,
+    },
+    {
+      rank: 2,
+      result_id: 91,
+      run_id: 12,
+      model: "openai/gpt-5-mini",
+      prompt_family: "loc-v1",
+      prompt_version: 2,
+      drawing_id: 3,
+      drawing_name: "prj0001",
+      scored: true,
+      precision: 0.6,
+      recall: 0.5,
+      f1: 0.55,
+    },
+    {
+      rank: null,
+      result_id: 92,
+      run_id: 13,
+      model: "google/gemini-2.5-pro",
+      prompt_family: "boxes",
+      prompt_version: 1,
+      drawing_id: 5,
+      drawing_name: "prj0002",
+      scored: false,
+      precision: null,
+      recall: null,
+      f1: null,
+    },
+  ],
+};
+
+/** An empty board — no Results yet. */
+export const EMPTY_BOARD: LeaderboardResponse = {
+  drawing_id: null,
+  prompt_family: null,
+  prompt_version: null,
+  sort: "f1",
+  metrics: ["f1", "precision", "recall"],
+  drawings: [],
+  label_count: 5,
+  iou_threshold: 0.5,
+  canonical_iou: true,
+  canonical_iou_threshold: 0.5,
+  rows: [],
+};
+
+/** A scored location Result with two predicted pages. */
+export const LOCATION_RESULT: ResultDetailResponse = {
+  result_id: 90,
+  model: "anthropic/claude-sonnet-4.5",
+  prompt_family: "boxes",
+  prompt_version: 2,
+  run_id: 12,
+  drawing_id: 3,
+  drawing_name: "floorplan",
+  scored: true,
+  label_count: 5,
+  knobs: { dpi: 600, downsample_px: 2000, max_tokens: 8192, temperature: null, reasoning_effort: null },
+  iou_threshold: 0.5,
+  canonical_iou: true,
+  canonical_iou_threshold: 0.5,
+  location_score: {
+    precision: 0.87,
+    recall: 0.81,
+    f1: 0.84,
+    per_label: [
+      {
+        label: "cabinet",
+        tp: 22,
+        fp: 3,
+        fn: 2,
+        precision: 0.88,
+        recall: 0.92,
+        f1: 0.9,
+      },
+      {
+        label: "countertop",
+        tp: 14,
+        fp: 2,
+        fn: 4,
+        precision: 0.88,
+        recall: 0.78,
+        f1: 0.82,
+      },
+      {
+        label: "floor_plan",
+        tp: 5,
+        fp: 1,
+        fn: 0,
+        precision: 0.83,
+        recall: 1.0,
+        f1: 0.91,
+      },
+      {
+        label: "elevation",
+        tp: 9,
+        fp: 1,
+        fn: 1,
+        precision: 0.9,
+        recall: 0.9,
+        f1: 0.9,
+      },
+      {
+        label: "callout",
+        tp: 11,
+        fp: 4,
+        fn: 2,
+        precision: 0.73,
+        recall: 0.85,
+        f1: 0.79,
+      },
+    ],
+  },
+  predictions: [
+    {
+      page_number: 1,
+      status: "ok",
+      raw_content: '{"detections": []}',
+      parsed_json: '{"detections": []}',
+      parse_error: null,
+      box_count: 11,
+      edited_json: null,
+    },
+    {
+      page_number: 2,
+      status: "ok",
+      raw_content: '{"detections": []}',
+      parsed_json: '{"detections": []}',
+      parse_error: null,
+      box_count: 6,
+      edited_json: null,
+    },
+  ],
+};
+
+/** A location Result whose page-1 boxes were manually edited (ADR 0020, ticket 07): page 1
+ * carries an `edited_json` override with a single box (its `box_count` the edited count), page 2
+ * is the untouched model output. Drives the edit/redraw/badge/revert flow. */
+export const EDITED_LOCATION_RESULT: ResultDetailResponse = {
+  ...LOCATION_RESULT,
+  predictions: [
+    {
+      ...LOCATION_RESULT.predictions[0],
+      box_count: 1,
+      edited_json:
+        '{"detections": [{"label": "cabinet", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
+    },
+    LOCATION_RESULT.predictions[1],
+  ],
+};
+
+/** A scored location Result whose second page failed outright — nothing parsed and nothing
+ * salvaged. Drives the parsed-JSON block against the parse-error note. */
+export const FAILED_PAGE_LOCATION_RESULT: ResultDetailResponse = {
+  ...LOCATION_RESULT,
+  result_id: 45,
+  predictions: [
+    {
+      page_number: 1,
+      status: "ok",
+      // Raw is the model's verbatim (minified) reply; parsed is the normalized JSON the
+      // UI pretty-prints — so the two blocks render distinguishably.
+      raw_content:
+        '{"detections":[{"label":"cabinet","bounding_box":{"x_min":0.1,"y_min":0.1,"x_max":0.4,"y_max":0.4}}]}',
+      parsed_json:
+        '{"detections": [{"label": "cabinet", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
+      parse_error: null,
+      box_count: 1,
+      edited_json: null,
+    },
+    {
+      page_number: 2,
+      status: "error",
+      raw_content: "not json",
+      parsed_json: null,
+      parse_error: "response was not valid JSON",
+      box_count: 0,
+      edited_json: null,
+    },
+  ],
+};
+
+/** An unscored location Result: no ground truth yet, but the model's predicted boxes are
+ * still inspectable via the prediction-only overlay (ticket 12). */
+export const UNSCORED_LOCATION_RESULT: ResultDetailResponse = {
+  ...LOCATION_RESULT,
+  result_id: 44,
+  scored: false,
+  location_score: null,
+  predictions: [
+    {
+      page_number: 1,
+      status: "ok",
+      raw_content: '{"detections": []}',
+      parsed_json: '{"detections": []}',
+      parse_error: null,
+      box_count: 5,
+      edited_json: null,
+    },
+  ],
+};
+
+/** A location Result with a salvaged error page: the array was truncated, so the Prediction
+ * stays an unscored error but still carries the boxes that parsed and a rendered overlay
+ * (ADR 0019, ticket 03). Its second page is a clean ok page for contrast. */
+export const SALVAGED_LOCATION_RESULT: ResultDetailResponse = {
+  ...LOCATION_RESULT,
+  result_id: 91,
+  predictions: [
+    {
+      page_number: 1,
+      status: "error",
+      raw_content: '[{"label": "cabinet", "bounding_box": {"x_min": 0.1',
+      parsed_json:
+        '{"detections": [{"label": "cabinet", "bounding_box": {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}}]}',
+      parse_error: "response was truncated; salvaged intact array elements",
+      box_count: 1,
+      edited_json: null,
+    },
+    {
+      page_number: 2,
+      status: "ok",
+      raw_content: '{"detections": []}',
+      parsed_json: '{"detections": []}',
+      parse_error: null,
+      box_count: 6,
+      edited_json: null,
+    },
+  ],
+};
+
+/** A run history with one running and one done Run. */
+export const RUN_HISTORY: RunHistoryResponse = {
+  runs: [
+    {
+      id: 812,
+      status: "running",
+      progress: 3,
+      total_units: 6,
+      prompt_family: "strict-json",
+      prompt_version: 9,
+      drawing_name: "prj0001",
+      created_at: "2026-07-13T10:00:00Z",
+    },
+    {
+      id: 811,
+      status: "done",
+      progress: 6,
+      total_units: 6,
+      prompt_family: "boxes",
+      prompt_version: 12,
+      drawing_name: "prj0002",
+      created_at: "2026-07-13T09:00:00Z",
+    },
+  ],
+};
+
+/** The launch form's option set: two prompts, two drawings, three curated models. */
+export const LAUNCH_OPTIONS: LaunchOptionsResponse = {
+  prompts: [
+    { id: 9, family: "boxes", version: 3 },
+    { id: 4, family: "loc-v1", version: 2 },
+  ],
+  drawings: [
+    { id: 3, name: "prj0001", page_count: 4 },
+    { id: 5, name: "prj0002", page_count: 2 },
+  ],
+  catalog: [
+    {
+      slug: "anthropic/claude-sonnet-4.5",
+      label: "Claude Sonnet 4.5",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "openai/gpt-5-mini",
+      label: "GPT-5 mini",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "google/gemini-2.5-flash",
+      label: "Gemini 2.5 Flash",
+      max_reasoning_effort: "high" as const,
+    },
+  ],
+};
+
+/** An empty launch option set — no prompts and no drawings yet. */
+export const EMPTY_LAUNCH_OPTIONS: LaunchOptionsResponse = {
+  prompts: [],
+  drawings: [],
+  catalog: [],
+};
+
+/** A run detail whose knobs snapshot and result rows the detail page renders. */
+export const RUN_DETAIL: RunDetailResponse = {
+  run: { id: 812, status: "running", progress: 3, total_units: 6 },
+  prompt: { family: "strict-json", version: 9 },
+  drawing: { id: 3, name: "prj0001" },
+  knobs: {
+    dpi: 200,
+    downsample_px: 1600,
+    max_tokens: 4096,
+    temperature: 0.0,
+    reasoning_effort: "medium",
+  },
+  results: [
+    { id: 42, model: "anthropic/claude-sonnet-4.5" },
+    { id: 43, model: "openai/gpt-5-mini" },
+  ],
+};
+
+/** The Prompts list — one flat family collection (ADR 0032). */
+export const PROMPTS: PromptsResponse = {
+  families: [
+    { name: "boxes", latest_version: 3, count: 3 },
+    { name: "default", latest_version: 1, count: 1 },
+  ],
+};
+
+/** A family's history with two immutable versions, newest-first. The delete collateral
+ * (ADR-0016): v2 is pinned by 2 runs / 5 results, v1 by 1 run / 3 results, so the family
+ * total is 3 runs / 8 results. */
+export const PROMPT_HISTORY: PromptHistoryResponse = {
+  family: "boxes",
+  run_count: 3,
+  result_count: 8,
+  versions: [
+    {
+      version: 2,
+      text: "Locate only base cabinets, ignore wall cabinets.",
+      created_at: "2026-06-18T12:00:00Z",
+      run_count: 2,
+      result_count: 5,
+    },
+    {
+      version: 1,
+      text: "Locate every cabinet in the drawing.",
+      created_at: "2026-06-17T09:00:00Z",
+      run_count: 1,
+      result_count: 3,
+    },
+  ],
+};
+
+/** A single-version family — compare falls back to reading v1 against itself. No runs pin it,
+ * so deleting it (its sole version) removes an empty-collateral family. */
+export const PROMPT_HISTORY_SINGLE: PromptHistoryResponse = {
+  family: "default",
+  run_count: 0,
+  result_count: 0,
+  versions: [
+    {
+      version: 1,
+      text: "Return bounding boxes for every fixture.",
+      created_at: "2026-06-10T09:00:00Z",
+      run_count: 0,
+      result_count: 0,
+    },
+  ],
+};
+
+/** The Library Drawings list with two ingested drawings. */
+export const DRAWINGS_LIST: DrawingsResponse = {
+  drawings: [
+    { id: 3, name: "prj0001", page_count: 4 },
+    { id: 5, name: "prj0002", page_count: 1 },
+  ],
+};
+
+/** One Drawing's detail: two rendered pages with distinct pixel dimensions, plus the
+ * delete-collateral counts (2 runs / 5 results used this Drawing). */
+export const DRAWING_DETAIL: DrawingDetailResponse = {
+  drawing: { id: 3, name: "prj0001" },
+  run_count: 2,
+  result_count: 5,
+  pages: [
+    {
+      page_number: 1,
+      width_px: 1700,
+      height_px: 2200,
+      image_url: "/api/drawings/3/pages/1/image",
+    },
+    {
+      page_number: 2,
+      width_px: 2200,
+      height_px: 1700,
+      image_url: "/api/drawings/3/pages/2/image",
+    },
+  ],
+};
+
+/** A native import result: 37 boxes created, plus one off-taxonomy category and one unknown
+ * page reported rather than silently dropped. */
+export const LOCATION_IMPORT_RESULT: LocationImportResponse = {
+  created: 37,
+  problems: [
+    {
+      kind: "unmapped_label",
+      detail: "no taxonomy mapping for label 'windows'",
+    },
+    {
+      kind: "unknown_page",
+      detail: "object references page 9, which drawing 3 does not have",
+    },
+  ],
+};
+
+/** The curated model catalog for the Library Models view. */
+export const MODELS: ModelsResponse = {
+  catalog: [
+    {
+      slug: "anthropic/claude-sonnet-4.5",
+      label: "Claude Sonnet 4.5",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "openai/gpt-5-mini",
+      label: "GPT-5 mini",
+      max_reasoning_effort: "xhigh" as const,
+    },
+    {
+      slug: "google/gemini-2.5-flash",
+      label: "Gemini 2.5 Flash",
+      max_reasoning_effort: "high" as const,
+    },
+  ],
+};
+
+/** A terminal (done) status payload with results ready to view. */
+export const RUN_STATUS_DONE: RunStatusResponse = {
+  status: "done",
+  progress: 6,
+  total_units: 6,
+  results: [
+    { id: 42, model: "anthropic/claude-sonnet-4.5" },
+    { id: 43, model: "openai/gpt-5-mini" },
+  ],
+};

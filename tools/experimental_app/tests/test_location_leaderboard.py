@@ -1,0 +1,242 @@
+"""Location scoring + Leaderboard integration (spec: Testing Decisions — drive a whole
+location Run through the shared services against a temp SQLite DB, then assert what gets
+persisted and ranked; ADR 0004, ticket 11). With the adapter stubbed to canned boxes, a
+Run over two models plus imported COCO GT yields a Leaderboard ranked best-first by F1;
+with no GT the Results render as unscored, not zero."""
+
+import json
+from pathlib import Path
+
+import pytest
+from PIL import Image
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
+
+from core.models.drawing import Drawing, Page
+from core.models.score import Score
+from core.services.location_ground_truth import LocationGroundTruthService
+from core.services.prompt import PromptService
+from core.services.run import RunService
+from core.services.scoring import LocationLeaderboardMetric, ScoringService
+
+ACCURATE = "anthropic/claude-sonnet-4.5"
+SLOPPY = "openai/gpt-5-mini"
+
+# GT for the (single) page: one cabinet, one countertop.
+GT_CABINET = {"x_min": 0.1, "y_min": 0.1, "x_max": 0.4, "y_max": 0.4}
+GT_COUNTERTOP = {"x_min": 0.5, "y_min": 0.5, "x_max": 0.7, "y_max": 0.7}
+
+# Accurate model returns both GT boxes exactly → precision = recall = F1 = 1.0.
+ACCURATE_JSON = json.dumps(
+    [
+        {"label": "cabinet", "bounding_box": GT_CABINET},
+        {"label": "countertop", "bounding_box": GT_COUNTERTOP},
+    ]
+)
+# Sloppy model finds the cabinet but misses the countertop and hallucinates a third
+# box → tp=1, fp=1, fn=1 → precision = recall = F1 = 0.5.
+SLOPPY_JSON = json.dumps(
+    [
+        {"label": "cabinet", "bounding_box": GT_CABINET},
+        {
+            "label": "cabinet",
+            "bounding_box": {"x_min": 0.8, "y_min": 0.8, "x_max": 0.9, "y_max": 0.9},
+        },
+    ]
+)
+
+
+def _seed_drawing(session, tmp_path: Path) -> Drawing:
+    """A 1-page Drawing whose Page points at a real PNG so overlay rendering has an
+    image to draw on. Native point dims are 100×100 so native pixel boxes normalize cleanly.
+    """
+    drawing = Drawing(name="sample")
+    session.add(drawing)
+    session.commit()
+    session.refresh(drawing)
+    image_path = tmp_path / "page_0001.png"
+    Image.new("RGB", (100, 100), "white").save(image_path)
+    session.add(
+        Page(
+            drawing_id=drawing.id,
+            page_number=1,
+            image_path=str(image_path),
+            width_px=100,
+            height_px=100,
+            native_width_pt=100.0,
+            native_height_pt=100.0,
+        )
+    )
+    session.commit()
+    session.refresh(drawing)
+    return drawing
+
+
+def _import_gt(session, drawing) -> None:
+    """Import the two GT boxes via the native importer (ADR 0022) so the whole scored
+    path — import → score → rank — is exercised, not just a hand-built Score."""
+    document = {
+        # bbox is {x, y, width, height} in pixels; native frame is 100×100 so /100 gives norms.
+        "objects": [
+            {
+                "id": "a",
+                "category": "cabinet",
+                "page": 1,
+                "bbox": {"x": 10, "y": 10, "width": 30, "height": 30},
+            },
+            {
+                "id": "b",
+                "category": "countertop",
+                "page": 1,
+                "bbox": {"x": 50, "y": 50, "width": 20, "height": 20},
+            },
+        ],
+    }
+    LocationGroundTruthService(session).import_objects(drawing.id, document)
+
+
+def _launch(session, stub_adapter, drawing, overlay_root):
+    prompt = PromptService(session).create("default", "find them")
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    return RunService(session, stub_adapter, overlay_root=overlay_root).launch(
+        prompt.id, drawing.id, [ACCURATE, SLOPPY]
+    )
+
+
+def test_location_leaderboard_ranks_scored_results_best_first(
+    session, stub_adapter, tmp_path
+):
+    drawing = _seed_drawing(session, tmp_path)
+    _launch(session, stub_adapter, drawing, tmp_path / "overlays")
+    _import_gt(session, drawing)
+
+    rows = ScoringService(session).location_leaderboard(drawing.id)
+
+    # Best-first by F1: the accurate model (F1 1.0) ranks above the sloppy one (0.5).
+    assert [r.model for r in rows] == [ACCURATE, SLOPPY]
+    assert rows[0].precision == 1.0
+    assert rows[0].recall == 1.0
+    assert rows[0].f1 == 1.0
+    assert rows[1].precision == 0.5  # 1 tp / (1 tp + 1 fp)
+    assert rows[1].recall == 0.5  # 1 tp / (1 tp + 1 fn)
+    assert rows[1].f1 == 0.5
+    assert rows[1].scored is True
+
+    # Rows carry the prompt-version × model identity the Leaderboard is keyed on.
+    assert rows[0].prompt_family == "default"
+    assert rows[0].prompt_version == 1
+
+
+def test_location_leaderboard_can_rank_by_recall(session, stub_adapter, tmp_path):
+    drawing = _seed_drawing(session, tmp_path)
+    _launch(session, stub_adapter, drawing, tmp_path / "overlays")
+    _import_gt(session, drawing)
+
+    rows = ScoringService(session).location_leaderboard(
+        drawing.id, metric=LocationLeaderboardMetric.recall
+    )
+
+    # Accurate recall 1.0 still beats sloppy recall 0.5.
+    assert rows[0].model == ACCURATE
+    assert rows[0].recall == 1.0
+    assert rows[1].recall == 0.5
+
+
+def test_location_leaderboard_filters_by_prompt_family_and_version(
+    session, stub_adapter, tmp_path
+):
+    """A ``prompt_family`` narrows the location board to one lineage and a
+    ``prompt_version`` pins one exact version (ticket 04)."""
+    drawing = _seed_drawing(session, tmp_path)
+    stub_adapter.responses = {ACCURATE: ACCURATE_JSON, SLOPPY: SLOPPY_JSON}
+    prompt_service = PromptService(session)
+    v1 = prompt_service.create("default", "find them")
+    v2 = prompt_service.edit("default", "find them carefully")
+    other = prompt_service.create("terse", "find")
+    run_service = RunService(session, stub_adapter, overlay_root=tmp_path / "overlays")
+    run_service.launch(v1.id, drawing.id, [ACCURATE])
+    run_service.launch(v2.id, drawing.id, [SLOPPY])
+    run_service.launch(other.id, drawing.id, [ACCURATE])
+    _import_gt(session, drawing)
+
+    scoring = ScoringService(session)
+    # Family alone narrows to the "default" lineage — both its versions, not "terse".
+    family_rows = scoring.location_leaderboard(drawing.id, prompt_family="default")
+    assert {r.prompt_family for r in family_rows} == {"default"}
+    assert {r.prompt_version for r in family_rows} == {1, 2}
+
+    # Family + version pins one exact version.
+    pinned = scoring.location_leaderboard(
+        drawing.id, prompt_family="default", prompt_version=2
+    )
+    assert [(r.prompt_family, r.prompt_version) for r in pinned] == [("default", 2)]
+    assert [r.model for r in pinned] == [SLOPPY]
+
+
+def test_location_result_is_unscored_without_ground_truth(
+    session, stub_adapter, tmp_path
+):
+    drawing = _seed_drawing(session, tmp_path)
+    _launch(session, stub_adapter, drawing, tmp_path / "overlays")
+
+    rows = ScoringService(session).location_leaderboard(drawing.id)
+
+    # No GT imported: every Result is unscored (distinct from a zero score), and no
+    # Score rows are persisted.
+    assert all(r.scored is False for r in rows)
+    assert all(r.f1 is None for r in rows)
+    assert session.exec(select(Score)).all() == []
+
+
+def test_a_score_row_cannot_be_written_without_its_metrics(session):
+    """A Score row exists **iff** the Result was scored (ADR 0032): the service deletes the
+    row when a Drawing has no GT rather than nulling its metrics, so the columns state that
+    invariant and a metric-less row is rejected by the schema, not merely by convention.
+    """
+    session.add(Score(result_id=1, per_label_json="[]"))
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
+
+
+def test_location_score_is_recomputed_when_ground_truth_changes(
+    session, stub_adapter, tmp_path
+):
+    """A Score is a recompute against current GT, not a frozen value (ADR 0004):
+    importing then re-importing different GT re-ranks without re-running the model."""
+    drawing = _seed_drawing(session, tmp_path)
+    _launch(session, stub_adapter, drawing, tmp_path / "overlays")
+    gt_service = LocationGroundTruthService(session)
+
+    _import_gt(session, drawing)
+    accurate_row = next(
+        r
+        for r in ScoringService(session).location_leaderboard(drawing.id)
+        if r.model == ACCURATE
+    )
+    assert accurate_row.f1 == 1.0
+
+    # Re-import GT with only the cabinet moved out from under the accurate prediction:
+    # a single GT box the model no longer matches → recall drops to 0.
+    gt_service.import_objects(
+        drawing.id,
+        {
+            "objects": [
+                {
+                    "id": "a",
+                    "category": "cabinet",
+                    "page": 1,
+                    "bbox": {"x": 80, "y": 80, "width": 15, "height": 15},
+                },
+            ],
+        },
+    )
+    accurate_row = next(
+        r
+        for r in ScoringService(session).location_leaderboard(drawing.id)
+        if r.model == ACCURATE
+    )
+    # The accurate model's two boxes now match nothing; the lone GT box is missed.
+    assert accurate_row.recall == 0.0
+    assert accurate_row.f1 == 0.0

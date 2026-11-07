@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prompt &amp; Config Lab</title>
+    <script>
+      // Apply the persisted/system theme before first paint so a dark user never sees a
+      // flash of light (FOUC). Mirrors the "casev-theme" key + resolution in src/lib/theme.tsx;
+      // the React ThemeProvider takes over on mount.
+      (function () {
+        try {
+          var stored = localStorage.getItem("casev-theme");
+          var dark =
+            stored === "dark" ||
+            ((!stored || stored === "system") &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+        } catch (e) {
+          /* localStorage/matchMedia unavailable — fall back to the default light theme. */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "location-scorer"
+version = "0.1.0"
+description = "Pure, dependency-free scoring of localization predictions against ground truth."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "andrchmk" }]
+keywords = ["scoring", "iou", "object-detection", "benchmark"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["black (>=26.5.1,<27.0.0)", "isort (>=8.0.1,<9.0.0)", "pytest (>=9.1.1,<10.0.0)"]
+
+[tool.black]
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -93,7 +93,7 @@ meaningful rather than noise.
 
 It is a single multi-page PDF, [`drawing.pdf`](dataset/public/drawing.pdf), of 10 sheets, with the
 ground-truth boxes in [`obj-location.json`](dataset/public/obj-location.json). Annotators used the
-same object definitions as the prompt, drawing boxes with [`annotation_tool/`](annotation_tool),
+same object definitions as the prompt, drawing boxes with [`tools/annotation_tool/`](tools/annotation_tool),
 a small browser-based PDF annotator. Current counts:
 
 | Object | Boxes |
@@ -110,7 +110,8 @@ a small browser-based PDF annotator. Current counts:
 | Path | |
 |---|---|
 | [`dataset/`](dataset) | Drawings and ground truth |
-| [`annotation_tool/`](annotation_tool) | Browser-based tool used to annotate the dataset's ground-truth boxes |
+| [`tools/annotation_tool/`](tools/annotation_tool) | Browser-based tool used to annotate the dataset's ground-truth boxes |
+| [`tools/experimental_app/`](tools/experimental_app) | Browser-based playground for experiments |
 | [`src/runner/`](src/runner) | The `casev` CLI: render, prompt, parse, score |
 | [`src/packages/location-scorer/`](src/packages/location-scorer) | Scoring library, versioned and tagged separately |
 | [`src/results_store/`](src/results_store) | Schema for the shared Postgres table that weekly scores are published to |
